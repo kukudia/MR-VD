@@ -97,3 +97,27 @@ InitTestScene*.unity*
 
 # Auto-generated scenes by play mode tests
 /[Aa]ssets/[Ii]nit[Tt]est[Ss]cene*.unity*
+
+Build/MR-FYP_Data/sharedassets0.assets.resS
+
+Working Prototype/MR-FYP_Data/sharedassets0.assets.resS
+
+Library/ArtifactDB
+
+Library/PackageCache/com.unity.burst@6aff1dd08a0c/.Runtime/libburst-llvm-19.dylib
+
+APK/MRVD.apk
+
+Library/PackageCache/com.unity.burst@6aff1dd08a0c/.Runtime/libburst-llvm-10.dylib
+
+Library/PackageCache/com.unity.burst@6aff1dd08a0c/.Runtime/libburst-llvm-19.so
+
+Library/PackageCache/com.unity.burst@6aff1dd08a0c/.Runtime/hostmac/dsymutil
+
+Library/PackageCache/com.unity.visualeffectgraph@1610c4dd914d/Documentation~/Images/WhatsNew_17_1_Instanced_Explosions.mp4
+
+Library/PackageCache/com.unity.burst@6aff1dd08a0c/.Runtime/burst-llvm-19.dll
+
+Library/PackageCache/com.unity.burst@6aff1dd08a0c/.Runtime/burst-llvm-19-arm64.dll
+
+Library/PlayerDataCache/Win642/Data/sharedassets0.assets.resS

@@ -1,0 +1,17 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2010/07/nuspec.xsd">
+    <metadata>
+        <id>CSCore</id>
+        <version>1.2.1.2</version>
+        <title>CSCore</title>
+        <authors>Florian R.</authors>
+        <owners>Florian R.</owners>
+        <licenseUrl>https://github.com/filoe/cscore/blob/master/license.md</licenseUrl>
+        <projectUrl>https://github.com/filoe/cscore</projectUrl>
+        <requireLicenseAcceptance>true</requireLicenseAcceptance>
+        <description>An advanced audio library, written in C#. Provides tons of features. From playing/recording audio to decoding/encoding audio streams/files to processing audio data in realtime (e.g. applying custom effects during playback, create visualizations,...). The possibilities are nearly unlimited.</description>
+        <summary />
+        <releaseNotes />
+        <tags>cscore audio sound library .net visualization c# visual basic vb</tags>
+    </metadata>
+</package>
