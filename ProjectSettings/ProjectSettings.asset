@@ -147,8 +147,6 @@ PlayerSettings:
   preloadedAssets:
   - {fileID: 11400000, guid: cf47191ac6adf4a458f9428bbcf87bb5, type: 2}
   - {fileID: -944628639613478452, guid: 289c1b55c9541489481df5cc06664110, type: 3}
-  - {fileID: 3415708878490094067, guid: 30449fe8d1c40b549be6ef9cda29d751, type: 2}
-  - {fileID: 3116840062330653258, guid: 7018ca638c07ef34498a68ad87b9c31e, type: 2}
   metroInputSource: 0
   wsaTransparentSwapchain: 0
   m_HolographicPauseOnTrackingLoss: 1
@@ -776,7 +774,7 @@ PlayerSettings:
   managedStrippingLevel: {}
   incrementalIl2cppBuild: {}
   suppressCommonWarnings: 1
-  allowUnsafeCode: 0
+  allowUnsafeCode: 1
   useDeterministicCompilation: 1
   additionalIl2CppArgs: 
   scriptingRuntimeVersion: 1
