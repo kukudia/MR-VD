@@ -88,7 +88,7 @@ public class ScreenCapture : MonoBehaviour
     }
 
     public RawImage screenObject; // 需要将显示视频的3D对象拖到这里 / Drag the 3D object that displays the video here
-    public float brightnessFactor = 0.2f; // 亮度调节因子 / Brightness adjustment factor
+    public bool expand;
 
     private Texture2D screenTexture;
     //private Texture2D lastCapturedTexture; // 缓存上一次的纹理 / Cache the last captured texture
@@ -134,6 +134,12 @@ public class ScreenCapture : MonoBehaviour
         // 使用 System.Windows.Forms.Screen 获取屏幕宽度和高度 / Get screen width and height using System.Windows.Forms.Screen
         int width = System.Windows.Forms.Screen.PrimaryScreen.Bounds.Width;
         int height = System.Windows.Forms.Screen.PrimaryScreen.Bounds.Height;
+
+        if (expand)
+        {
+            width = 1920;
+            height = height * width / 1920;
+        }
 
         // 创建位图对象 / Create a bitmap object
         IntPtr hBitmap = CreateCompatibleBitmap(desktopDC, width, height);
