@@ -17,110 +17,172 @@ public class AudioVisualizerCSCore : MonoBehaviour
     private FftProvider fftProvider;
 
     private const int fftSize = 2048;
+
+    [Tooltip("每帧的原始 FFT 频率幅度数组（线性或对数取决于 linearFftData）")]
     public float[] frequencyData;
+
     private float[] averageSamples;
+
+    [Tooltip("经过平滑处理后的 FFT 数据，用于驱动可视化和节拍检测")]
     public float[] smoothedFftData;
+
+    [Tooltip("开启后使用线性幅度；关闭则使用对数（dB）刻度，更符合人耳感知")]
     public bool linearFftData;
+
+    [Tooltip("开启后每个节拍生成新的一排柱状条并向前移动；关闭则为静态柱状条")]
     public bool movingBars;
+
+    [Tooltip("FFT 数据的时域平滑权重（0=无平滑，趋近1=极度平滑）")]
     public float smoothingWeight = 0.5f;
+
+    [Tooltip("柱状条频率映射的对数幂次，值越大低频区域越展开")]
     public float logPower = 1f;
+
+    [Tooltip("低频范围的 FFT bin 上限，用于驱动低频灯光效果")]
     public int lowFrequencyRange = 256;
+
+    [Tooltip("单根柱状条的预制体")]
     public GameObject barPrefab;
+
+    [Tooltip("受低频能量驱动的点光源")]
     public Light lowFrequencyLight;
+
+    [Tooltip("受节拍事件驱动的点光源")]
     public Light beatLight;
+
+    [Tooltip("低频灯光当前亮度（由低频能量实时更新）")]
     public float lowFrequencyIntensity;
+
+    [Tooltip("节拍灯光当前亮度（节拍触发时设为峰值，随后衰减）")]
     public float beatIntensity;
+
+    [Tooltip("柱状条的总数量")]
     public int barCount = 64;
+
+    [Tooltip("柱状条组的父级 Transform，用于定位")]
     public Transform barPosition;
+
+    [Tooltip("灯光基础亮度倍率")]
     public float brightness = 5;
+
+    [Tooltip("灯光亮度上限")]
     public float maxBrightness = 20;
+
+    [Tooltip("柱状条之间的水平间距")]
     public float horizontalScale = 0.01f;
+
+    [Tooltip("柱状条高度的缩放系数")]
     public float verticalScale = 1f;
+
+    [Tooltip("柱状条排列椭圆的半长轴 a（控制宽度）")]
     public float a = 5;
+
+    [Tooltip("柱状条排列椭圆的半短轴 b（控制深度）")]
     public float b = 1;
+
     private GameObject[] bars;
 
     // ==================== 改进的BPM检测字段 ====================
+
+    [Tooltip("当前小节内的拍子序号（1~4循环）")]
     public int beat = 0;
 
-    // 多频段能量历史
     private Queue<float> kickEnergyHistory = new Queue<float>();
     private Queue<float> snareEnergyHistory = new Queue<float>();
     private Queue<float> bassEnergyHistory = new Queue<float>();
+
+    [Tooltip("用于计算自适应阈值的能量历史窗口大小（帧数）")]
     public int energyHistorySize = 50;
 
-    // 节拍时间戳
+    [Tooltip("记录最近若干节拍的间隔时间（秒），用于BPM计算")]
     public List<float> beatTimestamps = new List<float>();
-    private List<float> beatConfidences = new List<float>(); // 每个节拍的置信度
+
+    private List<float> beatConfidences = new List<float>();
+
+    [Tooltip("上一次检测到节拍的时间戳（Time.time）")]
     public float lastBeatTime = 0f;
+
+    [Tooltip("上一次更新BPM的时间戳（Time.time）")]
     public float lastBpmUpdateTime = 0f;
 
-    // BPM相关
+    [Tooltip("卡尔曼滤波输出的原始BPM估计值（未经倍频修正）")]
     public float detectedBPM = 0f;
+
+    [Tooltip("经过倍频修正后限定在72~180范围内的BPM")]
     public float limitedBPM = 0f;
-    public float smoothedBPM = 0f; // 平滑后的BPM
-    private float bpmVariance = 0f; // BPM方差，用于评估稳定性
 
-    // 自适应阈值
+    [Tooltip("平滑后的BPM显示值（预留字段）")]
+    public float smoothedBPM = 0f;
+
+    private float bpmVariance = 0f;
+
+    [Tooltip("基于历史能量均值和标准差动态计算的 Kick 鼓触发阈值")]
     public float dynamicKickThreshold;
+
+    [Tooltip("基于历史能量均值和标准差动态计算的 Snare 鼓触发阈值")]
     public float dynamicSnareThreshold;
-    private float energyStdDev = 0f; // 能量标准差
 
-    // 相位跟踪
-    private float predictedNextBeat = 0f; // 预测的下一个节拍时间
-    private float phaseError = 0f; // 相位误差
+    private float energyStdDev = 0f;
+    private float predictedNextBeat = 0f;
+    private float phaseError = 0f;
 
-    // 配置参数
+    [Tooltip("BPM 更新的时间间隔（秒），数值越小响应越快但越不稳定")]
     public float bpmUpdateInterval = 1f;
-    public float minBeatInterval = 0.3f; // 最小节拍间隔（对应200 BPM）
-    public float maxBeatInterval = 1.2f; // 最大节拍间隔（对应50 BPM）
+
+    [Tooltip("两次有效节拍之间的最小间隔（秒），对应最大 BPM 约 200")]
+    public float minBeatInterval = 0.3f;
+
+
+    [Tooltip("节拍硬冷却时间（秒）。触发后此窗口内的 onset 全部忽略，防止鼓击瞬态衰减被重复记录。建议为 minBeatInterval * 1.5")]
+    public float beatCooldown = 0.45f;
+    [Tooltip("两次有效节拍之间的最大间隔（秒），对应最小 BPM 约 50")]
+    public float maxBeatInterval = 1.2f;
+
+    [Tooltip("当前节拍间隔（秒），由 limitedBPM 自动推算")]
     public float beatInterval = 0.5f;
 
-    // UI相关
+    [Tooltip("是否正在显示节拍提示文字（在 OnGUI 中控制 BEAT 字样的闪烁）")]
     public bool showBeatText = false;
+
+    [Tooltip("节拍文字的显示持续时间（秒），自动设为节拍间隔的 1/4")]
     public float beatDisplayTime = 0.2f;
+
     private float beatTimer = 0f;
 
-    // 置信度阈值
+    [Tooltip("节拍被接受所需的最低置信度（0~1），系统会根据BPM稳定性动态调整")]
     [Range(0f, 1f)]
-    public float minBeatConfidence = 0.3f; // 最小置信度
+    public float minBeatConfidence = 0.3f;
 
-    // 能量变化率检测
     private float previousKickEnergy = 0f;
     private float previousSnareEnergy = 0f;
-
-    // 静音检测
-    private float silenceStartTime = -1f; // 静音开始时间
-    private float silenceThreshold = 0.001f; // 静音能量阈值
-    private float silenceDuration = 0.1f; // 持续静音多久后才清空（秒）
-    private bool wasSilent = false; // 上一帧是否静音
-
-    // 节拍强度分级（用于区分强拍和弱拍）
+    private float silenceStartTime = -1f;
+    private float silenceThreshold = 0.001f;
+    private float silenceDuration = 0.1f;
+    private bool wasSilent = false;
     private List<float> beatStrengths = new List<float>();
 
-    // Onset detection 改进
+    [Tooltip("Onset 灵敏度系数，值越大需要更强的能量突变才能触发节拍（1.0=宽松，3.0=严格）")]
     [Range(1.0f, 3.0f)]
-    public float onsetSensitivity = 1.5f; // Onset灵敏度系数
+    public float onsetSensitivity = 1.5f;
 
-    // 卡尔曼滤波参数（用于平滑BPM）
     private float kalmanEstimate = 0f;
     private float kalmanErrorCovariance = 1f;
     private float kalmanProcessNoise = 0.01f;
     private float kalmanMeasurementNoise = 0.1f;
 
     // ==================== 调性检测字段 ====================
-    private string currentKey = "Unknown";
-    private string currentMode = "Major";
+    [Tooltip("当前检测到的调名（C / C# / D ... B）")]
+    public string currentKey = "Unknown";
+
+    [Tooltip("当前检测到的调式（Major / Minor）")]
+    public string currentMode = "Unknown";
+
+    [Tooltip("调性检测更新间隔（秒）。每隔此时间重新计算一次，0 = 每帧更新")]
+    public float keyUpdateInterval = 0.0f;
+
     private float lastKeyUpdateTime = 0f;
-    private float keyUpdateInterval = 0.8f;
 
-    private Queue<string> recentKeys = new Queue<string>();
-    private int keyHistorySize = 5;
-    private float keyConfidenceThreshold = 0.08f;
-    private double[] chromaAccumulator = new double[12];
-    private int chromaFrameCount = 0;
-    private int chromaAverageFrames = 3;
-
+    // Krumhansl-Schmuckler 调性模板（标准值）
     private static readonly double[] majorProfile = new double[]
     {
         6.35, 2.23, 3.48, 2.33, 4.38, 4.09,
@@ -140,16 +202,32 @@ public class AudioVisualizerCSCore : MonoBehaviour
     };
 
     // VFX
+
+    [Tooltip("Kick 鼓触发时播放的 Visual Effect Graph 特效")]
     public VisualEffect kickVfx;
+
+    [Tooltip("Bass 能量驱动的 Visual Effect Graph 特效（连续控制）")]
     public VisualEffect bassVfx;
+
+    [Tooltip("Synth 能量驱动的 Visual Effect Graph 特效（连续控制）")]
     public VisualEffect synthVfx;
 
+    [Tooltip("当前帧的 Kick 频段（40~100Hz）能量均值")]
     public float kickEnergy;
+
+    [Tooltip("当前帧的 Bass 频段（60~250Hz）能量均值")]
     public float bassEnergy;
+
+    [Tooltip("当前帧的 Synth 频段（400~4000Hz）能量均值")]
     public float synthEnergy;
 
+    [Tooltip("触发 Kick VFX 事件所需的最低 kickEnergy 值")]
     public float kickThreshold = 0.5f;
+
+    [Tooltip("Bass 能量映射到 VFX 参数 BassRate 的灵敏度倍率")]
     public float bassSensitivity = 20f;
+
+    [Tooltip("Synth 能量映射到 VFX 参数 SynthStrength 的灵敏度倍率")]
     public float synthSensitivity = 10f;
 
     void Start()
@@ -408,36 +486,45 @@ public class AudioVisualizerCSCore : MonoBehaviour
         }
     }
 
-    // ==================== 改进的节拍检测算法 ====================
+    // ==================== 节拍检测算法 ====================
 
     /// <summary>
-    /// 改进的节拍检测算法
-    /// 主要改进：
-    /// 1. 多频段综合检测（Kick + Snare）
-    /// 2. 自适应阈值（基于标准差）
-    /// 3. Onset检测（能量变化率）
-    /// 4. 相位预测和校正
-    /// 5. 置信度评分
-    /// 6. 卡尔曼滤波平滑BPM
+    /// 节拍检测算法
+    ///
+    /// 修复了原版"间隔不断漂移至 minBeatInterval"的根本原因：
+    ///
+    /// 【问题根源】
+    ///   原版将 beatTimestamps 存为 deltaTime（距上次节拍的秒数），并在每次触发后
+    ///   立刻重置 lastBeatTime。鼓击的瞬态衰减会在 minBeatInterval 内连续触发多次，
+    ///   每次间隔都约等于 minBeatInterval，大量污染数据；中位数也跟着漂移，
+    ///   过滤逻辑失效，形成正反馈死锁。
+    ///
+    /// 【修复方案】
+    ///   1. beatTimestamps 改为存储"绝对触发时间戳"（Time.time），
+    ///      BPM 在 UpdateBPM 时统一用相邻时间戳差值计算，不再实时写入 deltaTime。
+    ///   2. 引入 beatCooldown（默认 = minBeatInterval * 1.5）硬冷却：
+    ///      冷却期内的 onset 全部忽略，从根本上防止同一鼓击被重复记录。
+    ///   3. UpdateBPM 中的合法性检查改为对"相邻时间戳差"做范围约束
+    ///      （必须在 minBeatInterval ~ maxBeatInterval 之间），
+    ///      而不是对早已污染的中位数做偏差过滤。
+    ///   4. 移除 OnKeyChanged 对 beatTimestamps 的写入，
+    ///      调性变化不再污染节拍数据。
     /// </summary>
     private void DetectBeatImproved(float[] fft)
     {
         float time = Time.time;
 
         // ====== 步骤1：计算多频段能量 ======
-        float snareEnergy = GetBandEnergy(fft, 150, 300); // Snare通常在150-300Hz
+        float snareEnergy = GetBandEnergy(fft, 150, 300);
 
         // ====== 步骤2：维护能量历史 ======
         kickEnergyHistory.Enqueue(kickEnergy);
         snareEnergyHistory.Enqueue(snareEnergy);
 
-        if (kickEnergyHistory.Count > energyHistorySize)
-        {
-            kickEnergyHistory.Dequeue();
-            snareEnergyHistory.Dequeue();
-        }
+        if (kickEnergyHistory.Count > energyHistorySize) kickEnergyHistory.Dequeue();
+        if (snareEnergyHistory.Count > energyHistorySize) snareEnergyHistory.Dequeue();
 
-        if (kickEnergyHistory.Count < 10) // 需要足够的历史数据
+        if (kickEnergyHistory.Count < 10)
         {
             previousKickEnergy = kickEnergy;
             previousSnareEnergy = snareEnergy;
@@ -447,90 +534,61 @@ public class AudioVisualizerCSCore : MonoBehaviour
         // ====== 步骤3：计算自适应阈值 ======
         float kickMean = kickEnergyHistory.Average();
         float snareMean = snareEnergyHistory.Average();
-
-        // 计算标准差
         float kickStdDev = CalculateStdDev(kickEnergyHistory.ToArray(), kickMean);
         float snareStdDev = CalculateStdDev(snareEnergyHistory.ToArray(), snareMean);
 
-        // 自适应阈值 = 平均值 + N * 标准差
         dynamicKickThreshold = kickMean + onsetSensitivity * kickStdDev;
         dynamicSnareThreshold = snareMean + onsetSensitivity * snareStdDev;
 
-        // ====== 步骤4：Onset检测（能量突变检测）======
-        float kickOnset = kickEnergy - previousKickEnergy;
-        float snareOnset = snareEnergy - previousSnareEnergy;
+        // ====== 步骤4：Onset 检测（正向能量突变）======
+        float kickOnset = Mathf.Max(0, kickEnergy - previousKickEnergy);
+        float snareOnset = Mathf.Max(0, snareEnergy - previousSnareEnergy);
 
-        // 确保是正向突变（能量增加）
-        kickOnset = Mathf.Max(0, kickOnset);
-        snareOnset = Mathf.Max(0, snareOnset);
-
-        // ====== 步骤5：综合判断是否为节拍 ======
+        // ====== 步骤5：判断是否为有效 onset ======
         bool isKickBeat = kickEnergy > dynamicKickThreshold && kickOnset > kickStdDev * 0.5f;
         bool isSnareBeat = snareEnergy > dynamicSnareThreshold && snareOnset > snareStdDev * 0.5f;
 
-        // 计算当前节拍的置信度
-        float kickConfidence = isKickBeat ? Mathf.Clamp01((kickEnergy - dynamicKickThreshold) / (kickMean * 0.5f)) : 0f;
-        float snareConfidence = isSnareBeat ? Mathf.Clamp01((snareEnergy - dynamicSnareThreshold) / (snareMean * 0.5f)) : 0f;
+        float kickConfidence = isKickBeat ? Mathf.Clamp01((kickEnergy - dynamicKickThreshold) / Mathf.Max(kickMean * 0.5f, 1e-6f)) : 0f;
+        float snareConfidence = isSnareBeat ? Mathf.Clamp01((snareEnergy - dynamicSnareThreshold) / Mathf.Max(snareMean * 0.5f, 1e-6f)) : 0f;
         float totalConfidence = Mathf.Max(kickConfidence, snareConfidence);
 
-        // ====== 步骤6：相位校正 - 检查是否在预测的节拍窗口内 ======
-        float deltaTime = time - lastBeatTime;
-        bool inPredictedWindow = false;
+        // ====== 步骤6：相位窗口加权（锁相后提升置信度）======
+        float timeSinceLast = time - lastBeatTime;
 
-        if (predictedNextBeat > 0)
+        if (predictedNextBeat > 0f)
         {
             float timeToPredicted = Mathf.Abs(time - predictedNextBeat);
-            float windowSize = beatInterval * 0.15f; // 允许±15%的误差窗口
-            inPredictedWindow = timeToPredicted < windowSize;
-
-            // 如果在窗口内，提升置信度
-            if (inPredictedWindow)
-            {
-                totalConfidence *= 1.3f; // 提升30%置信度
-            }
+            if (timeToPredicted < beatInterval * 0.15f)
+                totalConfidence *= 1.3f;
         }
 
-        // ====== 步骤7：决定是否接受此节拍 ======
-        bool isBeat = (isKickBeat || isSnareBeat) &&
-                      totalConfidence > minBeatConfidence &&
-                      deltaTime >= minBeatInterval;
+        // ====== 步骤7：硬冷却 + 置信度门控 ======
+        // beatCooldown 防止同一鼓击的瞬态衰减被重复记录，
+        // 这是解决"漂移至 minBeatInterval"的核心修复。
+        bool cooldownPassed = timeSinceLast >= beatCooldown;
+        bool isBeat = (isKickBeat || isSnareBeat)
+                      && totalConfidence > minBeatConfidence
+                      && cooldownPassed;
 
-        // 如果有预测，还要检查是否超过最大间隔
-        if (predictedNextBeat > 0 && deltaTime > maxBeatInterval)
+        // ====== 步骤8：节拍丢失检测（超过最大间隔则重置）======
+        if (predictedNextBeat > 0f && timeSinceLast > maxBeatInterval)
         {
-            // 太久没检测到节拍，强制重置
-            Debug.Log($"[Beat] 节拍丢失，重置检测");
+            Debug.Log("[Beat] 节拍丢失，重置检测");
             ResetBeatDetection();
         }
 
-        // ====== 步骤8：记录节拍 ======
+        // ====== 步骤9：记录绝对时间戳（非 deltaTime）======
         if (isBeat)
         {
-            // 计算节拍强度（用于区分强拍弱拍）
             float beatStrength = kickEnergy + snareEnergy;
 
-            beatTimestamps.Add(deltaTime);
+            // 存储绝对时间戳，BPM 计算时取相邻差值
+            beatTimestamps.Add(time);
             beatConfidences.Add(totalConfidence);
             beatStrengths.Add(beatStrength);
 
-            // 实时清理：如果新节拍与历史中位数偏差过大，立即检查
-            if (beatTimestamps.Count > 4)
-            {
-                float currentMedian = GetMedian(beatTimestamps.ToArray());
-                float deviation = Mathf.Abs(deltaTime - currentMedian) / currentMedian;
-
-                // 如果偏差>50%，这可能是噪音节拍，移除它
-                if (deviation > 0.5f)
-                {
-                    Debug.Log($"[Beat] 检测到异常节拍并移除: {deltaTime:F2}s (中位数: {currentMedian:F2}s, 偏差: {deviation * 100:F1}%)");
-                    beatTimestamps.RemoveAt(beatTimestamps.Count - 1);
-                    beatConfidences.RemoveAt(beatConfidences.Count - 1);
-                    beatStrengths.RemoveAt(beatStrengths.Count - 1);
-                }
-            }
-
-            // 限制历史记录大小（保持较小的窗口）
-            int maxSize = 12;
+            // 限制历史窗口大小
+            int maxSize = 16;
             if (beatTimestamps.Count > maxSize)
             {
                 beatTimestamps.RemoveAt(0);
@@ -539,28 +597,23 @@ public class AudioVisualizerCSCore : MonoBehaviour
             }
 
             lastBeatTime = time;
-            lowFrequencyIntensity = 3;
+            lowFrequencyIntensity = 3f;
 
-            Debug.Log($"[Beat] 检测到节拍 - 置信度: {totalConfidence:F2}, Kick: {kickEnergy:F2}, Snare: {snareEnergy:F2}, 间隔: {deltaTime:F2}s");
+            Debug.Log($"[Beat] 触发节拍 - 置信度: {totalConfidence:F2}, Kick: {kickEnergy:F3}, Snare: {snareEnergy:F3}");
         }
 
-        // ====== 步骤9：定期更新BPM ======
+        // ====== 步骤10：定期更新 BPM ======
         if (time - lastBpmUpdateTime > bpmUpdateInterval && beatTimestamps.Count >= 4)
         {
             UpdateBPM();
             lastBpmUpdateTime = time;
         }
 
-        // ====== 步骤10：预测下一个节拍 ======
-        if (limitedBPM > 0)
+        // ====== 步骤11：预测下一个节拍 ======
+        if (limitedBPM > 0f)
         {
             predictedNextBeat = lastBeatTime + beatInterval;
-
-            // 计算相位误差（用于调试）
-            if (isBeat && predictedNextBeat > 0)
-            {
-                phaseError = time - predictedNextBeat;
-            }
+            if (isBeat) phaseError = time - predictedNextBeat;
         }
 
         // 更新前一帧能量
@@ -568,148 +621,126 @@ public class AudioVisualizerCSCore : MonoBehaviour
         previousSnareEnergy = snareEnergy;
 
         // 手动点击辅助（调试用）
-        if (Input.GetMouseButtonDown(0))
+        if (Input.GetMouseButtonDown(0) && timeSinceLast > minBeatInterval)
         {
-            float manualDelta = time - lastBeatTime;
-            if (manualDelta > minBeatInterval)
-            {
-                beatTimestamps.Add(manualDelta);
-                beatConfidences.Add(1.0f);
-                beatStrengths.Add(kickEnergy + snareEnergy);
-                lastBeatTime = time;
-                Debug.Log($"[Beat] 手动节拍 - 间隔: {manualDelta:F2}s");
-            }
+            beatTimestamps.Add(time);
+            beatConfidences.Add(1.0f);
+            beatStrengths.Add(kickEnergy + snareEnergy);
+            lastBeatTime = time;
+            Debug.Log($"[Beat] 手动节拍 @ {time:F2}s");
         }
 
-        // ====== 改进的静音检测与渐进式清理 ======
+        // ====== 静音检测与渐进式清理 ======
         CheckAndHandleSilence(kickEnergy, snareEnergy, time);
     }
 
     /// <summary>
-    /// 更新BPM（使用加权平均和卡尔曼滤波）
+    /// 更新 BPM
+    ///
+    /// 修复要点：
+    /// - beatTimestamps 现在是绝对时间戳，需先转换为相邻差值 intervals[]
+    /// - 合法性过滤直接按 [minBeatInterval, maxBeatInterval] 硬范围剔除，
+    ///   不再依赖容易漂移的"中位数偏差"过滤。
     /// </summary>
     private void UpdateBPM()
     {
         if (beatTimestamps.Count < 4)
             return;
 
-        // ====== 步骤1：计算中位数作为参考 ======
-        float median = GetMedian(beatTimestamps.ToArray());
+        // ====== 步骤1：将绝对时间戳转换为相邻差值 ======
+        // 仅用差值计算 BPM，不修改 beatTimestamps 本身
+        List<float> intervals = new List<float>();
+        List<float> intConfidences = new List<float>();
 
-        // ====== 步骤2：异常值过滤并清理原始数据 ======
-        List<float> filteredIntervals = new List<float>();
-        List<float> filteredConfidences = new List<float>();
-        List<float> filteredStrengths = new List<float>();
-
-        for (int i = 0; i < beatTimestamps.Count; i++)
+        for (int i = 1; i < beatTimestamps.Count; i++)
         {
-            float interval = beatTimestamps[i];
-            float deviation = Mathf.Abs(interval - median) / median;
+            float gap = beatTimestamps[i] - beatTimestamps[i - 1];
 
-            // 保留偏差<30%的数据
-            if (deviation < 0.3f)
+            // ====== 步骤2：硬范围过滤（修复漂移的关键）======
+            // 只保留物理上合法的节拍间隔，直接丢弃 minBeatInterval 附近的噪音点
+            if (gap >= minBeatInterval && gap <= maxBeatInterval)
             {
-                filteredIntervals.Add(interval);
-                filteredConfidences.Add(beatConfidences[i]);
-                filteredStrengths.Add(beatStrengths[i]);
+                intervals.Add(gap);
+                // 取相邻两个节拍置信度的均值作为该间隔的权重
+                intConfidences.Add((beatConfidences[i - 1] + beatConfidences[i]) * 0.5f);
             }
             else
             {
-                Debug.Log($"[BPM] 移除异常数据: {interval:F2}s (中位数: {median:F2}s, 偏差: {deviation * 100:F1}%)");
+                Debug.Log($"[BPM] 丢弃非法间隔: {gap:F2}s（合法范围 {minBeatInterval:F2}~{maxBeatInterval:F2}s）");
             }
         }
 
-        // 如果过滤后数据太少，保留最近的几个
-        if (filteredIntervals.Count < 3 && beatTimestamps.Count >= 3)
+        if (intervals.Count < 3)
         {
-            Debug.Log($"[BPM] 过滤后数据不足，保留最近3个");
-            int startIdx = Mathf.Max(0, beatTimestamps.Count - 3);
-            filteredIntervals.Clear();
-            filteredConfidences.Clear();
-            filteredStrengths.Clear();
-
-            for (int i = startIdx; i < beatTimestamps.Count; i++)
-            {
-                filteredIntervals.Add(beatTimestamps[i]);
-                filteredConfidences.Add(beatConfidences[i]);
-                filteredStrengths.Add(beatStrengths[i]);
-            }
-        }
-
-        // ====== 关键修复：用过滤后的数据替换原始数据 ======
-        beatTimestamps = filteredIntervals;
-        beatConfidences = filteredConfidences;
-        beatStrengths = filteredStrengths;
-
-        // ====== 步骤3：限制历史数据大小（保留最近8-12个） ======
-        int maxHistorySize = 10;
-        if (beatTimestamps.Count > maxHistorySize)
-        {
-            int removeCount = beatTimestamps.Count - maxHistorySize;
-            beatTimestamps.RemoveRange(0, removeCount);
-            beatConfidences.RemoveRange(0, removeCount);
-            beatStrengths.RemoveRange(0, removeCount);
-            Debug.Log($"[BPM] 清理旧数据，保留最近{maxHistorySize}个");
-        }
-
-        if (beatTimestamps.Count < 3)
-        {
-            Debug.Log($"[BPM] 数据不足，等待更多节拍");
+            Debug.Log("[BPM] 合法间隔不足3个，等待更多节拍");
             return;
         }
 
-        // ====== 步骤4：使用置信度加权平均 ======
-        float weightedSum = 0f;
-        float totalWeight = 0f;
+        // ====== 步骤3：基于合法间隔的中位数做二次过滤（30% 范围）======
+        float median = GetMedian(intervals.ToArray());
+        List<float> filteredIntervals = new List<float>();
+        List<float> filteredConfidences = new List<float>();
 
-        for (int i = 0; i < beatTimestamps.Count; i++)
+        for (int i = 0; i < intervals.Count; i++)
         {
-            float weight = beatConfidences[i];
-            weightedSum += beatTimestamps[i] * weight;
-            totalWeight += weight;
+            float deviation = Mathf.Abs(intervals[i] - median) / median;
+            if (deviation < 0.3f)
+            {
+                filteredIntervals.Add(intervals[i]);
+                filteredConfidences.Add(intConfidences[i]);
+            }
+            else
+            {
+                Debug.Log($"[BPM] 二次过滤移除: {intervals[i]:F2}s（中位数: {median:F2}s，偏差: {deviation * 100:F1}%）");
+            }
         }
 
-        float avgInterval = totalWeight > 0 ? weightedSum / totalWeight : beatTimestamps.Average();
+        if (filteredIntervals.Count < 2)
+        {
+            // 二次过滤太激进时退回只用中位数
+            filteredIntervals = new List<float> { median };
+            filteredConfidences = new List<float> { 0.5f };
+        }
 
-        // ====== 步骤5：计算BPM ======
+        // ====== 步骤4：置信度加权平均 ======
+        float weightedSum = 0f;
+        float totalWeight = 0f;
+        for (int i = 0; i < filteredIntervals.Count; i++)
+        {
+            weightedSum += filteredIntervals[i] * filteredConfidences[i];
+            totalWeight += filteredConfidences[i];
+        }
+        float avgInterval = totalWeight > 0f ? weightedSum / totalWeight : filteredIntervals.Average();
+
+        // ====== 步骤5：计算原始 BPM ======
         float rawBPM = 60f / avgInterval;
 
-        // ====== 步骤6：使用卡尔曼滤波平滑BPM ======
-        if (kalmanEstimate == 0)
+        // ====== 步骤6：卡尔曼滤波平滑 BPM ======
+        if (kalmanEstimate == 0f)
         {
             kalmanEstimate = rawBPM;
         }
         else
         {
-            // 预测步骤
-            float predictedEstimate = kalmanEstimate;
             float predictedCovariance = kalmanErrorCovariance + kalmanProcessNoise;
-
-            // 更新步骤
             float kalmanGain = predictedCovariance / (predictedCovariance + kalmanMeasurementNoise);
-            kalmanEstimate = predictedEstimate + kalmanGain * (rawBPM - predictedEstimate);
-            kalmanErrorCovariance = (1 - kalmanGain) * predictedCovariance;
+            kalmanEstimate = kalmanEstimate + kalmanGain * (rawBPM - kalmanEstimate);
+            kalmanErrorCovariance = (1f - kalmanGain) * predictedCovariance;
         }
 
         detectedBPM = kalmanEstimate;
 
-        // ====== 步骤7：限制BPM范围 ======
+        // ====== 步骤7：倍频修正 + 限定范围 ======
         LimitBPM();
 
-        // ====== 步骤8：计算BPM稳定性（方差）======
-        bpmVariance = CalculateStdDev(beatTimestamps.ToArray(), avgInterval);
+        // ====== 步骤8：根据稳定性动态调整置信度阈值 ======
+        bpmVariance = CalculateStdDev(filteredIntervals.ToArray(), avgInterval);
+        minBeatConfidence = bpmVariance < 0.05f
+            ? Mathf.Max(0.2f, minBeatConfidence - 0.05f)
+            : 0.3f;
 
-        // 如果BPM很稳定，可以提高置信度阈值
-        if (bpmVariance < 0.05f)
-        {
-            minBeatConfidence = Mathf.Max(0.2f, minBeatConfidence - 0.05f);
-        }
-        else
-        {
-            minBeatConfidence = 0.3f;
-        }
-
-        Debug.Log($"[BPM] 更新BPM: {Mathf.RoundToInt(limitedBPM)} (原始: {rawBPM:F1}, 平滑: {kalmanEstimate:F1}, 方差: {bpmVariance:F3}, 数据点: {beatTimestamps.Count})");
+        Debug.Log($"[BPM] 更新: {Mathf.RoundToInt(limitedBPM)} BPM" +
+                  $"（原始: {rawBPM:F1}, 平滑: {kalmanEstimate:F1}, 方差: {bpmVariance:F3}, 有效间隔: {filteredIntervals.Count}）");
     }
 
     /// <summary>
@@ -719,7 +750,6 @@ public class AudioVisualizerCSCore : MonoBehaviour
     {
         if (detectedBPM > 0)
         {
-            float previousLimitedBPM = limitedBPM;
             limitedBPM = detectedBPM;
 
             // 倍频修正
@@ -731,29 +761,6 @@ public class AudioVisualizerCSCore : MonoBehaviour
             while (limitedBPM > 180)
             {
                 limitedBPM /= 2;
-            }
-
-            // ====== 新增：检测BPM突变 ======
-            if (previousLimitedBPM > 0)
-            {
-                float bpmChange = Mathf.Abs(limitedBPM - previousLimitedBPM) / previousLimitedBPM;
-
-                // 如果BPM变化超过20%，可能是音乐段落变化
-                if (bpmChange > 0.2f)
-                {
-                    Debug.Log($"[BPM] 检测到BPM突变: {previousLimitedBPM:F0} -> {limitedBPM:F0} (变化: {bpmChange * 100:F1}%)");
-
-                    // 如果变化超过40%，清空历史重新检测
-                    if (bpmChange > 0.4f)
-                    {
-                        Debug.Log($"[BPM] BPM变化过大，清空历史数据");
-                        beatTimestamps.Clear();
-                        beatConfidences.Clear();
-                        beatStrengths.Clear();
-                        kalmanEstimate = limitedBPM; // 重置卡尔曼滤波
-                        kalmanErrorCovariance = 1f;
-                    }
-                }
             }
 
             // 更新节拍间隔
@@ -941,233 +948,145 @@ public class AudioVisualizerCSCore : MonoBehaviour
         }
     }
 
-    // ==================== 调性检测算法（保持不变）====================
+    // ==================== 调性检测算法 ====================
 
+    /// <summary>
+    /// 调性检测（即时版）
+    ///
+    /// 设计原则：去掉所有缓冲、投票、置信度门控，每次调用直接输出最佳匹配调性。
+    /// 唯一的节流是 keyUpdateInterval（默认 0，即每帧更新）。
+    ///
+    /// 流程：
+    ///   1. ExtractChromaFeatures：将 FFT 频谱映射到 12 个色度 bin，
+    ///      权重 = sqrt(amplitude)，噪声频率自然趋零，无需阈值过滤。
+    ///   2. NormalizeChroma：L2 归一化，消除响度差异。
+    ///   3. 遍历 24 个调（12 大调 + 12 小调），用皮尔逊相关系数与 K-S 模板匹配，
+    ///      取相关系数最大的那个调直接作为结果，无平局处理、无粘滞偏置。
+    ///   4. 结果与上一帧不同时立即更新 currentKey / currentMode 并触发回调。
+    /// </summary>
     private void DetectKeyFromFft(float[] fft)
     {
         try
         {
             double[] chroma = ExtractChromaFeatures(fft);
+            chroma = NormalizeChroma(chroma);
 
-            for (int i = 0; i < 12; i++)
+            // 遍历全部 24 个调，取皮尔逊相关系数最大者
+            double bestScore = double.MinValue;
+            string bestKey = "C";
+            string bestMode = "Major";
+
+            for (int shift = 0; shift < 12; shift++)
             {
-                chromaAccumulator[i] += chroma[i];
-            }
-            chromaFrameCount++;
+                double scoreMajor = PearsonCorr(chroma, majorProfile, shift);
+                if (scoreMajor > bestScore)
+                {
+                    bestScore = scoreMajor;
+                    bestKey = keyNames[shift];
+                    bestMode = "Major";
+                }
 
-            if (chromaFrameCount < chromaAverageFrames)
-            {
-                return;
-            }
-
-            double[] avgChroma = new double[12];
-            for (int i = 0; i < 12; i++)
-            {
-                avgChroma[i] = chromaAccumulator[i] / chromaFrameCount;
-            }
-
-            avgChroma = NormalizeChroma(avgChroma);
-
-            Array.Clear(chromaAccumulator, 0, 12);
-            chromaFrameCount = 0;
-
-            string detectedKey;
-            string detectedMode;
-            double bestCorr;
-
-            DetectKeyAndMode(avgChroma, out detectedKey, out detectedMode, out bestCorr);
-
-            if (bestCorr < 0.2)
-            {
-                return;
+                double scoreMinor = PearsonCorr(chroma, minorProfile, shift);
+                if (scoreMinor > bestScore)
+                {
+                    bestScore = scoreMinor;
+                    bestKey = keyNames[shift];
+                    bestMode = "Minor";
+                }
             }
 
-            string fullKey = $"{detectedKey} {detectedMode}";
-            recentKeys.Enqueue(fullKey);
-
-            if (recentKeys.Count > keyHistorySize)
+            // 结果变化时立即更新，无任何延迟
+            if (bestKey != currentKey || bestMode != currentMode)
             {
-                recentKeys.Dequeue();
-            }
-
-            var keyVotes = recentKeys.GroupBy(k => k)
-                                     .OrderByDescending(g => g.Count())
-                                     .First();
-
-            string mostVotedKey = keyVotes.Key;
-
-            string currentFullKey = $"{currentKey} {currentMode}";
-            if (mostVotedKey != currentFullKey && keyVotes.Count() >= keyHistorySize / 3)
-            {
-                string[] parts = mostVotedKey.Split(' ');
-                currentKey = parts[0];
-                currentMode = parts[1];
-
+                currentKey = bestKey;
+                currentMode = bestMode;
                 lastKeyUpdateTime = Time.time;
                 OnKeyChanged();
-
-                Debug.Log($"[Key] 🎵 Key changed to: {currentKey} {currentMode} (confidence: {bestCorr:F3})");
+                Debug.Log($"[Key] 🎵 {currentKey} {currentMode}");
             }
         }
         catch (Exception ex)
         {
-            Debug.LogError($"[KeyDetection] Error detecting key: {ex.Message}\n{ex.StackTrace}");
+            Debug.LogError($"[KeyDetection] {ex.Message}\n{ex.StackTrace}");
         }
     }
 
+    /// <summary>
+    /// 将 FFT 频谱映射到 12 色度 bin。
+    /// 权重 = sqrt(amplitude)，使高幅度音符突出，噪声趋零，无需硬阈值。
+    /// 相邻半音之间按音符内小数部分做高斯扩散，减少量化误差。
+    /// </summary>
     private double[] ExtractChromaFeatures(float[] fft)
     {
         double[] chroma = new double[12];
         int sampleRate = waveSource.WaveFormat.SampleRate;
-        double freqResolution = (double)sampleRate / fft.Length;
+        double freqRes = (double)sampleRate / fft.Length;
 
-        int minBin = Mathf.Max(1, (int)(80.0 / freqResolution));
-        int maxBin = Mathf.Min(fft.Length - 1, (int)(4000.0 / freqResolution));
+        int minBin = Mathf.Max(1, (int)(80.0 / freqRes));
+        int maxBin = Mathf.Min(fft.Length - 1, (int)(4000.0 / freqRes));
 
         for (int i = minBin; i <= maxBin; i++)
         {
-            double freq = i * freqResolution;
+            if (fft[i] <= 0f) continue;
 
-            if (fft[i] < 0.0005f)
-                continue;
-
+            double freq = i * freqRes;
             double midiNote = 12.0 * Math.Log(freq / 440.0, 2.0) + 69.0;
             int noteClass = ((int)Math.Round(midiNote) % 12 + 12) % 12;
+            double weight = Math.Sqrt(fft[i]);
 
-            double weight = Math.Log10(fft[i] + 1e-10) + 20;
-
-            double fractionalPart = midiNote - Math.Floor(midiNote);
-            double currentWeight = weight * Math.Exp(-0.5 * fractionalPart * fractionalPart);
-            double nextWeight = weight * Math.Exp(-0.5 * (1 - fractionalPart) * (1 - fractionalPart));
-
-            chroma[noteClass] += Math.Max(0, currentWeight);
-            chroma[(noteClass + 1) % 12] += Math.Max(0, nextWeight);
+            // 高斯扩散到相邻半音，减少频率量化误差
+            double frac = midiNote - Math.Floor(midiNote);
+            chroma[noteClass] += weight * Math.Exp(-0.5 * frac * frac);
+            chroma[(noteClass + 1) % 12] += weight * Math.Exp(-0.5 * (1.0 - frac) * (1.0 - frac));
         }
 
         return chroma;
     }
 
+    /// <summary>L2 归一化，消除响度差异。</summary>
     private double[] NormalizeChroma(double[] chroma)
     {
-        double sum = 0;
-        for (int i = 0; i < chroma.Length; i++)
-        {
-            sum += chroma[i] * chroma[i];
-        }
-
-        double norm = Math.Sqrt(sum);
-        if (norm < 1e-10)
-        {
-            return chroma;
-        }
-
-        double[] normalized = new double[chroma.Length];
-        for (int i = 0; i < chroma.Length; i++)
-        {
-            normalized[i] = chroma[i] / norm;
-        }
-
-        return normalized;
+        double sq = 0;
+        for (int i = 0; i < 12; i++) sq += chroma[i] * chroma[i];
+        double norm = Math.Sqrt(sq);
+        if (norm < 1e-10) return chroma;
+        double[] n = new double[12];
+        for (int i = 0; i < 12; i++) n[i] = chroma[i] / norm;
+        return n;
     }
 
-    private void DetectKeyAndMode(double[] chroma, out string key, out string mode, out double confidence)
+    /// <summary>皮尔逊相关系数：chroma 与 template 在偏移 shift 处的相关度（-1 ~ 1）。</summary>
+    private double PearsonCorr(double[] chroma, double[] template, int shift)
     {
-        double maxCorrMajor = double.MinValue;
-        double maxCorrMinor = double.MinValue;
-        int bestKeyMajor = 0;
-        int bestKeyMinor = 0;
-
-        for (int shift = 0; shift < 12; shift++)
-        {
-            double corrMajor = CalculatePearsonCorrelation(chroma, majorProfile, shift);
-            if (corrMajor > maxCorrMajor)
-            {
-                maxCorrMajor = corrMajor;
-                bestKeyMajor = shift;
-            }
-
-            double corrMinor = CalculatePearsonCorrelation(chroma, minorProfile, shift);
-            if (corrMinor > maxCorrMinor)
-            {
-                maxCorrMinor = corrMinor;
-                bestKeyMinor = shift;
-            }
-        }
-
-        if (maxCorrMajor > maxCorrMinor + keyConfidenceThreshold)
-        {
-            key = keyNames[bestKeyMajor];
-            mode = "Major";
-            confidence = maxCorrMajor;
-        }
-        else if (maxCorrMinor > maxCorrMajor + keyConfidenceThreshold)
-        {
-            key = keyNames[bestKeyMinor];
-            mode = "Minor";
-            confidence = maxCorrMinor;
-        }
-        else
-        {
-            if (currentMode == "Major")
-            {
-                key = keyNames[bestKeyMajor];
-                mode = "Major";
-                confidence = maxCorrMajor;
-            }
-            else
-            {
-                key = keyNames[bestKeyMinor];
-                mode = "Minor";
-                confidence = maxCorrMinor;
-            }
-        }
-    }
-
-    private double CalculatePearsonCorrelation(double[] chroma, double[] template, int shift)
-    {
-        double chromaMean = 0;
-        double templateMean = 0;
+        double cMean = 0, tMean = 0;
         for (int i = 0; i < 12; i++)
         {
-            chromaMean += chroma[i];
-            templateMean += template[(i + shift) % 12];
+            cMean += chroma[i];
+            tMean += template[(i + shift) % 12];
         }
-        chromaMean /= 12.0;
-        templateMean /= 12.0;
+        cMean /= 12.0;
+        tMean /= 12.0;
 
-        double numerator = 0;
-        double chromaVar = 0;
-        double templateVar = 0;
-
+        double num = 0, cVar = 0, tVar = 0;
         for (int i = 0; i < 12; i++)
         {
-            double chromaDiff = chroma[i] - chromaMean;
-            double templateDiff = template[(i + shift) % 12] - templateMean;
-
-            numerator += chromaDiff * templateDiff;
-            chromaVar += chromaDiff * chromaDiff;
-            templateVar += templateDiff * templateDiff;
+            double cd = chroma[i] - cMean;
+            double td = template[(i + shift) % 12] - tMean;
+            num += cd * td;
+            cVar += cd * cd;
+            tVar += td * td;
         }
 
-        double denominator = Math.Sqrt(chromaVar * templateVar);
-        if (denominator < 1e-10)
-        {
-            return 0;
-        }
-
-        return numerator / denominator;
+        double denom = Math.Sqrt(cVar * tVar);
+        return denom < 1e-10 ? 0.0 : num / denom;
     }
 
     private void OnKeyChanged()
     {
-        float deltaTime = Time.time - lastBeatTime;
-        if (deltaTime > minBeatInterval)
-        {
-            beatTimestamps.Add(deltaTime);
-            beatConfidences.Add(0.5f); // 调性变化时给予中等置信度
-            beatStrengths.Add(kickEnergy + GetBandEnergy(smoothedFftData, 150, 300));
-        }
-        lastBeatTime = Time.time;
+        // 调性变化不写入 beatTimestamps，避免污染节拍间隔数据。
+        // 原版此处会把 deltaTime（往往很短）塞入列表并重置 lastBeatTime，
+        // 是导致间隔漂移至 minBeatInterval 的原因之一。
+        Debug.Log($"[Key] 调性变化回调（不写入节拍数据）");
     }
 
     private float GetBandEnergy(float[] spectrum, float fMin, float fMax)

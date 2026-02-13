@@ -13772,6 +13772,7 @@ Transform:
   - {fileID: 687841793}
   - {fileID: 5540493609426584938}
   - {fileID: 856097601}
+  - {fileID: 1973676870}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &1135648487
@@ -19806,16 +19807,16 @@ MonoBehaviour:
   beatLight: {fileID: 687841792}
   lowFrequencyIntensity: 0
   beatIntensity: 0
-  barCount: 127
+  barCount: 64
   barPosition: {fileID: 1675917932}
   brightness: 2
   maxBrightness: 30
-  horizontalScale: 0.01
-  verticalScale: 200
-  a: 1.5
+  horizontalScale: 0.02
+  verticalScale: 400
+  a: 5
   b: 1
   beat: 0
-  energyHistorySize: 50
+  energyHistorySize: 200
   beatTimestamps: []
   lastBeatTime: 0
   lastBpmUpdateTime: 0
@@ -19826,12 +19827,16 @@ MonoBehaviour:
   dynamicSnareThreshold: 0
   bpmUpdateInterval: 1.5
   minBeatInterval: 0.3
+  beatCooldown: 0.45
   maxBeatInterval: 1.2
   beatInterval: 0.5
   showBeatText: 0
   beatDisplayTime: 0.2
   minBeatConfidence: 0.3
   onsetSensitivity: 1.5
+  currentKey: Unknown
+  currentMode: Major
+  keyUpdateInterval: 0.2
   kickVfx: {fileID: 818633432}
   bassVfx: {fileID: 818633432}
   synthVfx: {fileID: 818633432}
@@ -19851,7 +19856,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 2.5, y: 50, z: 100}
+  m_LocalScale: {x: 2.5, y: 20, z: 100}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 1135648486}
@@ -22752,6 +22757,37 @@ Transform:
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 1310555676}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &1973676869
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1973676870}
+  m_Layer: 3
+  m_Name: Bars
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1973676870
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1973676869}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1135648486}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1981025587
 GameObject:
