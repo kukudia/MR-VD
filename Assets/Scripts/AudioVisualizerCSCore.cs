@@ -7,7 +7,6 @@ using CSCore.CoreAudioAPI;
 using CSCore.DSP;
 using CSCore.SoundIn;
 using CSCore.Streams;
-using UnityEngine.VFX;
 
 public class AudioVisualizerCSCore : MonoBehaviour
 {
@@ -79,6 +78,32 @@ public class AudioVisualizerCSCore : MonoBehaviour
 
     [Tooltip("柱状条排列椭圆的半短轴 b（控制深度）")]
     public float b = 1;
+
+    // ==================== 新增：对数压缩参数 ====================
+    [Header("对数压缩设置")]
+    [Tooltip("对数压缩强度（值越大压缩越明显，建议 1.0~3.0）")]
+    [Range(0.1f, 100f)]
+    public float logCompressionStrength = 1.5f;
+
+    [Tooltip("对数压缩偏移量（避免 log(0)，建议 0.01~1.0）")]
+    [Range(0.001f, 2f)]
+    public float logCompressionOffset = 0.1f;
+
+    [Tooltip("柱状条高度最大值限制")]
+    public float maxBarHeight = 10f;
+
+    [Tooltip("柱状条高度最小值（确保可见性）")]
+    public float minBarHeight = 0.05f;
+
+    [Tooltip("启用动态范围自动调整")]
+    public bool enableDynamicRange = true;
+
+    [Tooltip("动态范围调整速度")]
+    [Range(0.1f, 5f)]
+    public float dynamicRangeSpeed = 1f;
+
+    private float dynamicScaleFactor = 1f;
+    private float maxRecentAmplitude = 1f;
 
     private GameObject[] bars;
 
@@ -157,7 +182,6 @@ public class AudioVisualizerCSCore : MonoBehaviour
     private float previousSnareEnergy = 0f;
     private float silenceStartTime = -1f;
     private float silenceThreshold = 0.001f;
-    private float silenceDuration = 0.1f;
     private bool wasSilent = false;
     private List<float> beatStrengths = new List<float>();
 
@@ -200,17 +224,6 @@ public class AudioVisualizerCSCore : MonoBehaviour
         "C", "C#", "D", "D#", "E", "F",
         "F#", "G", "G#", "A", "A#", "B"
     };
-
-    // VFX
-
-    [Tooltip("Kick 鼓触发时播放的 Visual Effect Graph 特效")]
-    public VisualEffect kickVfx;
-
-    [Tooltip("Bass 能量驱动的 Visual Effect Graph 特效（连续控制）")]
-    public VisualEffect bassVfx;
-
-    [Tooltip("Synth 能量驱动的 Visual Effect Graph 特效（连续控制）")]
-    public VisualEffect synthVfx;
 
     [Tooltip("当前帧的 Kick 频段（40~100Hz）能量均值")]
     public float kickEnergy;
@@ -408,33 +421,27 @@ public class AudioVisualizerCSCore : MonoBehaviour
             beatLight.intensity = beatIntensity;
         }
 
-        // 频段能量
-        kickEnergy = GetBandEnergy(smoothedFftData, 40, 100);
-        bassEnergy = GetBandEnergy(smoothedFftData, 60, 250);
-        synthEnergy = GetBandEnergy(smoothedFftData, 400, 4000);
+        // 频段能量 - 使用 frequencyData
+        kickEnergy = GetBandEnergy(frequencyData, 40, 100);
+        bassEnergy = GetBandEnergy(frequencyData, 60, 250);
+        synthEnergy = GetBandEnergy(frequencyData, 400, 4000);
 
-        if (kickVfx != null && kickEnergy > kickThreshold)
-        {
-            kickVfx.SendEvent("OnKick");
-            kickVfx.SetFloat("KickBurst", kickEnergy * 50f);
-        }
-
-        if (bassVfx != null)
-        {
-            bassVfx.SetFloat("BassRate", Mathf.Clamp01(bassEnergy * bassSensitivity));
-        }
-
-        if (synthVfx != null)
-        {
-            synthVfx.SetFloat("SynthStrength", Mathf.Clamp01(synthEnergy * synthSensitivity));
-        }
-
+        // 只有 UpdateBars 使用 smoothedFftData
         UpdateBars(smoothedFftData);
 
-        // 改进的BPM检测
-        DetectBeatImproved(smoothedFftData);
+        // 改进的BPM检测 - 使用 frequencyData
+        DetectBeatImproved(frequencyData);
     }
 
+    /// <summary>
+    /// 更新柱状条可视化（改进版 - 加入对数压缩）
+    /// 
+    /// 改进点：
+    /// 1. 对数压缩：使用 log(x + offset) 压缩动态范围，让低幅度信号更明显
+    /// 2. 动态范围调整：根据最近的最大幅度自动调整缩放，避免爆表或过小
+    /// 3. 高度限制：设置最小/最大高度，确保可见性和美观
+    /// 4. 平滑过渡：保持原有的平滑效果
+    /// </summary>
     private void UpdateBars(float[] spectrumData)
     {
         if (movingBars)
@@ -471,18 +478,61 @@ public class AudioVisualizerCSCore : MonoBehaviour
             }
         }
 
+        // ====== 动态范围调整 ======
+        if (enableDynamicRange)
+        {
+            // 找到当前帧的最大幅度
+            float currentMaxAmplitude = 0f;
+            for (int i = 0; i < barCount; i++)
+            {
+                float logIndex = Mathf.Pow((float)(i + 1) / barCount, logPower);
+                int fftIndex = Mathf.Clamp((int)(logIndex * (spectrumData.Length - 1)), 0, spectrumData.Length - 1);
+                currentMaxAmplitude = Mathf.Max(currentMaxAmplitude, spectrumData[fftIndex]);
+            }
+
+            // 平滑更新最大幅度记录
+            maxRecentAmplitude = Mathf.Lerp(maxRecentAmplitude, currentMaxAmplitude, Time.deltaTime * dynamicRangeSpeed);
+
+            // 根据最大幅度调整缩放因子（避免除以0）
+            if (maxRecentAmplitude > 0.001f)
+            {
+                dynamicScaleFactor = maxBarHeight / Mathf.Log(maxRecentAmplitude + logCompressionOffset, 10f + logCompressionStrength);
+            }
+        }
+        else
+        {
+            dynamicScaleFactor = 1f;
+        }
+
+        // ====== 更新每根柱状条 ======
         for (int i = 0; i < barCount; i++)
         {
+            // 对数频率映射（低频区域更宽）
             float logIndex = Mathf.Pow((float)(i + 1) / barCount, logPower);
             int fftIndex = Mathf.Clamp((int)(logIndex * (spectrumData.Length - 1)), 0, spectrumData.Length - 1);
 
-            float rawHeight = spectrumData[fftIndex];
-            float scaledHeight = Mathf.Log10(rawHeight + 1);
-            float height = Mathf.Clamp(scaledHeight, 0, 10);
+            float rawAmplitude = spectrumData[fftIndex];
 
-            Vector3 newScale = bars[i].transform.localScale;
-            newScale.y = height;
-            bars[i].transform.localScale = newScale;
+            // ====== 对数压缩 ======
+            // 使用 log10(x + offset) 进行压缩
+            // logCompressionStrength 控制压缩程度
+            // logCompressionOffset 避免 log(0) 并控制低幅度信号的提升
+            float compressedHeight = Mathf.Log(rawAmplitude + logCompressionOffset, 10f + logCompressionStrength);
+
+            // 应用动态缩放
+            float scaledHeight = compressedHeight * dynamicScaleFactor;
+
+            // ====== 高度限制 ======
+            // 确保柱状条在可见范围内，不会太小或太大
+            float finalHeight = Mathf.Clamp(scaledHeight, minBarHeight, maxBarHeight);
+
+            // ====== 更新柱状条缩放 ======
+            if (bars[i] != null)
+            {
+                Vector3 newScale = bars[i].transform.localScale;
+                newScale.y = finalHeight;
+                bars[i].transform.localScale = newScale;
+            }
         }
     }
 
@@ -850,62 +900,10 @@ public class AudioVisualizerCSCore : MonoBehaviour
             // 首次进入静音状态
             if (!wasSilent)
             {
+                ResetBeatDetection();
                 silenceStartTime = currentTime;
                 wasSilent = true;
                 Debug.Log($"[Silence] 检测到静音开始，时间: {currentTime:F2}");
-            }
-
-            // 计算静音持续时长
-            float silenceDurationSoFar = currentTime - silenceStartTime;
-
-            // ====== 渐进式清理策略 ======
-
-            // 阶段1: 0-1秒 - 不做任何处理（可能只是短暂停顿）
-            if (silenceDurationSoFar < 1f)
-            {
-                // 保持所有数据
-                return;
-            }
-
-            // 阶段2: 1-2秒 - 减少置信度阈值（降低敏感度，避免误触发）
-            else if (silenceDurationSoFar < 2f)
-            {
-                minBeatConfidence = Mathf.Min(0.5f, minBeatConfidence + 0.1f);
-                // Debug.Log($"[Silence] 静音 {silenceDurationSoFar:F1}s，降低敏感度");
-            }
-
-            // 阶段3: 2-3秒 - 清理旧数据，保留最近的
-            else if (silenceDurationSoFar < silenceDuration)
-            {
-                // 只保留最近4个节拍时间戳
-                if (beatTimestamps.Count > 4)
-                {
-                    int removeCount = beatTimestamps.Count - 4;
-                    beatTimestamps.RemoveRange(0, removeCount);
-                    beatConfidences.RemoveRange(0, removeCount);
-                    beatStrengths.RemoveRange(0, removeCount);
-                }
-
-                // 清理一半的能量历史
-                int historyHalf = kickEnergyHistory.Count / 2;
-                for (int i = 0; i < historyHalf; i++)
-                {
-                    if (kickEnergyHistory.Count > 10) // 保留至少10个样本
-                    {
-                        kickEnergyHistory.Dequeue();
-                        snareEnergyHistory.Dequeue();
-                    }
-                }
-
-                // Debug.Log($"[Silence] 静音 {silenceDurationSoFar:F1}s，清理部分历史数据");
-            }
-
-            // 阶段4: 超过设定时长 - 完全重置
-            else
-            {
-                Debug.Log($"[Silence] 静音超过 {silenceDuration}s，完全重置检测");
-                ResetBeatDetection();
-                silenceStartTime = currentTime; // 重置静音计时，避免重复触发
             }
         }
 
@@ -1124,19 +1122,18 @@ public class AudioVisualizerCSCore : MonoBehaviour
         GUI.Label(new Rect(20, 180, 500, 50), $"Variance: {bpmVariance:F3}", style);
 
         // 显示静音状态
-        if (wasSilent && silenceStartTime > 0)
+        float silenceDur = Time.time - silenceStartTime;
+        if (wasSilent && silenceStartTime > 0 && silenceDur <= 10)
         {
-            float silenceDur = Time.time - silenceStartTime;
             style.normal.textColor = Color.yellow;
-            GUI.Label(new Rect(20, 210, 500, 50), $"⚠️ 静音: {silenceDur:F1}s / {silenceDuration:F1}s", style);
+            GUI.Label(new Rect(20, 210, 500, 50), $"⚠️ 静音: {silenceDur:F1}s", style);
             style.normal.textColor = Color.green;
         }
 
-        // 显示节拍历史
-        if (beatTimestamps.Count > 0)
+        // 显示对数压缩参数（调试用）
+        if (enableDynamicRange)
         {
-            string intervals = string.Join(", ", beatTimestamps.Select(t => $"{t:F2}"));
-            GUI.Label(new Rect(20, 240, 800, 50), $"Intervals: {intervals}", style);
+            GUI.Label(new Rect(20, 240, 600, 50), $"动态缩放: {dynamicScaleFactor:F2} | 最大幅度: {maxRecentAmplitude:F3}", style);
         }
     }
 

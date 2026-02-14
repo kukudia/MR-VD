@@ -1,0 +1,94 @@
+{
+  "presets": [
+    {
+      "name": "电子音乐 (Electronic)",
+      "description": "高能量、快速节奏的电子音乐风格。特点：强烈的频闪、密集的激光、霓虹色彩",
+      "genre": "Electronic",
+      "baseLightIntensity": 3.0,
+      "beatLightIntensity": 12.0,
+      "colorChangeSpeed": 1.5,
+      "chaseLightSpeed": 0.8,
+      "strobeFrequency": 0.8,
+      "laserDensity": 0.7,
+      "smokeAmount": 0.4,
+      "colorScheme": {
+        "primaryColor": {"r": 0.0, "g": 1.0, "b": 1.0, "a": 1.0},
+        "secondaryColor": {"r": 1.0, "g": 0.0, "b": 1.0, "a": 1.0},
+        "accentColor": {"r": 1.0, "g": 1.0, "b": 0.0, "a": 1.0}
+      },
+      "recommendedFor": ["EDM", "Techno", "Dubstep", "Trance"]
+    },
+    {
+      "name": "摇滚 (Rock)",
+      "description": "激烈、强劲的摇滚风格。特点：暖色调、强烈的节拍响应、浓烟效果",
+      "genre": "Rock",
+      "baseLightIntensity": 4.0,
+      "beatLightIntensity": 15.0,
+      "colorChangeSpeed": 0.8,
+      "chaseLightSpeed": 1.2,
+      "strobeFrequency": 0.9,
+      "laserDensity": 0.5,
+      "smokeAmount": 0.7,
+      "colorScheme": {
+        "primaryColor": {"r": 1.0, "g": 0.2, "b": 0.0, "a": 1.0},
+        "secondaryColor": {"r": 1.0, "g": 0.6, "b": 0.0, "a": 1.0},
+        "accentColor": {"r": 1.0, "g": 1.0, "b": 0.8, "a": 1.0}
+      },
+      "recommendedFor": ["Hard Rock", "Metal", "Punk", "Alternative"]
+    },
+    {
+      "name": "嘻哈 (Hip-Hop)",
+      "description": "节奏感强、氛围感足的嘻哈风格。特点：低调灯光、重低音响应、冷色调",
+      "genre": "HipHop",
+      "baseLightIntensity": 2.0,
+      "beatLightIntensity": 10.0,
+      "colorChangeSpeed": 0.5,
+      "chaseLightSpeed": 0.5,
+      "strobeFrequency": 0.6,
+      "laserDensity": 0.3,
+      "smokeAmount": 0.5,
+      "colorScheme": {
+        "primaryColor": {"r": 0.4, "g": 0.0, "b": 0.8, "a": 1.0},
+        "secondaryColor": {"r": 0.0, "g": 0.4, "b": 1.0, "a": 1.0},
+        "accentColor": {"r": 1.0, "g": 1.0, "b": 1.0, "a": 1.0}
+      },
+      "recommendedFor": ["Hip-Hop", "Rap", "Trap", "R&B"]
+    },
+    {
+      "name": "爵士 (Jazz)",
+      "description": "优雅、柔和的爵士风格。特点：暖色调、平滑过渡、浓烟氛围",
+      "genre": "Jazz",
+      "baseLightIntensity": 1.5,
+      "beatLightIntensity": 5.0,
+      "colorChangeSpeed": 0.3,
+      "chaseLightSpeed": 0.3,
+      "strobeFrequency": 0.2,
+      "laserDensity": 0.1,
+      "smokeAmount": 0.8,
+      "colorScheme": {
+        "primaryColor": {"r": 1.0, "g": 0.7, "b": 0.3, "a": 1.0},
+        "secondaryColor": {"r": 0.8, "g": 0.5, "b": 0.2, "a": 1.0},
+        "accentColor": {"r": 1.0, "g": 0.9, "b": 0.7, "a": 1.0}
+      },
+      "recommendedFor": ["Jazz", "Blues", "Soul", "Swing"]
+    },
+    {
+      "name": "流行 (Pop)",
+      "description": "多彩、欢快的流行风格。特点：彩虹色彩、中等节奏、平衡的视觉效果",
+      "genre": "Pop",
+      "baseLightIntensity": 2.5,
+      "beatLightIntensity": 8.0,
+      "colorChangeSpeed": 1.0,
+      "chaseLightSpeed": 0.6,
+      "strobeFrequency": 0.5,
+      "laserDensity": 0.5,
+      "smokeAmount": 0.3,
+      "colorScheme": {
+        "primaryColor": {"r": 1.0, "g": 0.4, "b": 0.7, "a": 1.0},
+        "secondaryColor": {"r": 0.4, "g": 0.7, "b": 1.0, "a": 1.0},
+        "accentColor": {"r": 1.0, "g": 0.9, "b": 0.3, "a": 1.0}
+      },
+      "recommendedFor": ["Pop", "K-Pop", "Dance Pop", "Indie Pop"]
+    }
+  ]
+}
