@@ -15,8 +15,8 @@ MonoBehaviour:
   presetName: Default
   description: "\u9ED8\u8BA4\u706F\u5149\u914D\u7F6E"
   genre: 0
-  baseLightIntensity: 2
-  beatLightIntensity: 8
+  baseLightIntensity: 0.41
+  beatLightIntensity: 0.1
   colorChangeSpeed: 1
   colorScheme:
     primaryColor: {r: 1, g: 0, b: 0, a: 1}
@@ -154,7 +154,7 @@ MonoBehaviour:
     pulseIntensity: 1
     intensityMultiplier: 1
     smoothing: 0.5
-    changeColor: 0
+    changeColor: 1
     responseColor: {r: 1, g: 1, b: 1, a: 1}
   snareResponse:
     flashLights: 1
@@ -162,7 +162,7 @@ MonoBehaviour:
     pulseIntensity: 1
     intensityMultiplier: 1
     smoothing: 0.5
-    changeColor: 0
+    changeColor: 1
     responseColor: {r: 1, g: 1, b: 1, a: 1}
   bassResponse:
     flashLights: 1
@@ -170,5 +170,5 @@ MonoBehaviour:
     pulseIntensity: 1
     intensityMultiplier: 1
     smoothing: 0.5
-    changeColor: 0
+    changeColor: 1
     responseColor: {r: 1, g: 1, b: 1, a: 1}

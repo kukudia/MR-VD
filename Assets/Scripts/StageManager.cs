@@ -176,35 +176,38 @@ public class StageManager : MonoBehaviour
             return;
         }
 
-        // 获取音频数据
-        float kickEnergy = audioVisualizer.kickEnergy;
-        float bassEnergy = audioVisualizer.bassEnergy;
-        float synthEnergy = audioVisualizer.synthEnergy;
-        float bpm = audioVisualizer.limitedBPM;
-        bool isBeat = audioVisualizer.showBeatText;
-        string currentMode = audioVisualizer.currentMode;
+        if (!audioVisualizer.wasSilent)
+        {
+            // 获取音频数据
+            float kickEnergy = audioVisualizer.smoothedKickEnergy;
+            float bassEnergy = audioVisualizer.smoothedBassEnergy;
+            float synthEnergy = audioVisualizer.smoothedSynthEnergy;
+            float bpm = audioVisualizer.limitedBPM;
+            bool isBeat = audioVisualizer.showBeatText;
+            string currentMode = audioVisualizer.currentMode;
 
-        // 更新调式氛围色
-        UpdateMoodColor(currentMode);
+            // 更新调式氛围色
+            UpdateMoodColor(currentMode);
 
-        // 更新各灯光系统
-        UpdateSpotlights(kickEnergy, isBeat);
-        UpdateRimLights(bassEnergy);
-        UpdateChaseLights(bpm, synthEnergy);
-        UpdateLaserLights(synthEnergy);
-        UpdateStrobeLights(kickEnergy, isBeat);
+            // 更新各灯光系统
+            UpdateSpotlights(kickEnergy, isBeat);
+            UpdateRimLights(bassEnergy);
+            UpdateChaseLights(bpm, synthEnergy);
+            UpdateLaserLights(synthEnergy);
+            UpdateStrobeLights(kickEnergy, isBeat);
 
-        // 更新VFX系统
-        UpdateBackgroundParticles(bassEnergy);
-        UpdateSmokeEffect(bassEnergy);
-        UpdateBeatBurstEffect(kickEnergy, isBeat);
-        UpdateLaserBeamEffect(synthEnergy);
-        UpdateGroundRingEffect(bassEnergy);
+            // 更新VFX系统
+            UpdateBackgroundParticles(bassEnergy);
+            UpdateSmokeEffect(bassEnergy);
+            UpdateBeatBurstEffect(kickEnergy, isBeat);
+            UpdateLaserBeamEffect(synthEnergy);
+            UpdateGroundRingEffect(bassEnergy);
 
-        // 更新舞台装饰
-        UpdateLEDScreens(kickEnergy, bassEnergy, synthEnergy);
-        UpdateDiscoBall(bpm);
-        UpdateStageFloor(bassEnergy);
+            // 更新舞台装饰
+            UpdateLEDScreens(kickEnergy, bassEnergy, synthEnergy);
+            UpdateDiscoBall(bpm);
+            UpdateStageFloor(bassEnergy);
+        }
     }
 
     /// <summary>
