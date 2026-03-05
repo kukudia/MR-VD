@@ -1,0 +1,49 @@
+=================
+Digital Rain FX
+=================
+
+This asset features several scenes of digital/cyber background particle effects that can work for sci-fi themed menus.
+
+The asset also includes 3D versions of the effect to use in a game world.
+
+=================
+Demo Scenes
+=================
+
+In the demo scenes you can find a Canvas which can be deleted to get rid of the scene selection menu in the bottom right.
+
+If you want to make the Scene Selection menu work, you'll need to add the Demo scenes to the 'Scenes in Build' (File->Build Settings), then you can use the buttons in Play mode.
+
+=================
+How to Use
+=================
+
+The Demo scenes are set up with the effects framed perfectly. You could either build on top of these scenes or use the prefabs in the asset folder.
+
+2D prefabs:
+
+Alternatively you can use the '2D Prefabs' into a scene if you wish. These 2D versions have 10 line "spawn points". You can duplicate the prefab and put it side by side to have multiple lines at once. Most of the demo scenes are set up this way.
+
+3D prefabs:
+
+These are simpler and more random. It does not conform to a grid-like system as with the 2D version. Set the Scale of particle system in the Shape module. The effect can also be scaled in Transform with the Scale tool.
+
+=================
+URP/LWRP Upgrade
+=================
+
+To install URP/LWRP, make sure you are using Unity 2019.3.1f1 or higher and use the latest version of URP in the Package Manager.
+
+Find the 'Digital Rain URP Upgrade 2019.3.1f1' unitypackage in the Upgrades folder, double-click it and import it to your project.
+
+Note that the upgrade only works from 2019.3.1f1 and up.
+
+=================
+Support
+=================
+
+Feel free to contact me if you have any trouble with the asset or have questions about particle systems.
+
+archanor.com/support.html
+
+archanor.work@gmail.com

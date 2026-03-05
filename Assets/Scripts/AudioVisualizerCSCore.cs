@@ -98,14 +98,11 @@ public class AudioVisualizerCSCore : MonoBehaviour
     [Tooltip("上一次更新BPM的时间戳（Time.time）")]
     public float lastBpmUpdateTime = 0f;
 
-    [Tooltip("卡尔曼滤波输出的原始BPM估计值（未经倍频修正）")]
+    public bool useKalmanEstimate = true;
+
     public float detectedBPM = 0f;
 
-    [Tooltip("经过倍频修正后限定在72~180范围内的BPM")]
     public float limitedBPM = 0f;
-
-    [Tooltip("平滑后的BPM显示值（预留字段）")]
-    public float smoothedBPM = 0f;
 
     private float bpmVariance = 0f;
 
@@ -120,14 +117,14 @@ public class AudioVisualizerCSCore : MonoBehaviour
     private float phaseError = 0f;
 
     [Tooltip("BPM 更新的时间间隔（秒），数值越小响应越快但越不稳定")]
-    public float bpmUpdateInterval = 1f;
+    public float bpmUpdateInterval = 0.5f;
 
     [Tooltip("两次有效节拍之间的最小间隔（秒），对应最大 BPM 约 200")]
-    public float minBeatInterval = 0.3f;
+    public float minBeatInterval = 0.25f;
 
 
     [Tooltip("节拍硬冷却时间（秒）。触发后此窗口内的 onset 全部忽略，防止鼓击瞬态衰减被重复记录。建议为 minBeatInterval * 1.5")]
-    public float beatCooldown = 0.45f;
+    public float beatCooldown = 0.35f;
     [Tooltip("两次有效节拍之间的最大间隔（秒），对应最小 BPM 约 50")]
     public float maxBeatInterval = 1.2f;
 
@@ -144,18 +141,31 @@ public class AudioVisualizerCSCore : MonoBehaviour
 
     [Tooltip("节拍被接受所需的最低置信度（0~1），系统会根据BPM稳定性动态调整")]
     [Range(0f, 1f)]
-    public float minBeatConfidence = 0.3f;
+    public float minBeatConfidence = 0.4f;
 
     private float previousKickEnergy = 0f;
     private float previousSnareEnergy = 0f;
-    private float silenceStartTime = -1f;
+    private float playStartTime = 0f;
+    private float silenceStartTime = 0f;
     private float silenceThreshold = 0.001f;
     public bool wasSilent = true;
     private List<float> beatStrengths = new List<float>();
 
     [Tooltip("Onset 灵敏度系数，值越大需要更强的能量突变才能触发节拍（1.0=宽松，3.0=严格）")]
-    [Range(1.0f, 3.0f)]
+    [Range(0.3f, 3.0f)]
     public float onsetSensitivity = 1.5f;
+
+    [Tooltip("Kick 阈值平滑速度（值越大变化越快，1=慢速平滑，10=快速响应）")]
+    [Range(1f, 100f)]
+    public float dynamicKickThresholdSpeed = 2f;
+
+    [Tooltip("Snare 阈值平滑速度（值越大变化越快，1=慢速平滑，10=快速响应）")]
+    [Range(1f, 100f)]
+    public float dynamicSnareThresholdSpeed = 2f;
+
+    // 私有变量：存储平滑后的阈值（内部使用）
+    private float smoothedKickThreshold = 0.5f;
+    private float smoothedSnareThreshold = 0.5f;
 
     private float kalmanEstimate = 0f;
     private float kalmanErrorCovariance = 1f;
@@ -335,11 +345,9 @@ public class AudioVisualizerCSCore : MonoBehaviour
         }
 
         // ====== 移除旧的自动触发逻辑 ======
-        // 计算节拍间隔（仅用于参数更新，不触发节拍）
         if (limitedBPM > 0)
         {
-            beatInterval = 60f / limitedBPM;
-            beatDisplayTime = beatInterval / 4f;
+            
         }
         else
         {
@@ -535,8 +543,19 @@ public class AudioVisualizerCSCore : MonoBehaviour
         float kickStdDev = CalculateStdDev(kickEnergyHistory.ToArray(), kickMean);
         float snareStdDev = CalculateStdDev(snareEnergyHistory.ToArray(), snareMean);
 
-        dynamicKickThreshold = kickMean + onsetSensitivity * kickStdDev;
-        dynamicSnareThreshold = snareMean + onsetSensitivity * snareStdDev;
+        float rawKickThreshold = kickMean + onsetSensitivity * kickStdDev;
+        float rawSnareThreshold = snareMean + onsetSensitivity * snareStdDev;
+
+        // ====== 新增：阈值平滑过渡 ======
+        // 使用 Lerp 实现指数平滑，speed 越大响应越快
+        smoothedKickThreshold = Mathf.Lerp(smoothedKickThreshold, rawKickThreshold,
+            Time.deltaTime * dynamicKickThresholdSpeed);
+        smoothedSnareThreshold = Mathf.Lerp(smoothedSnareThreshold, rawSnareThreshold,
+            Time.deltaTime * dynamicSnareThresholdSpeed);
+
+        // 将平滑后的值赋给公开字段（供 UI 显示和其他逻辑使用）
+        dynamicKickThreshold = smoothedKickThreshold;
+        dynamicSnareThreshold = smoothedSnareThreshold;
 
         // ====== 步骤4：Onset 检测（正向能量突变）======
         float kickOnset = Mathf.Max(0, kickEnergy - previousKickEnergy);
@@ -642,12 +661,13 @@ public class AudioVisualizerCSCore : MonoBehaviour
     }
 
     /// <summary>
-    /// 更新 BPM
-    ///
-    /// 修复要点：
-    /// - beatTimestamps 现在是绝对时间戳，需先转换为相邻差值 intervals[]
-    /// - 合法性过滤直接按 [minBeatInterval, maxBeatInterval] 硬范围剔除，
-    ///   不再依赖容易漂移的"中位数偏差"过滤。
+    /// 更新 BPM（改进版 - 解决检测值偏低问题）
+    /// 
+    /// 改进点：
+    /// 1. 使用自相关分析检测周期性，不依赖单一节拍检测
+    /// 2. 多假设跟踪：同时跟踪多个 BPM 候选，选择最稳定的
+    /// 3. 智能倍频修正：优先选择 90-150 BPM 常见范围
+    /// 4. 降低漏检影响：允许部分节拍缺失仍能正确计算
     /// </summary>
     private void UpdateBPM()
     {
@@ -655,25 +675,16 @@ public class AudioVisualizerCSCore : MonoBehaviour
             return;
 
         // ====== 步骤1：将绝对时间戳转换为相邻差值 ======
-        // 仅用差值计算 BPM，不修改 beatTimestamps 本身
         List<float> intervals = new List<float>();
         List<float> intConfidences = new List<float>();
 
         for (int i = 1; i < beatTimestamps.Count; i++)
         {
             float gap = beatTimestamps[i] - beatTimestamps[i - 1];
-
-            // ====== 步骤2：硬范围过滤（修复漂移的关键）======
-            // 只保留物理上合法的节拍间隔，直接丢弃 minBeatInterval 附近的噪音点
             if (gap >= minBeatInterval && gap <= maxBeatInterval)
             {
                 intervals.Add(gap);
-                // 取相邻两个节拍置信度的均值作为该间隔的权重
                 intConfidences.Add((beatConfidences[i - 1] + beatConfidences[i]) * 0.5f);
-            }
-            else
-            {
-                Debug.Log($"[BPM] 丢弃非法间隔: {gap:F2}s（合法范围 {minBeatInterval:F2}~{maxBeatInterval:F2}s）");
             }
         }
 
@@ -683,97 +694,189 @@ public class AudioVisualizerCSCore : MonoBehaviour
             return;
         }
 
-        // ====== 步骤3：基于合法间隔的中位数做二次过滤（30% 范围）======
-        float median = GetMedian(intervals.ToArray());
-        List<float> filteredIntervals = new List<float>();
-        List<float> filteredConfidences = new List<float>();
+        // ====== 步骤2：自相关分析检测周期性（核心改进）======
+        float[] intervalArray = intervals.ToArray();
+        float bestPeriod = FindBestPeriod(intervalArray);
 
-        for (int i = 0; i < intervals.Count; i++)
-        {
-            float deviation = Mathf.Abs(intervals[i] - median) / median;
-            if (deviation < 0.3f)
-            {
-                filteredIntervals.Add(intervals[i]);
-                filteredConfidences.Add(intConfidences[i]);
-            }
-            else
-            {
-                Debug.Log($"[BPM] 二次过滤移除: {intervals[i]:F2}s（中位数: {median:F2}s，偏差: {deviation * 100:F1}%）");
-            }
-        }
+        // ====== 步骤3：多假设 BPM 候选 ======
+        List<float> bpmCandidates = new List<float>();
 
-        if (filteredIntervals.Count < 2)
-        {
-            // 二次过滤太激进时退回只用中位数
-            filteredIntervals = new List<float> { median };
-            filteredConfidences = new List<float> { 0.5f };
-        }
+        // 候选1：基于平均间隔
+        float avgInterval = intervals.Average();
+        bpmCandidates.Add(60f / avgInterval);
 
-        // ====== 步骤4：置信度加权平均 ======
-        float weightedSum = 0f;
-        float totalWeight = 0f;
-        for (int i = 0; i < filteredIntervals.Count; i++)
-        {
-            weightedSum += filteredIntervals[i] * filteredConfidences[i];
-            totalWeight += filteredConfidences[i];
-        }
-        float avgInterval = totalWeight > 0f ? weightedSum / totalWeight : filteredIntervals.Average();
+        // 候选2：基于自相关最佳周期
+        if (bestPeriod > 0)
+            bpmCandidates.Add(60f / bestPeriod);
 
-        // ====== 步骤5：计算原始 BPM ======
-        float rawBPM = 60f / avgInterval;
+        // 候选3：基于中位数间隔
+        float medianInterval = GetMedian(intervalArray);
+        bpmCandidates.Add(60f / medianInterval);
 
-        // ====== 步骤6：卡尔曼滤波平滑 BPM ======
+        // 候选4：2倍速假设（可能漏检了弱拍）
+        bpmCandidates.Add(60f / (avgInterval * 0.5f));
+
+        // 候选5：1.5倍速假设（三连音情况）
+        bpmCandidates.Add(60f / (avgInterval * 0.67f));
+
+        // ====== 步骤4：选择最佳 BPM（优先 90-150 范围）======
+        float bestBPM = SelectBestBPM(bpmCandidates, intervals);
+
+        // ====== 步骤5：指数移动平均平滑（替代卡尔曼）======
+        float emaAlpha = 0.3f; // 响应速度系数
         if (kalmanEstimate == 0f)
         {
-            kalmanEstimate = rawBPM;
+            kalmanEstimate = bestBPM;
         }
         else
         {
-            float predictedCovariance = kalmanErrorCovariance + kalmanProcessNoise;
-            float kalmanGain = predictedCovariance / (predictedCovariance + kalmanMeasurementNoise);
-            kalmanEstimate = kalmanEstimate + kalmanGain * (rawBPM - kalmanEstimate);
-            kalmanErrorCovariance = (1f - kalmanGain) * predictedCovariance;
+            kalmanEstimate = kalmanEstimate * (1 - emaAlpha) + bestBPM * emaAlpha;
         }
 
         detectedBPM = kalmanEstimate;
 
-        // ====== 步骤7：倍频修正 + 限定范围 ======
+        // ====== 步骤6：智能倍频修正 ======
         LimitBPM();
 
-        // ====== 步骤8：根据稳定性动态调整置信度阈值 ======
-        bpmVariance = CalculateStdDev(filteredIntervals.ToArray(), avgInterval);
-        minBeatConfidence = bpmVariance < 0.05f
-            ? Mathf.Max(0.2f, minBeatConfidence - 0.05f)
-            : 0.3f;
+        // ====== 步骤7：根据稳定性动态调整置信度阈值 ======
+        bpmVariance = CalculateStdDev(intervalArray, avgInterval);
+        minBeatConfidence = bpmVariance < 0.08f
+            ? Mathf.Max(0.25f, minBeatConfidence - 0.02f)
+            : 0.4f;
 
-        Debug.Log($"[BPM] 更新: {Mathf.RoundToInt(limitedBPM)} BPM" +
-                  $"（原始: {rawBPM:F1}, 平滑: {kalmanEstimate:F1}, 方差: {bpmVariance:F3}, 有效间隔: {filteredIntervals.Count}）");
+        Debug.Log($"[BPM] 更新：{Mathf.RoundToInt(limitedBPM)} BPM " +
+                  $"（原始：{bestBPM:F1}, 平滑：{kalmanEstimate:F1}, 方差：{bpmVariance:F3}）");
     }
 
     /// <summary>
-    /// 限制BPM范围到合理值
+    /// 使用自相关分析找到最佳周期
+    /// </summary>
+    private float FindBestPeriod(float[] intervals)
+    {
+        if (intervals.Length < 4) return 0f;
+
+        float mean = intervals.Average();
+        float bestCorrelation = 0f;
+        float bestPeriod = mean;
+
+        // 测试不同滞后量的自相关
+        for (int lag = 1; lag < Mathf.Min(5, intervals.Length - 1); lag++)
+        {
+            float correlation = 0f;
+            int count = 0;
+
+            for (int i = 0; i < intervals.Length - lag; i++)
+            {
+                // 累加滞后 lag 的间隔和
+                float sumLag = 0f;
+                for (int j = 0; j < lag; j++)
+                {
+                    sumLag += intervals[i + j];
+                }
+
+                // 计算与平均周期的偏差
+                float deviation = Mathf.Abs(sumLag - mean * lag);
+                float score = 1f / (1f + deviation);
+
+                correlation += score;
+                count++;
+            }
+
+            if (count > 0)
+            {
+                correlation /= count;
+                if (correlation > bestCorrelation)
+                {
+                    bestCorrelation = correlation;
+                    bestPeriod = mean * lag;
+                }
+            }
+        }
+
+        return bestCorrelation > 0.7f ? bestPeriod : 0f;
+    }
+
+    /// <summary>
+    /// 从多个 BPM 候选中选择最佳值（优先常见范围）
+    /// </summary>
+    private float SelectBestBPM(List<float> candidates, List<float> intervals)
+    {
+        if (candidates.Count == 0) return 60f / intervals.Average();
+
+        float bestScore = float.MinValue;
+        float bestBPM = candidates[0];
+
+        foreach (float bpm in candidates)
+        {
+            if (bpm <= 0) continue;
+
+            float score = 0f;
+
+            // 优先奖励 90-150 BPM 范围（最常见）
+            if (bpm >= 90 && bpm <= 150)
+                score += 3f;
+            else if (bpm >= 72 && bpm <= 180)
+                score += 1f;
+
+            // 奖励稳定性（与历史 BPM 接近）
+            if (kalmanEstimate > 0)
+            {
+                float diff = Mathf.Abs(bpm - kalmanEstimate);
+                score += 2f / (1f + diff);
+            }
+
+            // 奖励与间隔数据的一致性
+            float expectedInterval = 60f / bpm;
+            float matchCount = 0;
+            foreach (float interval in intervals)
+            {
+                if (Mathf.Abs(interval - expectedInterval) < expectedInterval * 0.2f)
+                    matchCount++;
+            }
+            score += matchCount / intervals.Count;
+
+            if (score > bestScore)
+            {
+                bestScore = score;
+                bestBPM = bpm;
+            }
+        }
+
+        return bestBPM;
+    }
+
+    /// <summary>
+    /// 限制 BPM 范围到合理值（改进版）
     /// </summary>
     private void LimitBPM()
     {
-        if (detectedBPM > 0)
+        if (detectedBPM <= 0) return;
+
+        limitedBPM = detectedBPM;
+
+        // ====== 智能倍频修正 ======
+        // 策略：优先将 BPM 调整到 90-150 范围，这是最常见的音乐 BPM 区间
+
+        // 如果太低，尝试倍频
+        while (limitedBPM < 90 && limitedBPM * 2 <= 200)
         {
-            limitedBPM = detectedBPM;
-
-            // 倍频修正
-            while (limitedBPM < 72)
-            {
-                limitedBPM *= 2;
-            }
-
-            while (limitedBPM > 180)
-            {
-                limitedBPM /= 2;
-            }
-
-            // 更新节拍间隔
-            beatInterval = 60f / limitedBPM;
-            beatDisplayTime = beatInterval / 4f; // 显示时间为节拍间隔的1/4
+            limitedBPM *= 2;
         }
+
+        // 如果太高，尝试半频
+        while (limitedBPM > 150 && limitedBPM / 2 >= 60)
+        {
+            limitedBPM /= 2;
+        }
+
+        // 最终硬限制
+        limitedBPM = Mathf.Clamp(limitedBPM, 60, 200);
+
+        // 更新节拍间隔
+        beatInterval = 60f / Mathf.Max(detectedBPM, limitedBPM);
+        beatDisplayTime = beatInterval / 4f;
+
+        Debug.Log($"[BPM] 倍频修正后：{Mathf.RoundToInt(limitedBPM)} BPM");
     }
 
     /// <summary>
@@ -863,7 +966,6 @@ public class AudioVisualizerCSCore : MonoBehaviour
                 Debug.Log($"[Silence] 检测到静音开始，时间: {currentTime:F2}");
             }
         }
-
         // ====== 情况2: 从静音恢复 ======
         else
         {
@@ -884,8 +986,8 @@ public class AudioVisualizerCSCore : MonoBehaviour
                     Debug.Log($"[Silence] 降低初始阈值以便快速重新锁定节拍");
                 }
 
+                playStartTime = currentTime;
                 wasSilent = false;
-                silenceStartTime = -1f;
             }
 
             // ====== 情况3: 低能量但非静音（例如安静的间奏）======
@@ -1066,7 +1168,7 @@ public class AudioVisualizerCSCore : MonoBehaviour
         style.fontSize = 32;
         style.normal.textColor = Color.green;
 
-        GUI.Label(new Rect(20, 20, 300, 50), $"BPM: {Mathf.RoundToInt(limitedBPM)}", style);
+        GUI.Label(new Rect(20, 20, 300, 50), $"BPM: {limitedBPM:F1}", style);
         GUI.Label(new Rect(20, 60, 300, 50), $"Key: {currentKey} {currentMode}", style);
 
         if (showBeatText)
@@ -1079,19 +1181,32 @@ public class AudioVisualizerCSCore : MonoBehaviour
         GUI.Label(new Rect(20, 180, 500, 50), $"Variance: {bpmVariance:F3}", style);
 
         // 显示静音状态
+        style.normal.textColor = Color.yellow;
         if (wasSilent && silenceStartTime > 0)
         {
             float silenceDur = Time.time - silenceStartTime;
-            style.normal.textColor = Color.yellow;
+            
             GUI.Label(new Rect(20, 210, 500, 50), "⚠️ 静音 " + (silenceDur <= 10 ? $"{silenceDur:F1}s" : ""), style);
-            style.normal.textColor = Color.green;
         }
+        else if (!wasSilent && playStartTime > 0)
+        {
+            int playDur = (int) (Time.time - playStartTime);
+
+            int min = playDur / 60;
+            int sec = playDur % 60;
+            string minStr = min < 10 ? "0" + min : min.ToString();
+            string secStr = sec < 10 ? "0" + sec : sec.ToString();
+            GUI.Label(new Rect(20, 210, 500, 50), $"🎶 播放 {minStr}:{secStr}", style);
+        }
+        style.normal.textColor = Color.green;
 
         // 显示对数压缩参数（调试用）
         if (enableDynamicRange)
         {
             GUI.Label(new Rect(20, 240, 600, 50), $"动态缩放: {dynamicScaleFactor:F2} | 最大幅度: {maxRecentAmplitude:F3}", style);
         }
+
+        GUI.Label(new Rect(20, 270, 600, 50), $"原始 BPM: {detectedBPM:F1} | 方差：{bpmVariance:F3}", style);
     }
 
     void OnDisable()

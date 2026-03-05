@@ -897,6 +897,7 @@ GameObject:
   m_Component:
   - component: {fileID: 57778457}
   - component: {fileID: 57778456}
+  - component: {fileID: 57778458}
   m_Layer: 3
   m_Name: Directional Light
   m_TagString: Untagged
@@ -984,6 +985,35 @@ Transform:
   m_Children: []
   m_Father: {fileID: 1135648486}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &57778458
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 57778455}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 474bcb49853aa07438625e644c072ee6, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Unity.RenderPipelines.Universal.Runtime::UnityEngine.Rendering.Universal.UniversalAdditionalLightData
+  m_UsePipelineSettings: 1
+  m_AdditionalLightsShadowResolutionTier: 2
+  m_CustomShadowLayers: 0
+  m_LightCookieSize: {x: 1, y: 1}
+  m_LightCookieOffset: {x: 0, y: 0}
+  m_SoftShadowQuality: 0
+  m_RenderingLayersMask:
+    serializedVersion: 0
+    m_Bits: 1
+  m_ShadowRenderingLayersMask:
+    serializedVersion: 0
+    m_Bits: 1
+  m_Version: 4
+  m_LightLayerMask: 1
+  m_ShadowLayerMask: 1
+  m_RenderingLayers: 1
+  m_ShadowRenderingLayers: 1
 --- !u!1 &60405916
 GameObject:
   m_ObjectHideFlags: 0
@@ -16750,11 +16780,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a7fdc225a26ca13499f03ac11361f7c1, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  prefab: {fileID: 2740891327052477921, guid: c19beb640383c1d478a019a1aa0df574, type: 3}
-  rows: 50
-  columns: 50
-  spacing: 0.31
-  startPosition: {x: -7.5, y: -3, z: 5}
 --- !u!4 &1185108327
 Transform:
   m_ObjectHideFlags: 0
@@ -23166,17 +23191,9 @@ MonoBehaviour:
   linearFftData: 1
   movingBars: 0
   smoothingWeight: 0.5
-  logPower: 1
-  lowFrequencyRange: 256
   barPrefab: {fileID: 2026906072109196510, guid: 6dbf4f11fbfa02140a4136e089d81797, type: 3}
-  lowFrequencyLight: {fileID: 0}
-  beatLight: {fileID: 0}
-  lowFrequencyIntensity: 0
-  beatIntensity: 0
   barCount: 64
   barPosition: {fileID: 1675917932}
-  brightness: 2
-  maxBrightness: 30
   horizontalScale: 0.02
   verticalScale: 400
   a: 5
@@ -23187,17 +23204,16 @@ MonoBehaviour:
   minBarHeight: 0.01
   enableDynamicRange: 1
   dynamicRangeSpeed: 5
-  beat: 0
   energyHistorySize: 200
   beatTimestamps: []
   lastBeatTime: 0
   lastBpmUpdateTime: 0
+  useKalmanEstimate: 1
   detectedBPM: 0
   limitedBPM: 0
-  smoothedBPM: 0
   dynamicKickThreshold: 0
   dynamicSnareThreshold: 0
-  bpmUpdateInterval: 1.5
+  bpmUpdateInterval: 0.5
   minBeatInterval: 0.3
   beatCooldown: 0.45
   maxBeatInterval: 1.2
@@ -23205,7 +23221,10 @@ MonoBehaviour:
   showBeatText: 0
   beatDisplayTime: 0.2
   minBeatConfidence: 0.3
-  onsetSensitivity: 1.5
+  wasSilent: 1
+  onsetSensitivity: 1.2
+  dynamicKickThresholdSpeed: 30
+  dynamicSnareThresholdSpeed: 10
   currentKey: Unknown
   currentMode: Major
   keyUpdateInterval: 0.2
@@ -25466,6 +25485,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::DesktopStream
   screenObject: {fileID: 1123992437}
+  targetFPS: 30
 --- !u!114 &1865030115
 MonoBehaviour:
   m_ObjectHideFlags: 0

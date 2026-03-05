@@ -1,99 +1,200 @@
-using System;
+ï»¿using System;
 using System.Runtime.InteropServices;
+using System.Threading;
 using UnityEngine;
 using UnityEngine.UI;
+using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe; // éœ€è¦è¿™ä¸ªå‘½åç©ºé—´
 
 public class ScreenCaptureNew : MonoBehaviour
 {
-    // ÒıÈë C++ DLL º¯Êı
     [DllImport("DesktopPlugin")]
     private static extern void InitCaptureResources(int width, int height);
-
     [DllImport("DesktopPlugin")]
     private static extern void ReleaseCaptureResources();
-
     [DllImport("DesktopPlugin")]
     private static extern bool PerformCapture(IntPtr buffer, int width, int height);
 
     public RawImage screenObject;
+    public int targetFPS = 30;
 
     private Texture2D screenTexture;
-    private int screenWidth;
-    private int screenHeight;
+    private int screenWidth, screenHeight;
     private bool isInitialized = false;
+
+    // ğŸ”‘ å…³é”®ï¼šåœ¨ä¸»çº¿ç¨‹ç¼“å­˜ NativeArray å’ŒæŒ‡é’ˆ
+    private NativeArray<byte> textureNativeArray;
+    private IntPtr textureDataPtr;
+
+    // å¤šçº¿ç¨‹æ§åˆ¶
+    private Thread captureThread;
+    private volatile bool shouldStop = false;
+    private volatile bool newDataReady = false;
 
     private void Start()
     {
         InitializeTexture();
+        StartCaptureThread();
     }
 
     private void InitializeTexture()
     {
-        // »ñÈ¡Ö÷ÆÁÄ»·Ö±æÂÊ
         screenWidth = System.Windows.Forms.Screen.PrimaryScreen.Bounds.Width;
         screenHeight = System.Windows.Forms.Screen.PrimaryScreen.Bounds.Height;
 
-        // ¹Ø¼üµã£ºÊ¹ÓÃ BGRA32 ¸ñÊ½
-        // Windows GDI Ô­ÉúÊä³ö¾ÍÊÇ BGRA£¬ÕâÑùÎÒÃÇ¾Í²»ÓÃÏûºÄ CPU È¥½»»» R ºÍ B Í¨µÀÁË
-        // Key: Use BGRA32 format to match GDI native output, avoiding CPU channel swapping
-        screenTexture = new Texture2D(screenWidth, screenHeight, TextureFormat.BGRA32, false);
+        // âš ï¸ å…³é”®ï¼šTexture2D å¿…é¡»è®¾ç½® isReadable = trueï¼ˆç¬¬ä¸‰ä¸ªå‚æ•°ï¼‰
+        // å¦åˆ™ GetRawTextureData ä¼šè¿”å›ç©ºæˆ–æŠ¥é”™
+        screenTexture = new Texture2D(
+            screenWidth,
+            screenHeight,
+            TextureFormat.BGRA32,
+            mipChain: false,
+            linear: false // æˆ– trueï¼Œæ ¹æ®ä½ çš„è‰²å½©ç©ºé—´éœ€æ±‚
+        );
 
-        // ÕâÀïµÄ FilterMode ÉèÎª Point ¿ÉÄÜÉÔÎ¢¿ìÒ»µã£¬µ«ÔÚ 3D ¿Õ¼äÏÔÊ¾½¨Òé Bilinear
+        // ç¡®ä¿ texture æ˜¯å¯è¯»çš„ï¼ˆè™½ç„¶ BGRA32 é»˜è®¤å°±æ˜¯å¯è¯»çš„ï¼‰
+        if (!screenTexture.isReadable)
+        {
+            Debug.LogError("Texture is not readable! Cannot use GetRawTextureData");
+            return;
+        }
+
         screenTexture.filterMode = FilterMode.Bilinear;
 
         if (screenObject != null)
-        {
             screenObject.texture = screenTexture;
+
+        // ğŸ”¥ æ ¸å¿ƒä¿®å¤ï¼šåœ¨ä¸»çº¿ç¨‹è·å– NativeArray å’ŒæŒ‡é’ˆ
+        textureNativeArray = screenTexture.GetRawTextureData<byte>();
+
+        // è·å–åŸç”ŸæŒ‡é’ˆï¼ˆUnsafe æ“ä½œï¼Œä½†ä»åœ¨ä¸»çº¿ç¨‹æ‰§è¡Œï¼‰
+        unsafe
+        {
+            textureDataPtr = (IntPtr)NativeArrayUnsafeUtility.GetUnsafePtr(textureNativeArray);
         }
 
-        // ³õÊ¼»¯ C++ ²àµÄ GDI ×ÊÔ´
+        // åˆå§‹åŒ– C++ èµ„æº
         InitCaptureResources(screenWidth, screenHeight);
         isInitialized = true;
+
+        Debug.Log($"Capture initialized: {screenWidth}x{screenHeight}, ptr: {textureDataPtr}");
+    }
+
+    private void StartCaptureThread()
+    {
+        shouldStop = false;
+        captureThread = new Thread(CaptureLoop)
+        {
+            Name = "ScreenCaptureThread",
+            IsBackground = true
+        };
+        captureThread.Start();
+    }
+
+    /// <summary>
+    /// åå°æ•è·å¾ªç¯ - âš ï¸ ç»å¯¹ä¸è¦è°ƒç”¨ä»»ä½• Unity API
+    /// </summary>
+    private void CaptureLoop()
+    {
+        int frameIntervalMs = 1000 / targetFPS;
+
+        while (!shouldStop)
+        {
+            if (!isInitialized || textureDataPtr == IntPtr.Zero)
+            {
+                Thread.Sleep(100);
+                continue;
+            }
+
+            // âœ… å®‰å…¨ï¼šåªè°ƒç”¨çº¯ C++ DLLï¼Œä¼ å…¥ä¹‹å‰ç¼“å­˜çš„æŒ‡é’ˆ
+            // è¿™é‡Œæ²¡æœ‰ä»»ä½• Unity API è°ƒç”¨ï¼
+            if (PerformCapture(textureDataPtr, screenWidth, screenHeight))
+            {
+                // æ ‡è®°æ•°æ®å°±ç»ªï¼Œé€šçŸ¥ä¸»çº¿ç¨‹ Apply
+                newDataReady = true;
+            }
+
+            Thread.Sleep(frameIntervalMs);
+        }
     }
 
     private void Update()
     {
         if (!isInitialized) return;
 
-        // ¼ì²é·Ö±æÂÊÊÇ·ñ·¢Éú±ä»¯£¨¿ÉÑ¡£©
-        if (screenWidth != System.Windows.Forms.Screen.PrimaryScreen.Bounds.Width ||
-            screenHeight != System.Windows.Forms.Screen.PrimaryScreen.Bounds.Height)
+        // ä¸»çº¿ç¨‹åªè´Ÿè´£ Applyï¼ˆè½»é‡æ“ä½œï¼‰
+        if (newDataReady)
         {
-            // Èç¹û·Ö±æÂÊ±äÁË£¬ÖØĞÂ³õÊ¼»¯
-            ReleaseCaptureResources();
-            InitializeTexture();
+            // Apply ä¼šé€šçŸ¥ GPU æ›´æ–°çº¹ç†æ•°æ®
+            screenTexture.Apply(updateMipmaps: false, makeNoLongerReadable: false);
+            newDataReady = false;
         }
 
-        CaptureAndApply();
+        // å¯é€‰ï¼šä½é¢‘åˆ†è¾¨ç‡æ£€æµ‹
+        if (Time.frameCount % 60 == 0)
+        {
+            CheckResolutionChange();
+        }
     }
 
-    private void CaptureAndApply()
+    private void CheckResolutionChange()
     {
-        // »ñÈ¡ÎÆÀíµÄÔ­Ê¼Ô­ÉúÊı¾İÖ¸Õë
-        // Get the native pointer to the texture data
-        // Õâ±È C# Êı×é¿½±´¿ìµÃ¶à£¬Ö±½ÓĞ´Èë Unity ÒıÇæµÄÄÚ´æ
-        var textureData = screenTexture.GetRawTextureData<byte>();
+        int currentWidth = System.Windows.Forms.Screen.PrimaryScreen.Bounds.Width;
+        int currentHeight = System.Windows.Forms.Screen.PrimaryScreen.Bounds.Height;
 
-        // ÎÒÃÇĞèÒª Unsafe Ö¸Õë´«µİ¸ø DLL
-        // ×¢Òâ£ºGetRawTextureData ·µ»ØµÄÊÇ NativeArray£¬ÎÒÃÇĞèÒªËüµÄÖ¸Õë
-        unsafe
+        if (currentWidth != screenWidth || currentHeight != screenHeight)
         {
-            // NativeArray<T> ÔÚ Unity 2018+ ¿ÉÓÃ
-            // »ñÈ¡ NativeArray µÄÖ¸Õë
-            void* ptr = Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.GetUnsafePtr(textureData);
-
-            // µ÷ÓÃ C++ Ìî³äÊı¾İ
-            if (PerformCapture((IntPtr)ptr, screenWidth, screenHeight))
-            {
-                // ÉÏ´«Êı¾İµ½ GPU
-                screenTexture.Apply();
-            }
+            Reinitialize();
         }
+    }
+
+    private void Reinitialize()
+    {
+        // 1. åœæ­¢çº¿ç¨‹
+        shouldStop = true;
+        captureThread?.Join(2000);
+
+        // 2. æ¸…ç†èµ„æºï¼ˆä¸»çº¿ç¨‹ï¼‰
+        ReleaseCaptureResources();
+
+        // 3. é‡Šæ”¾ NativeArrayï¼ˆå¦‚æœéœ€è¦ï¼‰
+        if (textureNativeArray.IsCreated)
+        {
+            textureNativeArray.Dispose();
+        }
+
+        // 4. é‡å»º Texture
+        Destroy(screenTexture);
+        InitializeTexture();
+
+        // 5. é‡å¯çº¿ç¨‹
+        if (isInitialized)
+        {
+            shouldStop = false;
+            StartCaptureThread();
+        }
+    }
+
+    private void OnApplicationQuit()
+    {
+        Cleanup();
     }
 
     private void OnDestroy()
     {
-        // ÇåÀí C++ ×ÊÔ´
+        Cleanup();
+    }
+
+    private void Cleanup()
+    {
+        shouldStop = true;
+        captureThread?.Join(2000);
+
+        if (textureNativeArray.IsCreated)
+        {
+            textureNativeArray.Dispose();
+        }
+
         ReleaseCaptureResources();
     }
 }
