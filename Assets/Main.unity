@@ -25485,7 +25485,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::DesktopStream
   screenObject: {fileID: 1123992437}
-  targetFPS: 30
 --- !u!114 &1865030115
 MonoBehaviour:
   m_ObjectHideFlags: 0

@@ -16,7 +16,6 @@ public class ScreenCaptureNew : MonoBehaviour
     private static extern bool PerformCapture(IntPtr buffer, int width, int height);
 
     public RawImage screenObject;
-    public int targetFPS = 30;
 
     private Texture2D screenTexture;
     private int screenWidth, screenHeight;
@@ -96,8 +95,6 @@ public class ScreenCaptureNew : MonoBehaviour
     /// </summary>
     private void CaptureLoop()
     {
-        int frameIntervalMs = 1000 / targetFPS;
-
         while (!shouldStop)
         {
             if (!isInitialized || textureDataPtr == IntPtr.Zero)
@@ -114,7 +111,7 @@ public class ScreenCaptureNew : MonoBehaviour
                 newDataReady = true;
             }
 
-            Thread.Sleep(frameIntervalMs);
+            //Thread.Sleep(frameIntervalMs);
         }
     }
 
