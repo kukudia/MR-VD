@@ -1066,17 +1066,17 @@ public class AudioVisualizer : MonoBehaviour
         style.fontSize = 32;
         style.normal.textColor = Color.green;
 
-        GUI.Label(new Rect(20, 20, 300, 50), $"BPM: {limitedBPM:F1}", style);
-        GUI.Label(new Rect(20, 60, 300, 50), $"Key: {currentKey} {currentMode}", style);
+        GUI.Label(new Rect(Screen.width - 420, 20, 300, 50), $"BPM: {limitedBPM:F1}", style);
+        GUI.Label(new Rect(Screen.width - 420, 60, 300, 50), $"Key: {currentKey} {currentMode}", style);
 
         if (showBeatText)
         {
-            GUI.Label(new Rect(20, 90, 200, 50), $"** BEAT **", style);
+            GUI.Label(new Rect(Screen.width - 420, 90, 200, 50), $"** BEAT **", style);
         }
 
-        GUI.Label(new Rect(20, 120, 400, 50), $"Kick: {kickEnergy:F3} (T: {dynamicKickThreshold:F3})", style);
-        GUI.Label(new Rect(20, 150, 500, 50), $"Confidence: {(beatConfidences.Count > 0 ? beatConfidences.Last() : 0):F2}", style);
-        GUI.Label(new Rect(20, 180, 500, 50), $"Variance: {bpmVariance:F3}", style);
+        GUI.Label(new Rect(Screen.width - 420, 120, 400, 50), $"Kick: {kickEnergy:F3} (T: {dynamicKickThreshold:F3})", style);
+        GUI.Label(new Rect(Screen.width - 420, 150, 500, 50), $"Confidence: {(beatConfidences.Count > 0 ? beatConfidences.Last() : 0):F2}", style);
+        GUI.Label(new Rect(Screen.width - 420, 180, 500, 50), $"Variance: {bpmVariance:F3}", style);
 
         // 显示静音状态
         style.normal.textColor = Color.yellow;
@@ -1084,7 +1084,7 @@ public class AudioVisualizer : MonoBehaviour
         {
             float silenceDur = Time.time - silenceStartTime;
             
-            GUI.Label(new Rect(20, 210, 500, 50), "⚠️ 静音 " + (silenceDur <= 10 ? $"{silenceDur:F1}s" : ""), style);
+            GUI.Label(new Rect(Screen.width - 420, 210, 500, 50), "⚠️ 静音 " + (silenceDur <= 10 ? $"{silenceDur:F1}s" : ""), style);
         }
         else if (!wasSilent && playStartTime > 0)
         {
@@ -1094,16 +1094,16 @@ public class AudioVisualizer : MonoBehaviour
             int sec = playDur % 60;
             string minStr = min < 10 ? "0" + min : min.ToString();
             string secStr = sec < 10 ? "0" + sec : sec.ToString();
-            GUI.Label(new Rect(20, 210, 500, 50), $"🎶 播放 {minStr}:{secStr}", style);
+            GUI.Label(new Rect(Screen.width - 420, 210, 500, 50), $"🎶 播放 {minStr}:{secStr}", style);
         }
         style.normal.textColor = Color.green;
 
         // 显示对数压缩参数（调试用）
         if (enableDynamicRange)
         {
-            GUI.Label(new Rect(20, 240, 600, 50), $"动态缩放: {dynamicScaleFactor:F2} | 最大幅度: {maxRecentAmplitude:F3}", style);
+            GUI.Label(new Rect(Screen.width - 420, 240, 600, 50), $"动态缩放: {dynamicScaleFactor:F2} | 最大幅度: {maxRecentAmplitude:F3}", style);
         }
 
-        GUI.Label(new Rect(20, 270, 600, 50), $"原始 BPM: {detectedBPM:F1} | 方差：{bpmVariance:F3}", style);
+        GUI.Label(new Rect(Screen.width - 420, 270, 600, 50), $"原始 BPM: {detectedBPM:F1} | 方差：{bpmVariance:F3}", style);
     }
 }
