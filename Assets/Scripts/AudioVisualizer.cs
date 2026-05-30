@@ -224,15 +224,10 @@ public class AudioVisualizer : MonoBehaviour
 
     void FixedUpdate()
     {
-        if (AudioCaptureCSCore.instance.fftProvider != null)
+        if (AudioCaptureCSCore.instance != null &&
+            AudioCaptureCSCore.instance.TryUpdateFftData(fftSize, verticalScale, smoothingWeight))
         {
-            float[] fftBuffer = new float[fftSize];
-            bool hasFftData = AudioCaptureCSCore.instance.fftProvider.GetFftData(fftBuffer);
-
-            if (hasFftData)
-            {
-                ProcessFftData(fftBuffer);
-            }
+            ProcessFftData(AudioCaptureCSCore.instance.rawFftData);
         }
     }
 
@@ -241,28 +236,10 @@ public class AudioVisualizer : MonoBehaviour
         float[] frequencyData = AudioCaptureCSCore.instance.frequencyData;
         float[] smoothedFftData = AudioCaptureCSCore.instance.smoothedFftData;
 
-        int dataLength = fftBuffer.Length;
-        frequencyData = new float[dataLength];
-
-        for (int i = 0; i < dataLength; i++)
+        if (frequencyData == null || smoothedFftData == null ||
+            frequencyData.Length == 0 || smoothedFftData.Length == 0)
         {
-            float magnitude = Mathf.Max(fftBuffer[i], 1e-6f);
-            frequencyData[i] = AudioCaptureCSCore.instance.linearFftData
-                ? magnitude * verticalScale
-                : Mathf.Log10(magnitude) * verticalScale * 20f;
-        }
-
-        if (smoothedFftData.Length == 0)
-        {
-            smoothedFftData = new float[dataLength];
-            Array.Copy(frequencyData, smoothedFftData, dataLength);
-        }
-        else
-        {
-            for (int i = 0; i < dataLength; i++)
-            {
-                smoothedFftData[i] = (smoothedFftData[i] * smoothingWeight) + (frequencyData[i] * (1 - smoothingWeight));
-            }
+            return;
         }
 
         // ====== 移除旧的自动触发逻辑 ======
