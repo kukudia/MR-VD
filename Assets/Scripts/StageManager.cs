@@ -11,7 +11,7 @@ public class StageManager : MonoBehaviour
 {
     [Header("舞台核心引用")]
     [Tooltip("音频可视化器引用")]
-    public AudioVisualizerCSCore audioVisualizer;
+    public AudioVisualizer audioVisualizer;
 
     [Header("舞台灯光系统")]
     [Tooltip("主聚光灯阵列 - 顶部向下照射")]

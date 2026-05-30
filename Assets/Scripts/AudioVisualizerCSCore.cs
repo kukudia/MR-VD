@@ -3,7 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-public class AudioVisualizerCSCore : MonoBehaviour
+public class AudioVisualizer : MonoBehaviour
 {
     public bool movingBars;
 
