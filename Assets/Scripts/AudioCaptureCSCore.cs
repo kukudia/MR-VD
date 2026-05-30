@@ -23,7 +23,7 @@ public class AudioCaptureCSCore : MonoBehaviour
 
     [Header("Capture Mode")]
     [Tooltip("Input = 麦克风输入；Loopback = 系统播放回环（捕获扬声器输出）")]
-    public CaptureMode captureMode = CaptureMode.Input;
+    public CaptureMode captureMode = CaptureMode.Loopback;
     // =================================================
 
     // 原有变量保留（Loopback 模式时 capture 实际类型为 WasapiLoopbackCapture，基类均为 WasapiCapture）
@@ -35,7 +35,7 @@ public class AudioCaptureCSCore : MonoBehaviour
     public float[] frequencyData;
     public float[] smoothedFftData;
     public float[] rawFftData;
-    public bool linearFftData;
+    public bool linearFftData = true;
 
     [Header("FFT Data Output")]
     [Tooltip("公开 FFT 数组的长度，需要与可视化端使用的 FFT size 保持一致")]

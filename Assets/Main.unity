@@ -1132,6 +1132,79 @@ Transform:
   m_Children: []
   m_Father: {fileID: 769286354}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &72239938
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 72239939}
+  - component: {fileID: 72239940}
+  m_Layer: 0
+  m_Name: AudioCaptureCSCore
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &72239939
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 72239938}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 982699934}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &72239940
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 72239938}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e01f90e341bf5054f8b4911d31a182d9, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::AudioCaptureCSCore
+  captureMode: 1
+  frequencyData: []
+  smoothedFftData: []
+  rawFftData: []
+  linearFftData: 1
+  fftDataSize: 2048
+  updateFftDataAutomatically: 1
+  fftDataOutputScale: 1
+  fftDataSmoothingWeight: 0.5
+  selectedDeviceIndex: 0
+  deviceNames: []
+  rememberLastDevice: 1
+  enableHotplugDetection: 1
+  hotplugPollInterval: 3
+  onDeviceListChanged:
+    m_PersistentCalls:
+      m_Calls: []
+  onDeviceSwitched:
+    m_PersistentCalls:
+      m_Calls: []
+  currentDeviceName: None
+  showManualControlPanel: 1
+  manualControlPanelRect:
+    serializedVersion: 2
+    x: 16
+    y: 16
+    width: 360
+    height: 420
+  manualDeviceListHeight: 220
 --- !u!1 &74013857
 GameObject:
   m_ObjectHideFlags: 0
@@ -14069,7 +14142,8 @@ Transform:
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
-  m_Children: []
+  m_Children:
+  - {fileID: 72239939}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &982699935
@@ -23167,7 +23241,6 @@ GameObject:
   m_Component:
   - component: {fileID: 1675917932}
   - component: {fileID: 1675917931}
-  - component: {fileID: 1675917933}
   m_Layer: 0
   m_Name: AudioVisualizer
   m_TagString: Untagged
@@ -23193,7 +23266,7 @@ MonoBehaviour:
   barCount: 64
   barPosition: {fileID: 1675917932}
   horizontalScale: 0.02
-  verticalScale: 400
+  verticalScale: 10000
   a: 5
   b: 1
   logCompressionStrength: 20
@@ -23250,34 +23323,6 @@ Transform:
   m_Children: []
   m_Father: {fileID: 1135648486}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &1675917933
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1675917930}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: e01f90e341bf5054f8b4911d31a182d9, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::AudioCaptureCSCore
-  captureMode: 0
-  frequencyData: []
-  smoothedFftData: []
-  linearFftData: 0
-  selectedDeviceIndex: 0
-  deviceNames: []
-  rememberLastDevice: 1
-  enableHotplugDetection: 1
-  hotplugPollInterval: 3
-  onDeviceListChanged:
-    m_PersistentCalls:
-      m_Calls: []
-  onDeviceSwitched:
-    m_PersistentCalls:
-      m_Calls: []
-  currentDeviceName: None
 --- !u!1 &1676117288
 GameObject:
   m_ObjectHideFlags: 0
