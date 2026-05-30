@@ -2,29 +2,9 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using CSCore;
-using CSCore.CoreAudioAPI;
-using CSCore.DSP;
-using CSCore.SoundIn;
-using CSCore.Streams;
 
 public class AudioVisualizerCSCore : MonoBehaviour
 {
-    private WasapiLoopbackCapture capture;
-    private IWaveSource waveSource;
-    private SingleBlockNotificationStream notificationStream;
-    private FftProvider fftProvider;
-
-    private const int fftSize = 2048;
-
-    public float[] frequencyData;
-
-    private float[] averageSamples;
-
-    public float[] smoothedFftData;
-
-    public bool linearFftData;
-
     public bool movingBars;
 
     [Tooltip("FFT 数据的时域平滑权重（0=无平滑，趋近1=极度平滑）")]
@@ -72,6 +52,8 @@ public class AudioVisualizerCSCore : MonoBehaviour
     [Tooltip("动态范围调整速度")]
     [Range(0.1f, 5f)]
     public float dynamicRangeSpeed = 1f;
+
+    private const int fftSize = 2048;
 
     private float dynamicScaleFactor = 1f;
     private float maxRecentAmplitude = 1f;
@@ -238,78 +220,14 @@ public class AudioVisualizerCSCore : MonoBehaviour
                 bars[i] = bar;
             }
         }
-
-        InitializeCapture();
-    }
-
-    private void InitializeCapture()
-    {
-        try
-        {
-            capture?.Stop();
-            capture?.Dispose();
-            Debug.Log("[AudioVisualizerCSCore] Stopped and disposed previous capture.");
-
-            capture = new WasapiLoopbackCapture();
-            Debug.Log("[AudioVisualizerCSCore] Created WasapiLoopbackCapture.");
-            capture.Initialize();
-            Debug.Log("[AudioVisualizerCSCore] Capture initialized.");
-
-            if (capture.Device == null)
-            {
-                Debug.LogError("[AudioVisualizerCSCore] No default audio output device found.");
-                return;
-            }
-
-            Debug.Log($"[AudioVisualizerCSCore] Using device: {capture.Device.FriendlyName}, State: {capture.Device.DeviceState}");
-
-            var sampleSource = new SoundInSource(capture) { FillWithZeros = false }.ToSampleSource();
-            waveSource = sampleSource.ToWaveSource();
-            notificationStream = new SingleBlockNotificationStream(sampleSource);
-            Debug.Log("[AudioVisualizerCSCore] Audio stream and notification stream initialized.");
-
-            fftProvider = new FftProvider(waveSource.WaveFormat.Channels, FftSize.Fft2048);
-            Debug.Log("[AudioVisualizerCSCore] FFT Provider created with channels: " + waveSource.WaveFormat.Channels);
-
-            capture.DataAvailable += (s, args) =>
-            {
-                float[] buffer = new float[args.ByteCount / 4];
-                Buffer.BlockCopy(args.Data, 0, buffer, 0, args.ByteCount);
-
-                for (int i = 0; i < buffer.Length; i += waveSource.WaveFormat.Channels)
-                {
-                    if (waveSource.WaveFormat.SampleRate > 2205)
-                    {
-                        if (i / waveSource.WaveFormat.SampleRate < 0.6f)
-                        {
-                            if (waveSource.WaveFormat.Channels == 2)
-                            {
-                                fftProvider.Add(buffer[i], buffer[i + 1]);
-                            }
-                            else
-                            {
-                                fftProvider.Add(buffer[i], buffer[i]);
-                            }
-                        }
-                    }
-                }
-            };
-
-            capture.Start();
-            Debug.Log("[AudioVisualizerCSCore] Capture started.");
-        }
-        catch (Exception ex)
-        {
-            Debug.LogError($"[AudioVisualizerCSCore] Error initializing audio capture: {ex.Message}");
-        }
     }
 
     void FixedUpdate()
     {
-        if (fftProvider != null)
+        if (AudioCaptureCSCore.instance.fftProvider != null)
         {
             float[] fftBuffer = new float[fftSize];
-            bool hasFftData = fftProvider.GetFftData(fftBuffer);
+            bool hasFftData = AudioCaptureCSCore.instance.fftProvider.GetFftData(fftBuffer);
 
             if (hasFftData)
             {
@@ -320,13 +238,16 @@ public class AudioVisualizerCSCore : MonoBehaviour
 
     private void ProcessFftData(float[] fftBuffer)
     {
+        float[] frequencyData = AudioCaptureCSCore.instance.frequencyData;
+        float[] smoothedFftData = AudioCaptureCSCore.instance.smoothedFftData;
+
         int dataLength = fftBuffer.Length;
         frequencyData = new float[dataLength];
 
         for (int i = 0; i < dataLength; i++)
         {
             float magnitude = Mathf.Max(fftBuffer[i], 1e-6f);
-            frequencyData[i] = linearFftData
+            frequencyData[i] = AudioCaptureCSCore.instance.linearFftData
                 ? magnitude * verticalScale
                 : Mathf.Log10(magnitude) * verticalScale * 20f;
         }
@@ -622,7 +543,7 @@ public class AudioVisualizerCSCore : MonoBehaviour
             // 在节拍发生时更新调性（可选）
             if (limitedBPM > 0)
             {
-                DetectKeyFromFft(frequencyData);
+                DetectKeyFromFft(AudioCaptureCSCore.instance.frequencyData);
             }
 
             Debug.Log($"[Beat] 触发节拍 - 置信度: {totalConfidence:F2}, Kick: {kickEnergy:F3}, Snare: {snareEnergy:F3}");
@@ -1076,7 +997,7 @@ public class AudioVisualizerCSCore : MonoBehaviour
     private double[] ExtractChromaFeatures(float[] fft)
     {
         double[] chroma = new double[12];
-        int sampleRate = waveSource.WaveFormat.SampleRate;
+        int sampleRate = AudioCaptureCSCore.instance.waveSource.WaveFormat.SampleRate;
         double freqRes = (double)sampleRate / fft.Length;
 
         int minBin = Mathf.Max(1, (int)(80.0 / freqRes));
@@ -1148,7 +1069,7 @@ public class AudioVisualizerCSCore : MonoBehaviour
 
     private float GetBandEnergy(float[] spectrum, float fMin, float fMax)
     {
-        int sampleRate = waveSource.WaveFormat.SampleRate;
+        int sampleRate = AudioCaptureCSCore.instance.waveSource.WaveFormat.SampleRate;
         int imin = Mathf.FloorToInt(fMin * fftSize / sampleRate);
         int imax = Mathf.FloorToInt(fMax * fftSize / sampleRate);
 
@@ -1207,13 +1128,5 @@ public class AudioVisualizerCSCore : MonoBehaviour
         }
 
         GUI.Label(new Rect(20, 270, 600, 50), $"原始 BPM: {detectedBPM:F1} | 方差：{bpmVariance:F3}", style);
-    }
-
-    void OnDisable()
-    {
-        Debug.Log("[AudioVisualizerCSCore] Disposing capture and waveSource.");
-        capture?.Stop();
-        capture?.Dispose();
-        waveSource?.Dispose();
     }
 }

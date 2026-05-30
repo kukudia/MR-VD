@@ -23167,6 +23167,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1675917932}
   - component: {fileID: 1675917931}
+  - component: {fileID: 1675917933}
   m_Layer: 0
   m_Name: AudioVisualizer
   m_TagString: Untagged
@@ -23186,9 +23187,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0e1a9cdc4b48f8840b84a5adfe06050b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  frequencyData: []
-  smoothedFftData: []
-  linearFftData: 1
   movingBars: 0
   smoothingWeight: 0.5
   barPrefab: {fileID: 2026906072109196510, guid: 6dbf4f11fbfa02140a4136e089d81797, type: 3}
@@ -23252,6 +23250,34 @@ Transform:
   m_Children: []
   m_Father: {fileID: 1135648486}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1675917933
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1675917930}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e01f90e341bf5054f8b4911d31a182d9, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::AudioCaptureCSCore
+  captureMode: 0
+  frequencyData: []
+  smoothedFftData: []
+  linearFftData: 0
+  selectedDeviceIndex: 0
+  deviceNames: []
+  rememberLastDevice: 1
+  enableHotplugDetection: 1
+  hotplugPollInterval: 3
+  onDeviceListChanged:
+    m_PersistentCalls:
+      m_Calls: []
+  onDeviceSwitched:
+    m_PersistentCalls:
+      m_Calls: []
+  currentDeviceName: None
 --- !u!1 &1676117288
 GameObject:
   m_ObjectHideFlags: 0
