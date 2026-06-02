@@ -27,6 +27,7 @@
 *.pdb.meta
 *.mdb.meta
 sysinfo.txt
+RuntimeActionBindings.json
 
 # Unity crash and backup files
 *.stackdump

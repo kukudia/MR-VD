@@ -59,6 +59,49 @@ public class AudioVisualizer : MonoBehaviour
     private float maxRecentAmplitude = 1f;
 
     private GameObject[] bars;
+    private Renderer[] barRenderers;
+    private float[] barGlowLevels;
+    private MaterialPropertyBlock barPropertyBlock;
+    private Material runtimeBarGlowMaterial;
+
+    [Header("发光柱状条设置")]
+    [Tooltip("启用柱状条发光材质和随音频变化的颜色")]
+    public bool enableBarGlow = true;
+
+    [Tooltip("可选：指定柱状条发光材质。为空时运行时自动创建 URP/Lit 发光材质")]
+    public Material barGlowMaterial;
+
+    [Tooltip("静音或低能量时的基础发光强度")]
+    [Range(0f, 8f)]
+    public float baseBarEmissionIntensity = 0.8f;
+
+    [Tooltip("音频能量映射到发光强度的倍率")]
+    [Range(0f, 30f)]
+    public float audioBarEmissionIntensity = 8f;
+
+    [Tooltip("检测到节拍时额外增加的发光强度")]
+    [Range(0f, 20f)]
+    public float beatBarEmissionBoost = 4f;
+
+    [Tooltip("颜色随时间循环的速度")]
+    [Range(0f, 2f)]
+    public float barHueCycleSpeed = 0.16f;
+
+    [Tooltip("颜色/亮度响应速度")]
+    [Range(1f, 30f)]
+    public float barGlowSmoothingSpeed = 12f;
+
+    [Tooltip("频段颜色梯度强度，值越大不同柱状条色差越明显")]
+    [Range(0f, 1f)]
+    public float barFrequencyHueSpread = 0.42f;
+
+    [Tooltip("Kick 能量对整体色相的影响")]
+    [Range(0f, 1f)]
+    public float kickHueInfluence = 0.16f;
+
+    [Tooltip("Synth 能量对整体色相的影响")]
+    [Range(0f, 1f)]
+    public float synthHueInfluence = 0.22f;
 
     // ==================== 改进的BPM检测字段 ====================
 
@@ -129,7 +172,34 @@ public class AudioVisualizer : MonoBehaviour
     private float previousSnareEnergy = 0f;
     private float playStartTime = 0f;
     private float silenceStartTime = 0f;
-    private float silenceThreshold = 0.001f;
+
+    [Header("调试显示设置")]
+    [Tooltip("当 AudioCaptureCSCore 没有显示合并调试面板时，单独显示 AudioVisualizer 状态")]
+    public bool showStandaloneStatusOverlay = true;
+
+    [Header("静音检测设置")]
+    [Tooltip("低于该宽频能量并持续一段时间后，才判定进入静音")]
+    public float silenceEnterThreshold = 0.001f;
+
+    [Tooltip("高于该宽频能量并持续一段时间后，才判定恢复播放。应大于进入阈值，避免状态抖动")]
+    public float silenceExitThreshold = 0.003f;
+
+    [Tooltip("进入静音前需要连续低能量的时间（秒）")]
+    public float silenceEnterDelay = 0.8f;
+
+    [Tooltip("退出静音前需要连续高能量的时间（秒）")]
+    public float silenceExitDelay = 0.15f;
+
+    [Tooltip("静音能量平滑速度。值越大响应越快，值越小越抗抖动")]
+    [Range(1f, 30f)]
+    public float silenceEnergySmoothSpeed = 8f;
+
+    [Tooltip("低能量但非静音时的判定倍率，用于临时降低节拍置信度")]
+    public float lowEnergyThresholdMultiplier = 4f;
+
+    private float smoothedSilenceEnergy = 0f;
+    private float pendingSilenceStartTime = -1f;
+    private float pendingSoundStartTime = -1f;
     public bool wasSilent = true;
     private List<float> beatStrengths = new List<float>();
 
@@ -208,9 +278,18 @@ public class AudioVisualizer : MonoBehaviour
 
     void Start()
     {
+        wasSilent = true;
+        silenceStartTime = Time.time;
+        playStartTime = 0f;
+        pendingSilenceStartTime = -1f;
+        pendingSoundStartTime = -1f;
+        smoothedSilenceEnergy = 0f;
+
         if (!movingBars)
         {
             bars = new GameObject[barCount];
+            barRenderers = new Renderer[barCount];
+            barGlowLevels = new float[barCount];
             for (int i = 0; i < barCount; i++)
             {
                 GameObject bar = Instantiate(barPrefab, transform);
@@ -218,6 +297,7 @@ public class AudioVisualizer : MonoBehaviour
                 float z = Mathf.Sqrt(1 - (x * x) / (a * a)) * b;
                 bar.transform.position = new Vector3(x, transform.position.y, z);
                 bars[i] = bar;
+                CacheBarRenderer(i, bar);
             }
         }
     }
@@ -275,6 +355,9 @@ public class AudioVisualizer : MonoBehaviour
         synthEnergy = GetBandEnergy(frequencyData, 400, 4000);
         smoothedSynthEnergy = GetBandEnergy(smoothedFftData, 400, 4000);
 
+        // 先更新静音状态，避免节拍检测早退时静音状态卡住。
+        CheckAndHandleSilence(smoothedFftData, Time.time);
+
         // 更新柱状条
         UpdateBars(smoothedFftData);
 
@@ -299,6 +382,8 @@ public class AudioVisualizer : MonoBehaviour
             if (Time.time - lastBeatTime >= beatInterval)
             {
                 bars = new GameObject[barCount];
+                barRenderers = new Renderer[barCount];
+                barGlowLevels = new float[barCount];
                 for (int i = 0; i < barCount; i++)
                 {
                     GameObject bar = Instantiate(barPrefab, transform);
@@ -306,6 +391,7 @@ public class AudioVisualizer : MonoBehaviour
                     float z = Mathf.Sqrt(1 - (x * x) / (a * a)) * b;
                     bar.transform.position = new Vector3(x, transform.position.y, z);
                     bars[i] = bar;
+                    CacheBarRenderer(i, bar);
                     barObjects.Add(bar);
                     Destroy(bar, 5);
                 }
@@ -325,6 +411,11 @@ public class AudioVisualizer : MonoBehaviour
                     }
                 }
             }
+        }
+
+        if (bars == null || bars.Length != barCount)
+        {
+            return;
         }
 
         // ====== 动态范围调整 ======
@@ -354,9 +445,12 @@ public class AudioVisualizer : MonoBehaviour
         }
 
         // ====== 更新每根柱状条 ======
+        EnsureBarVisualArrays();
+
         for (int i = 0; i < barCount; i++)
         {
             float finalHeight = minBarHeight;
+            float rawAmplitude = 0f;
 
             if (!wasSilent)
             {
@@ -364,7 +458,7 @@ public class AudioVisualizer : MonoBehaviour
                 float logIndex = Mathf.Pow((float)(i + 1) / barCount, 1);
                 int fftIndex = Mathf.Clamp((int)(logIndex * (spectrumData.Length - 1)), 0, spectrumData.Length - 1);
 
-                float rawAmplitude = spectrumData[fftIndex];
+                rawAmplitude = spectrumData[fftIndex];
 
                 // ====== 对数压缩 ======
                 // 使用 log10(x + offset) 进行压缩
@@ -386,7 +480,146 @@ public class AudioVisualizer : MonoBehaviour
                 Vector3 newScale = bars[i].transform.localScale;
                 newScale.y = finalHeight;
                 bars[i].transform.localScale = newScale;
+
+                UpdateBarGlow(i, rawAmplitude, finalHeight);
             }
+        }
+    }
+
+    private void EnsureBarVisualArrays()
+    {
+        if (bars == null || bars.Length != barCount)
+        {
+            return;
+        }
+
+        if (barRenderers == null || barRenderers.Length != barCount)
+        {
+            barRenderers = new Renderer[barCount];
+        }
+
+        if (barGlowLevels == null || barGlowLevels.Length != barCount)
+        {
+            barGlowLevels = new float[barCount];
+        }
+
+        for (int i = 0; i < bars.Length; i++)
+        {
+            if (bars[i] != null && barRenderers[i] == null)
+            {
+                CacheBarRenderer(i, bars[i]);
+            }
+        }
+    }
+
+    private void CacheBarRenderer(int index, GameObject bar)
+    {
+        if (bar == null)
+        {
+            return;
+        }
+
+        EnsureBarGlowMaterial();
+
+        Renderer renderer = bar.GetComponentInChildren<Renderer>();
+        if (renderer == null)
+        {
+            return;
+        }
+
+        if (barRenderers != null && index >= 0 && index < barRenderers.Length)
+        {
+            barRenderers[index] = renderer;
+        }
+
+        if (enableBarGlow && barGlowMaterial != null)
+        {
+            renderer.sharedMaterial = barGlowMaterial;
+        }
+    }
+
+    private void EnsureBarGlowMaterial()
+    {
+        if (barGlowMaterial != null)
+        {
+            return;
+        }
+
+        if (runtimeBarGlowMaterial != null)
+        {
+            barGlowMaterial = runtimeBarGlowMaterial;
+            return;
+        }
+
+        Shader shader = Shader.Find("Universal Render Pipeline/Lit");
+        if (shader == null)
+        {
+            shader = Shader.Find("Standard");
+        }
+
+        if (shader == null)
+        {
+            return;
+        }
+
+        runtimeBarGlowMaterial = new Material(shader);
+        runtimeBarGlowMaterial.name = "Runtime Audio Bar Glow";
+        runtimeBarGlowMaterial.EnableKeyword("_EMISSION");
+        runtimeBarGlowMaterial.SetColor("_BaseColor", Color.cyan);
+        runtimeBarGlowMaterial.SetColor("_EmissionColor", Color.cyan * baseBarEmissionIntensity);
+        barGlowMaterial = runtimeBarGlowMaterial;
+    }
+
+    private void UpdateBarGlow(int index, float rawAmplitude, float finalHeight)
+    {
+        if (!enableBarGlow || barRenderers == null || index < 0 || index >= barRenderers.Length)
+        {
+            return;
+        }
+
+        Renderer renderer = barRenderers[index];
+        if (renderer == null)
+        {
+            return;
+        }
+
+        if (barPropertyBlock == null)
+        {
+            barPropertyBlock = new MaterialPropertyBlock();
+        }
+
+        float normalizedHeight = Mathf.InverseLerp(minBarHeight, maxBarHeight, finalHeight);
+        float bandEnergy = Mathf.Clamp01(rawAmplitude * audioBarEmissionIntensity);
+        float targetGlow = wasSilent ? 0f : Mathf.Clamp01(Mathf.Max(normalizedHeight, bandEnergy));
+        float smoothFactor = 1f - Mathf.Exp(-barGlowSmoothingSpeed * Time.deltaTime);
+        barGlowLevels[index] = Mathf.Lerp(barGlowLevels[index], targetGlow, smoothFactor);
+
+        float beatBoost = showBeatText ? beatBarEmissionBoost : 0f;
+        float energyHueOffset = Mathf.Clamp01(kickEnergy * 30f) * kickHueInfluence
+                              + Mathf.Clamp01(synthEnergy * 12f) * synthHueInfluence;
+        float barOffset = barCount > 1 ? (float)index / (barCount - 1) : 0f;
+        float hue = Mathf.Repeat(Time.time * barHueCycleSpeed + barOffset * barFrequencyHueSpread + energyHueOffset, 1f);
+        float saturation = Mathf.Lerp(0.65f, 1f, barGlowLevels[index]);
+        float value = Mathf.Lerp(0.35f, 1f, barGlowLevels[index]);
+        Color color = Color.HSVToRGB(hue, saturation, value);
+
+        float emissionIntensity = baseBarEmissionIntensity
+                                + barGlowLevels[index] * audioBarEmissionIntensity
+                                + beatBoost * barGlowLevels[index];
+
+        renderer.GetPropertyBlock(barPropertyBlock);
+        SetRendererColorProperty(barPropertyBlock, renderer, "_BaseColor", color);
+        SetRendererColorProperty(barPropertyBlock, renderer, "_Color", color);
+        SetRendererColorProperty(barPropertyBlock, renderer, "_EmissionColor", color * emissionIntensity);
+        renderer.SetPropertyBlock(barPropertyBlock);
+    }
+
+    private void SetRendererColorProperty(MaterialPropertyBlock propertyBlock, Renderer renderer, string propertyName, Color color)
+    {
+        Material material = renderer.sharedMaterial;
+        if (material == null || material.HasProperty(propertyName))
+        {
+            propertyBlock.SetColor(propertyName, color);
         }
     }
 
@@ -420,6 +653,13 @@ public class AudioVisualizer : MonoBehaviour
 
         // ====== 步骤1：计算多频段能量 ======
         float snareEnergy = GetBandEnergy(fft, 150, 300);
+
+        if (wasSilent)
+        {
+            previousKickEnergy = kickEnergy;
+            previousSnareEnergy = snareEnergy;
+            return;
+        }
 
         // ====== 步骤2：维护能量历史 ======
         kickEnergyHistory.Enqueue(kickEnergy);
@@ -554,8 +794,6 @@ public class AudioVisualizer : MonoBehaviour
             Debug.Log($"[Beat] 手动节拍 @ {time:F2}s");
         }
 
-        // ====== 静音检测与渐进式清理 ======
-        CheckAndHandleSilence(kickEnergy, snareEnergy, time);
     }
 
     /// <summary>
@@ -847,55 +1085,75 @@ public class AudioVisualizer : MonoBehaviour
     /// 2. 静音时保留部分历史数据（便于快速恢复）
     /// 3. 区分完全静音和低能量
     /// </summary>
-    private void CheckAndHandleSilence(float kickEnergy, float snareEnergy, float currentTime)
+    private void CheckAndHandleSilence(float[] spectrumData, float currentTime)
     {
-        float totalEnergy = kickEnergy + snareEnergy;
-        bool isSilent = totalEnergy < silenceThreshold;
+        float broadbandEnergy = GetBandEnergy(spectrumData, 40, 8000);
+        float weightedEnergy = Mathf.Max(
+            broadbandEnergy,
+            smoothedKickEnergy * 0.6f + smoothedBassEnergy * 0.4f + smoothedSynthEnergy * 0.4f);
 
-        // ====== 情况1: 当前是静音 ======
-        if (isSilent)
+        smoothedSilenceEnergy = Mathf.Lerp(
+            smoothedSilenceEnergy,
+            weightedEnergy,
+            1f - Mathf.Exp(-silenceEnergySmoothSpeed * Time.deltaTime));
+
+        if (wasSilent)
         {
-            // 首次进入静音状态
-            if (!wasSilent)
+            pendingSilenceStartTime = -1f;
+
+            if (smoothedSilenceEnergy >= silenceExitThreshold)
+            {
+                if (pendingSoundStartTime < 0f)
+                    pendingSoundStartTime = currentTime;
+
+                if (currentTime - pendingSoundStartTime >= silenceExitDelay)
+                {
+                    float silenceDurationTotal = silenceStartTime > 0f
+                        ? currentTime - silenceStartTime
+                        : 0f;
+
+                    minBeatConfidence = silenceDurationTotal > 1f ? 0.2f : 0.3f;
+                    playStartTime = currentTime;
+                    wasSilent = false;
+                    pendingSoundStartTime = -1f;
+
+                    Debug.Log($"[Silence] 音频恢复，静音持续了 {silenceDurationTotal:F2}s，能量: {smoothedSilenceEnergy:F5}");
+                }
+            }
+            else
+            {
+                pendingSoundStartTime = -1f;
+            }
+
+            return;
+        }
+
+        pendingSoundStartTime = -1f;
+
+        if (smoothedSilenceEnergy <= silenceEnterThreshold)
+        {
+            if (pendingSilenceStartTime < 0f)
+                pendingSilenceStartTime = currentTime;
+
+            if (currentTime - pendingSilenceStartTime >= silenceEnterDelay)
             {
                 ResetBeatDetection();
                 silenceStartTime = currentTime;
                 wasSilent = true;
-                Debug.Log($"[Silence] 检测到静音开始，时间: {currentTime:F2}");
+                pendingSilenceStartTime = -1f;
+                showBeatText = false;
+
+                Debug.Log($"[Silence] 检测到静音开始，时间: {currentTime:F2}，能量: {smoothedSilenceEnergy:F5}");
             }
         }
-        // ====== 情况2: 从静音恢复 ======
         else
         {
-            if (wasSilent)
+            pendingSilenceStartTime = -1f;
+
+            if (smoothedSilenceEnergy < silenceExitThreshold * lowEnergyThresholdMultiplier)
             {
-                float silenceDurationTotal = currentTime - silenceStartTime;
-                Debug.Log($"[Silence] 音频恢复，静音持续了 {silenceDurationTotal:F2}s");
-
-                // 如果静音时间很短(<1秒)，恢复正常置信度阈值
-                if (silenceDurationTotal < 1f)
-                {
-                    minBeatConfidence = 0.3f;
-                }
-                // 如果静音时间较长，给予一个较低的初始阈值，便于快速重新检测
-                else if (beatTimestamps.Count > 0)
-                {
-                    minBeatConfidence = 0.2f; // 临时降低阈值
-                    Debug.Log($"[Silence] 降低初始阈值以便快速重新锁定节拍");
-                }
-
-                playStartTime = currentTime;
-                wasSilent = false;
-            }
-
-            // ====== 情况3: 低能量但非静音（例如安静的间奏）======
-            // 如果能量很低但还不到静音阈值，逐渐降低置信度要求
-            else if (totalEnergy < silenceThreshold * 5) // 能量低于5倍静音阈值
-            {
-                // 逐渐降低置信度，帮助在低能量段落继续跟踪
                 minBeatConfidence = Mathf.Max(0.2f, minBeatConfidence - 0.01f * Time.deltaTime);
             }
-            // 能量正常，恢复标准置信度
             else
             {
                 minBeatConfidence = Mathf.Lerp(minBeatConfidence, 0.3f, Time.deltaTime * 2f);
@@ -1060,50 +1318,71 @@ public class AudioVisualizer : MonoBehaviour
         return sum / (imax - imin + 1);
     }
 
-    void OnGUI()
+    public void DrawStatusGui(int fontSize = 18)
     {
         GUIStyle style = new GUIStyle(GUI.skin.label);
-        style.fontSize = 32;
+        style.fontSize = fontSize;
+        style.wordWrap = false;
         style.normal.textColor = Color.green;
 
-        GUI.Label(new Rect(Screen.width - 420, 20, 300, 50), $"BPM: {limitedBPM:F1}", style);
-        GUI.Label(new Rect(Screen.width - 420, 60, 300, 50), $"Key: {currentKey} {currentMode}", style);
+        GUILayout.Label($"BPM: {limitedBPM:F1}", style);
+        GUILayout.Label($"Key: {currentKey} {currentMode}", style);
 
         if (showBeatText)
         {
-            GUI.Label(new Rect(Screen.width - 420, 90, 200, 50), $"** BEAT **", style);
+            GUILayout.Label("** BEAT **", style);
         }
 
-        GUI.Label(new Rect(Screen.width - 420, 120, 400, 50), $"Kick: {kickEnergy:F3} (T: {dynamicKickThreshold:F3})", style);
-        GUI.Label(new Rect(Screen.width - 420, 150, 500, 50), $"Confidence: {(beatConfidences.Count > 0 ? beatConfidences.Last() : 0):F2}", style);
-        GUI.Label(new Rect(Screen.width - 420, 180, 500, 50), $"Variance: {bpmVariance:F3}", style);
+        GUILayout.Label($"Kick: {kickEnergy:F3} (T: {dynamicKickThreshold:F3})", style);
+        GUILayout.Label($"Confidence: {(beatConfidences.Count > 0 ? beatConfidences.Last() : 0):F2}", style);
+        GUILayout.Label($"Variance: {bpmVariance:F3}", style);
 
         // 显示静音状态
         style.normal.textColor = Color.yellow;
-        if (wasSilent && silenceStartTime > 0)
-        {
-            float silenceDur = Time.time - silenceStartTime;
-            
-            GUI.Label(new Rect(Screen.width - 420, 210, 500, 50), "⚠️ 静音 " + (silenceDur <= 10 ? $"{silenceDur:F1}s" : ""), style);
-        }
-        else if (!wasSilent && playStartTime > 0)
-        {
-            int playDur = (int) (Time.time - playStartTime);
-
-            int min = playDur / 60;
-            int sec = playDur % 60;
-            string minStr = min < 10 ? "0" + min : min.ToString();
-            string secStr = sec < 10 ? "0" + sec : sec.ToString();
-            GUI.Label(new Rect(Screen.width - 420, 210, 500, 50), $"🎶 播放 {minStr}:{secStr}", style);
-        }
+        GUILayout.Label(GetPlaybackStatusText(), style);
+        GUILayout.Label($"Silence Energy: {smoothedSilenceEnergy:F5}", style);
         style.normal.textColor = Color.green;
 
         // 显示对数压缩参数（调试用）
         if (enableDynamicRange)
         {
-            GUI.Label(new Rect(Screen.width - 420, 240, 600, 50), $"动态缩放: {dynamicScaleFactor:F2} | 最大幅度: {maxRecentAmplitude:F3}", style);
+            GUILayout.Label($"动态缩放: {dynamicScaleFactor:F2} | 最大幅度: {maxRecentAmplitude:F3}", style);
         }
 
-        GUI.Label(new Rect(Screen.width - 420, 270, 600, 50), $"原始 BPM: {detectedBPM:F1} | 方差：{bpmVariance:F3}", style);
+        GUILayout.Label($"原始 BPM: {detectedBPM:F1} | 方差: {bpmVariance:F3}", style);
+    }
+
+    private string GetPlaybackStatusText()
+    {
+        if (wasSilent)
+        {
+            float startTime = silenceStartTime >= 0f ? silenceStartTime : Time.time;
+            return $"静音 {FormatDuration(Time.time - startTime)}";
+        }
+
+        float playTime = playStartTime > 0f ? playStartTime : Time.time;
+        return $"播放 {FormatDuration(Time.time - playTime)}";
+    }
+
+    private string FormatDuration(float duration)
+    {
+        int totalSeconds = Mathf.Max(0, Mathf.FloorToInt(duration));
+        int minutes = totalSeconds / 60;
+        int seconds = totalSeconds % 60;
+        return $"{minutes:00}:{seconds:00}";
+    }
+
+    void OnGUI()
+    {
+        AudioCaptureCSCore capture = AudioCaptureCSCore.instance;
+        bool mergedPanelVisible = capture != null && capture.showManualControlPanel;
+        if (!showStandaloneStatusOverlay || mergedPanelVisible)
+        {
+            return;
+        }
+
+        GUILayout.BeginArea(new Rect(Screen.width - 420, 20, 400, 360));
+        DrawStatusGui(24);
+        GUILayout.EndArea();
     }
 }

@@ -108,11 +108,14 @@ public class AudioCaptureCSCore : MonoBehaviour
     public bool showManualControlPanel = true;
 
     [Tooltip("手动按钮面板的位置与大小")]
-    public Rect manualControlPanelRect = new Rect(16f, 16f, 360f, 420f);
+    public Rect manualControlPanelRect = new Rect(16f, 16f, 420f, 560f);
+
+    [Tooltip("合并显示 AudioVisualizer 的 BPM / 调性 / 静音状态")]
+    public AudioVisualizer audioVisualizer;
 
     [Tooltip("设备列表滚动区域高度")]
     [Range(80f, 360f)]
-    public float manualDeviceListHeight = 220f;
+    public float manualDeviceListHeight = 180f;
 
     private Vector2 _manualDeviceListScrollPosition;
     // =========================================================
@@ -120,6 +123,11 @@ public class AudioCaptureCSCore : MonoBehaviour
     private void Awake()
     {
         instance = this;
+        if (audioVisualizer == null)
+        {
+            audioVisualizer = FindFirstObjectByType<AudioVisualizer>();
+        }
+
         EnsureFftDataArrays(fftDataSize);
         RefreshDeviceList();
 
@@ -682,6 +690,8 @@ public class AudioCaptureCSCore : MonoBehaviour
             return;
         }
 
+        manualControlPanelRect.width = Mathf.Max(manualControlPanelRect.width, 420f);
+        manualControlPanelRect.height = Mathf.Max(manualControlPanelRect.height, 560f);
         manualControlPanelRect = GUILayout.Window(
             GetInstanceID(),
             manualControlPanelRect,
@@ -747,7 +757,28 @@ public class AudioCaptureCSCore : MonoBehaviour
             GUILayout.EndScrollView();
         }
 
+        DrawVisualizerStatusSection();
+
         GUI.DragWindow(new Rect(0f, 0f, 10000f, 24f));
+    }
+
+    private void DrawVisualizerStatusSection()
+    {
+        if (audioVisualizer == null)
+        {
+            audioVisualizer = FindFirstObjectByType<AudioVisualizer>();
+        }
+
+        GUILayout.Space(8f);
+        GUILayout.Label("Audio Visualizer");
+
+        if (audioVisualizer == null)
+        {
+            GUILayout.Label("AudioVisualizer not found");
+            return;
+        }
+
+        audioVisualizer.DrawStatusGui();
     }
 
     private void DrawModeButton(string label, CaptureMode mode)
