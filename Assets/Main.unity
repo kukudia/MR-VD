@@ -1204,6 +1204,7 @@ MonoBehaviour:
     y: 16
     width: 360
     height: 420
+  audioVisualizer: {fileID: 0}
   manualDeviceListHeight: 220
 --- !u!1 &74013857
 GameObject:
@@ -23266,7 +23267,7 @@ MonoBehaviour:
   barCount: 64
   barPosition: {fileID: 1675917932}
   horizontalScale: 0.02
-  verticalScale: 10000
+  verticalScale: 500
   a: 5
   b: 1
   logCompressionStrength: 20
@@ -23275,6 +23276,16 @@ MonoBehaviour:
   minBarHeight: 0.01
   enableDynamicRange: 1
   dynamicRangeSpeed: 5
+  enableBarGlow: 1
+  barGlowMaterial: {fileID: 0}
+  baseBarEmissionIntensity: 0.8
+  audioBarEmissionIntensity: 8
+  beatBarEmissionBoost: 4
+  barHueCycleSpeed: 0.16
+  barGlowSmoothingSpeed: 12
+  barFrequencyHueSpread: 0.42
+  kickHueInfluence: 0.16
+  synthHueInfluence: 0.22
   energyHistorySize: 200
   beatTimestamps: []
   lastBeatTime: 0
@@ -23292,6 +23303,13 @@ MonoBehaviour:
   showBeatText: 0
   beatDisplayTime: 0.2
   minBeatConfidence: 0.3
+  showStandaloneStatusOverlay: 1
+  silenceEnterThreshold: 0.001
+  silenceExitThreshold: 0.003
+  silenceEnterDelay: 0.8
+  silenceExitDelay: 0.15
+  silenceEnergySmoothSpeed: 8
+  lowEnergyThresholdMultiplier: 4
   wasSilent: 1
   onsetSensitivity: 1.2
   dynamicKickThresholdSpeed: 30
