@@ -1,6 +1,91 @@
-# Compiled and build artifacts
-*.pyc
+# Unity generated folders
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Uu]ser[Ss]ettings/
+[Mm]emoryCaptures/
+[Rr]ecordings/
+[Pp]rofilerCaptures/
+
+# Unity generated files
+*.csproj
+*.sln
+*.slnx
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+*.pidb.meta
+*.pdb.meta
+*.mdb.meta
+sysinfo.txt
+
+# Unity crash and backup files
+*.stackdump
+*.apk
+*.aab
+*.unitypackage
+*.app
+*.xcodeproj
+*.xcworkspace
+*.xcuserstate
+*.xcuserdata/
+*.xcscmblueprint
+
+# Unity Addressables and streaming generated data
+Assets/AddressableAssetsData/*/*.bin*
+Assets/StreamingAssets/aa.meta
+Assets/StreamingAssets/aa/
+
+# Visual Studio / Rider / IDE caches
+.vs/
+.vscode/
+.idea/
+ExportedObj/
+ConsuloGenerated/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# General build artifacts
+dist/
+target/
+node_modules/
+venv/
+.venv/
+.env
+.env.local
+.env.*
+
+# General caches and logs
 __pycache__/
+*.pyc
+.mypy_cache/
+.pytest_cache/
+.coverage
+coverage/
+htmlcov/
+*.log
+*.tmp
+*.swp
+*.swo
+
+# Binary/object build outputs
 *.o
 *.obj
 *.exe
@@ -10,39 +95,7 @@ __pycache__/
 *.out
 *.class
 
-# Dependencies
-node_modules/
-venv/
-.venv/
-.env
-.env.local
-.env.*
-
-# Build directories
-dist/
-build/
-target/
-
-# Cache directories
-.mypy_cache/
-.pytest_cache/
-.coverage
-coverage/
-htmlcov/
-
-# Editors
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# System files
-.DS_Store
-Thumbs.db
-*.log
-*.tmp
-
-# Compressed files
+# Archives
 *.zip
 *.gz
 *.tar
