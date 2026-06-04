@@ -355,8 +355,8 @@ public class AudioVisualizer : MonoBehaviour
         synthEnergy = GetBandEnergy(frequencyData, 400, 4000);
         smoothedSynthEnergy = GetBandEnergy(smoothedFftData, 400, 4000);
 
-        // 先更新静音状态，避免节拍检测早退时静音状态卡住。
-        CheckAndHandleSilence(smoothedFftData, Time.time);
+        // 先用未平滑频谱更新静音状态，避免可视化平滑拖慢静音检测。
+        CheckAndHandleSilence(frequencyData, Time.time);
 
         // 更新柱状条
         UpdateBars(smoothedFftData);
@@ -1090,7 +1090,7 @@ public class AudioVisualizer : MonoBehaviour
         float broadbandEnergy = GetBandEnergy(spectrumData, 40, 8000);
         float weightedEnergy = Mathf.Max(
             broadbandEnergy,
-            smoothedKickEnergy * 0.6f + smoothedBassEnergy * 0.4f + smoothedSynthEnergy * 0.4f);
+            kickEnergy * 0.6f + bassEnergy * 0.4f + synthEnergy * 0.4f);
 
         smoothedSilenceEnergy = Mathf.Lerp(
             smoothedSilenceEnergy,
