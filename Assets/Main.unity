@@ -23306,9 +23306,9 @@ MonoBehaviour:
   showStandaloneStatusOverlay: 1
   silenceEnterThreshold: 0.001
   silenceExitThreshold: 0.003
-  silenceEnterDelay: 0.8
-  silenceExitDelay: 0.15
-  silenceEnergySmoothSpeed: 8
+  silenceEnterDelay: 0.25
+  silenceExitDelay: 0.05
+  silenceEnergySmoothSpeed: 18
   lowEnergyThresholdMultiplier: 4
   wasSilent: 1
   onsetSensitivity: 1.2

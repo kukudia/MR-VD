@@ -185,14 +185,14 @@ public class AudioVisualizer : MonoBehaviour
     public float silenceExitThreshold = 0.003f;
 
     [Tooltip("进入静音前需要连续低能量的时间（秒）")]
-    public float silenceEnterDelay = 0.8f;
+    public float silenceEnterDelay = 0.25f;
 
     [Tooltip("退出静音前需要连续高能量的时间（秒）")]
-    public float silenceExitDelay = 0.15f;
+    public float silenceExitDelay = 0.05f;
 
     [Tooltip("静音能量平滑速度。值越大响应越快，值越小越抗抖动")]
     [Range(1f, 30f)]
-    public float silenceEnergySmoothSpeed = 8f;
+    public float silenceEnergySmoothSpeed = 18f;
 
     [Tooltip("低能量但非静音时的判定倍率，用于临时降低节拍置信度")]
     public float lowEnergyThresholdMultiplier = 4f;
@@ -1097,11 +1097,14 @@ public class AudioVisualizer : MonoBehaviour
             weightedEnergy,
             1f - Mathf.Exp(-silenceEnergySmoothSpeed * Time.deltaTime));
 
+        bool hasSoundNow = weightedEnergy >= silenceExitThreshold;
+        bool isSilentNow = weightedEnergy <= silenceEnterThreshold;
+
         if (wasSilent)
         {
             pendingSilenceStartTime = -1f;
 
-            if (smoothedSilenceEnergy >= silenceExitThreshold)
+            if (hasSoundNow)
             {
                 if (pendingSoundStartTime < 0f)
                     pendingSoundStartTime = currentTime;
@@ -1130,7 +1133,7 @@ public class AudioVisualizer : MonoBehaviour
 
         pendingSoundStartTime = -1f;
 
-        if (smoothedSilenceEnergy <= silenceEnterThreshold)
+        if (isSilentNow)
         {
             if (pendingSilenceStartTime < 0f)
                 pendingSilenceStartTime = currentTime;
