@@ -7136,6 +7136,151 @@ MonoBehaviour:
     m_NumAlphaKeys: 2
   strobeThreshold: 0.7
   laserThreshold: 0.5
+  runtime:
+    enableSystem: 1
+    autoFindAudioVisualizer: 1
+    autoDiscoverScene: 1
+    rebuildCacheEveryFrame: 0
+    createRuntimeTextures: 1
+    restoreRenderSettingsOnDisable: 1
+    keepAnimatingWhenSilent: 1
+    forceEnableActiveSpotlights: 1
+    useUnscaledTime: 0
+    updateOnZeroDeltaTime: 0
+    masterIntensity: 1
+    screenMaster: 1
+    vfxMaster: 1
+    motionMaster: 1
+    environmentMaster: 1
+    maxDeltaTime: 0.08
+    masterSmoothing: 8
+    silenceFloor: 0.08
+    idleAnimationSpeed: 0.35
+    blackoutFadeSpeed: 0.2
+  audio:
+    useManualInput: 0
+    compressIncomingEnergy: 1
+    fallbackBpm: 120
+    kickGain: 12
+    bassGain: 10
+    synthGain: 9
+    energyGamma: 0.75
+    kickWeight: 0.38
+    bassWeight: 0.34
+    synthWeight: 0.28
+    attackSpeed: 18
+    releaseSpeed: 7
+    beatEnergyBoost: 0.35
+    silenceExitEnergy: 0.025
+    peakEnergy: 0.82
+    driveEnergy: 0.55
+    grooveEnergy: 0.25
+    dropRiseThreshold: 0.28
+  lighting:
+    enableLighting: 1
+    useHomePositions: 1
+    animateSpotAngles: 1
+    animateRanges: 1
+    laserBlackoutWhenSilent: 1
+    allowStrobe: 1
+    forceStrobeWhite: 0
+    softShadowsOnPeak: 1
+    outputGain: 1
+    spotGain: 1
+    rimGain: 1
+    chaseGain: 1
+    laserGain: 1
+    strobeGain: 1
+    beatPunch: 0.8
+    bassGlow: 0.6
+    moodBlend: 0.45
+    hueSpread: 0.35
+    intensitySmoothing: 12
+    colorSmoothing: 8
+    transformSmoothing: 6
+    chaseOrbitRadius: 6
+    chaseOrbitHeight: 6
+    strobeFrequency: 12
+    strobeDutyCycle: 0.42
+    laserHold: 0.22
+    strobeHold: 0.18
+    minSpotAngle: 18
+    maxSpotAngle: 62
+  vj:
+    enableVJ: 1
+    updateWhenSilent: 1
+    assignMainTexture: 1
+    assignBaseTexture: 1
+    defaultPattern: 2
+    textureWidth: 96
+    textureHeight: 54
+    updateHz: 24
+    emissionGain: 3
+    screenContrast: 1.2
+    screenSaturation: 1
+    patternSpeed: 1
+    beatFlash: 0.35
+    blackLevel: 0.02
+    trailBlend: 0.08
+  vfx:
+    enableVFX: 1
+    autoCompleteGraphBindings: 1
+    createMissingGraphObjects: 1
+    markSceneDirtyWhenAutoCompleted: 1
+    sendCommonParameters: 1
+    triggerBeatEvents: 1
+    logMissingProperties: 0
+    backgroundGain: 1
+    smokeGain: 1
+    burstGain: 1
+    laserBeamGain: 1
+    groundRingGain: 1
+    beatBurstThreshold: 0.25
+    maxSpawnMultiplier: 4
+    maxBurstStrength: 5
+    maxRingExpansion: 8
+  director:
+    enableAutoDirector: 1
+    useGeneratedCueLibrary: 1
+    allowCueRepeats: 0
+    changeCueOnPhrase: 1
+    changeCueOnDrop: 1
+    phraseLengthBeats: 16
+    minimumCueBeats: 8
+    maximumCueBeats: 48
+    randomCueWeight: 0.18
+    noveltyWeight: 0.2
+    modeMatchWeight: 0.12
+    dropCueBias: 0.25
+    cueCrossfadeSeconds: 1.2
+    paletteCrossfadeSeconds: 1.6
+  environment:
+    enableDynamicEnvironment: 1
+    controlRenderSettings: 0
+    pulseStageFloor: 1
+    rotateDiscoBall: 1
+    pulseDiscoBallScale: 1
+    useStageBoundsForTarget: 1
+    floorEmissionGain: 1.8
+    floorBaseColorBlend: 0.4
+    floorMetallic: 0.7
+    floorSmoothness: 0.85
+    discoRotationDegreesPerBeat: 90
+    discoScalePulse: 0.08
+    fogBaseDensity: 0.01
+    fogEnergyDensity: 0.03
+    ambientIntensity: 0.7
+    renderSettingsBlend: 0.35
+  manualSlots: []
+  debug:
+    logLifecycle: 1
+    logCueChanges: 0
+    logMissingVfxProperties: 0
+    showRuntimeOverlay: 0
+    drawGizmos: 1
+    drawFixtureRays: 1
+    gizmoScale: 1
+    overlayFontSize: 16
 --- !u!4 &500615308
 Transform:
   m_ObjectHideFlags: 0
@@ -23280,12 +23425,12 @@ MonoBehaviour:
   barGlowMaterial: {fileID: 0}
   baseBarEmissionIntensity: 0.8
   audioBarEmissionIntensity: 8
-  beatBarEmissionBoost: 4
+  beatBarEmissionBoost: 10
   barHueCycleSpeed: 0.16
   barGlowSmoothingSpeed: 12
   barFrequencyHueSpread: 0.42
-  kickHueInfluence: 0.16
-  synthHueInfluence: 0.22
+  kickHueInfluence: 0.12
+  synthHueInfluence: 0.3
   energyHistorySize: 200
   beatTimestamps: []
   lastBeatTime: 0
@@ -23306,7 +23451,7 @@ MonoBehaviour:
   showStandaloneStatusOverlay: 1
   silenceEnterThreshold: 0.001
   silenceExitThreshold: 0.003
-  silenceEnterDelay: 0.25
+  silenceEnterDelay: 0.01
   silenceExitDelay: 0.05
   silenceEnergySmoothSpeed: 18
   lowEnergyThresholdMultiplier: 4
