@@ -144,6 +144,16 @@ public class AudioVisualizer : MonoBehaviour
     [Tooltip("BPM 更新的时间间隔（秒），数值越小响应越快但越不稳定")]
     public float bpmUpdateInterval = 0.5f;
 
+    [Tooltip("BPM 估计的最低输出值")]
+    public float minTrackedBPM = 60f;
+
+    [Tooltip("BPM 估计的最高输出值，防止短间隔误检导致原始 BPM 持续上飘")]
+    public float maxTrackedBPM = 200f;
+
+    [Tooltip("每次 BPM 更新允许变化的最大比例，用于抑制短间隔正反馈")]
+    [Range(0.05f, 0.5f)]
+    public float maxBpmChangeRatio = 0.14f;
+
     [Tooltip("两次有效节拍之间的最小间隔（秒），对应最大 BPM 约 200")]
     public float minBeatInterval = 0.25f;
 
@@ -237,15 +247,15 @@ public class AudioVisualizer : MonoBehaviour
 
     [Tooltip("调性色度平滑系数。值越大越稳定，值越小响应越快")]
     [Range(0f, 0.98f)]
-    public float keyChromaSmoothing = 0.82f;
+    public float keyChromaSmoothing = 0.55f;
 
     [Tooltip("新调性需要比当前调性高出的相关分数差，避免频繁跳调")]
     [Range(0f, 0.3f)]
-    public float keySwitchMargin = 0.05f;
+    public float keySwitchMargin = 0.015f;
 
     [Tooltip("调性结果切换前需要连续确认的次数")]
     [Range(1, 12)]
-    public int keyStableFrameThreshold = 3;
+    public int keyStableFrameThreshold = 2;
 
     [Tooltip("当前调性检测置信度（最佳模板与次佳模板的相关分差）")]
     public float currentKeyConfidence = 0f;
@@ -875,6 +885,7 @@ public class AudioVisualizer : MonoBehaviour
 
         // ====== 步骤3：选择最佳 BPM（按历史间隔一致性评分）======
         float bestBPM = SelectBestBPM(bpmCandidates, intervals, intConfidences);
+        bestBPM = ConstrainBpmEstimate(bestBPM);
 
         // ====== 步骤4：指数移动平均平滑 ======
         float stability = 1f - Mathf.Clamp01(CalculateRelativeTempoError(bestBPM, intervals));
@@ -887,6 +898,7 @@ public class AudioVisualizer : MonoBehaviour
         {
             kalmanEstimate = kalmanEstimate * (1 - emaAlpha) + bestBPM * emaAlpha;
         }
+        kalmanEstimate = Mathf.Clamp(kalmanEstimate, GetMinTrackedBpm(), GetMaxTrackedBpm());
 
         detectedBPM = kalmanEstimate;
 
@@ -964,8 +976,6 @@ public class AudioVisualizer : MonoBehaviour
             if (confidence < 0.2f) continue;
 
             AddTempoCandidate(candidates, 60f / intervals[i]);
-            AddTempoCandidate(candidates, 120f / intervals[i]);
-            AddTempoCandidate(candidates, 30f / intervals[i]);
         }
 
         // Pairwise timestamps let the tracker recover when weak beats are missed.
@@ -978,8 +988,12 @@ public class AudioVisualizer : MonoBehaviour
                 if (span <= 0f || beatSteps <= 0) continue;
 
                 AddTempoCandidate(candidates, 60f * beatSteps / span);
-                AddTempoCandidate(candidates, 30f * beatSteps / span);
-                AddTempoCandidate(candidates, 120f * beatSteps / span);
+
+                // Only add a doubled candidate for long spans, where it likely represents a missed weak beat.
+                if (span > medianInterval * 1.45f)
+                {
+                    AddTempoCandidate(candidates, 120f * beatSteps / span);
+                }
             }
         }
 
@@ -1007,13 +1021,38 @@ public class AudioVisualizer : MonoBehaviour
 
     private float NormalizeBpmToTrackingRange(float bpm)
     {
-        while (bpm < 60f && bpm * 2f <= 220f)
+        float minBpm = GetMinTrackedBpm();
+        float maxBpm = GetMaxTrackedBpm();
+
+        while (bpm < minBpm && bpm * 2f <= maxBpm)
             bpm *= 2f;
 
-        while (bpm > 200f && bpm * 0.5f >= 50f)
+        while (bpm > maxBpm && bpm * 0.5f >= minBpm)
             bpm *= 0.5f;
 
-        return Mathf.Clamp(bpm, 50f, 220f);
+        return Mathf.Clamp(bpm, minBpm, maxBpm);
+    }
+
+    private float ConstrainBpmEstimate(float bpm)
+    {
+        bpm = Mathf.Clamp(bpm, GetMinTrackedBpm(), GetMaxTrackedBpm());
+
+        float referenceBpm = limitedBPM > 0f ? limitedBPM : kalmanEstimate;
+        if (referenceBpm <= 0f)
+            return bpm;
+
+        float maxStep = Mathf.Max(4f, referenceBpm * maxBpmChangeRatio);
+        return Mathf.Clamp(bpm, referenceBpm - maxStep, referenceBpm + maxStep);
+    }
+
+    private float GetMinTrackedBpm()
+    {
+        return Mathf.Clamp(minTrackedBPM, 40f, 240f);
+    }
+
+    private float GetMaxTrackedBpm()
+    {
+        return Mathf.Clamp(Mathf.Max(maxTrackedBPM, GetMinTrackedBpm() + 1f), 60f, 260f);
     }
 
     /// <summary>
@@ -1073,7 +1112,7 @@ public class AudioVisualizer : MonoBehaviour
 
         float beatPeriod = 60f / bpm;
         float bestScore = 0f;
-        float[] multiples = { 0.5f, 1f, 1.5f, 2f, 3f, 4f };
+        float[] multiples = { 1f, 1.5f, 2f, 3f, 4f };
 
         for (int i = 0; i < multiples.Length; i++)
         {
@@ -1103,7 +1142,7 @@ public class AudioVisualizer : MonoBehaviour
     {
         if (bpm >= 90f && bpm <= 150f) return 1.2f;
         if (bpm >= 72f && bpm <= 180f) return 0.8f;
-        if (bpm >= 60f && bpm <= 200f) return 0.35f;
+        if (bpm >= GetMinTrackedBpm() && bpm <= GetMaxTrackedBpm()) return 0.35f;
         return -1f;
     }
 
@@ -1132,7 +1171,7 @@ public class AudioVisualizer : MonoBehaviour
         }
 
         // 最终硬限制
-        limitedBPM = Mathf.Clamp(limitedBPM, 60, 200);
+        limitedBPM = Mathf.Clamp(limitedBPM, GetMinTrackedBpm(), GetMaxTrackedBpm());
 
         // 更新节拍间隔。这里必须用倍频修正后的 limitedBPM，避免 70/140 或 170/85
         // 这类半速/倍速修正后，预测窗口仍按未修正值运行。
