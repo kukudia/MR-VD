@@ -170,6 +170,7 @@ public class AudioVisualizer : MonoBehaviour
 
     private float previousKickEnergy = 0f;
     private float previousSnareEnergy = 0f;
+    private float previousBassEnergy = 0f;
     private float playStartTime = 0f;
     private float silenceStartTime = 0f;
 
@@ -234,7 +235,27 @@ public class AudioVisualizer : MonoBehaviour
     [Tooltip("调性检测更新间隔（秒）。每隔此时间重新计算一次，0 = 每帧更新")]
     public float keyUpdateInterval = 0.0f;
 
+    [Tooltip("调性色度平滑系数。值越大越稳定，值越小响应越快")]
+    [Range(0f, 0.98f)]
+    public float keyChromaSmoothing = 0.82f;
+
+    [Tooltip("新调性需要比当前调性高出的相关分数差，避免频繁跳调")]
+    [Range(0f, 0.3f)]
+    public float keySwitchMargin = 0.05f;
+
+    [Tooltip("调性结果切换前需要连续确认的次数")]
+    [Range(1, 12)]
+    public int keyStableFrameThreshold = 3;
+
+    [Tooltip("当前调性检测置信度（最佳模板与次佳模板的相关分差）")]
+    public float currentKeyConfidence = 0f;
+
     private float lastKeyUpdateTime = 0f;
+    private readonly double[] smoothedChroma = new double[12];
+    private bool hasSmoothedChroma = false;
+    private string pendingKey = "Unknown";
+    private string pendingMode = "Unknown";
+    private int pendingKeyFrames = 0;
 
     // Krumhansl-Schmuckler 调性模板（标准值）
     private static readonly double[] majorProfile = new double[]
@@ -658,28 +679,34 @@ public class AudioVisualizer : MonoBehaviour
         {
             previousKickEnergy = kickEnergy;
             previousSnareEnergy = snareEnergy;
+            previousBassEnergy = bassEnergy;
             return;
         }
 
         // ====== 步骤2：维护能量历史 ======
         kickEnergyHistory.Enqueue(kickEnergy);
         snareEnergyHistory.Enqueue(snareEnergy);
+        bassEnergyHistory.Enqueue(bassEnergy);
 
         if (kickEnergyHistory.Count > energyHistorySize) kickEnergyHistory.Dequeue();
         if (snareEnergyHistory.Count > energyHistorySize) snareEnergyHistory.Dequeue();
+        if (bassEnergyHistory.Count > energyHistorySize) bassEnergyHistory.Dequeue();
 
         if (kickEnergyHistory.Count < 10)
         {
             previousKickEnergy = kickEnergy;
             previousSnareEnergy = snareEnergy;
+            previousBassEnergy = bassEnergy;
             return;
         }
 
         // ====== 步骤3：计算自适应阈值 ======
         float kickMean = kickEnergyHistory.Average();
         float snareMean = snareEnergyHistory.Average();
+        float bassMean = bassEnergyHistory.Count > 0 ? bassEnergyHistory.Average() : bassEnergy;
         float kickStdDev = CalculateStdDev(kickEnergyHistory.ToArray(), kickMean);
         float snareStdDev = CalculateStdDev(snareEnergyHistory.ToArray(), snareMean);
+        float bassStdDev = bassEnergyHistory.Count > 0 ? CalculateStdDev(bassEnergyHistory.ToArray(), bassMean) : 0f;
 
         float rawKickThreshold = kickMean + onsetSensitivity * kickStdDev;
         float rawSnareThreshold = snareMean + onsetSensitivity * snareStdDev;
@@ -698,14 +725,22 @@ public class AudioVisualizer : MonoBehaviour
         // ====== 步骤4：Onset 检测（正向能量突变）======
         float kickOnset = Mathf.Max(0, kickEnergy - previousKickEnergy);
         float snareOnset = Mathf.Max(0, snareEnergy - previousSnareEnergy);
+        float bassOnset = Mathf.Max(0, bassEnergy - previousBassEnergy);
 
         // ====== 步骤5：判断是否为有效 onset ======
-        bool isKickBeat = kickEnergy > dynamicKickThreshold && kickOnset > kickStdDev * 0.5f;
-        bool isSnareBeat = snareEnergy > dynamicSnareThreshold && snareOnset > snareStdDev * 0.5f;
+        float kickOnsetFloor = Mathf.Max(kickStdDev * 0.45f, kickMean * 0.08f, 1e-6f);
+        float snareOnsetFloor = Mathf.Max(snareStdDev * 0.45f, snareMean * 0.08f, 1e-6f);
+        float bassOnsetFloor = Mathf.Max(bassStdDev * 0.35f, bassMean * 0.06f, 1e-6f);
+
+        bool isKickBeat = kickEnergy > dynamicKickThreshold && kickOnset > kickOnsetFloor;
+        bool isSnareBeat = snareEnergy > dynamicSnareThreshold && snareOnset > snareOnsetFloor;
 
         float kickConfidence = isKickBeat ? Mathf.Clamp01((kickEnergy - dynamicKickThreshold) / Mathf.Max(kickMean * 0.5f, 1e-6f)) : 0f;
         float snareConfidence = isSnareBeat ? Mathf.Clamp01((snareEnergy - dynamicSnareThreshold) / Mathf.Max(snareMean * 0.5f, 1e-6f)) : 0f;
-        float totalConfidence = Mathf.Max(kickConfidence, snareConfidence);
+        float bassConfidence = bassOnset > bassOnsetFloor
+            ? Mathf.Clamp01(bassOnset / Mathf.Max(bassMean * 0.35f, 1e-6f)) * 0.45f
+            : 0f;
+        float totalConfidence = Mathf.Clamp01(Mathf.Max(kickConfidence, snareConfidence) + bassConfidence);
 
         // ====== 步骤6：相位窗口加权（锁相后提升置信度）======
         float timeSinceLast = time - lastBeatTime;
@@ -714,7 +749,7 @@ public class AudioVisualizer : MonoBehaviour
         {
             float timeToPredicted = Mathf.Abs(time - predictedNextBeat);
             if (timeToPredicted < beatInterval * 0.15f)
-                totalConfidence *= 1.3f;
+                totalConfidence = Mathf.Clamp01(totalConfidence * 1.3f);
         }
 
         // ====== 步骤7：硬冷却 + 置信度门控 ======
@@ -783,6 +818,7 @@ public class AudioVisualizer : MonoBehaviour
         // 更新前一帧能量
         previousKickEnergy = kickEnergy;
         previousSnareEnergy = snareEnergy;
+        previousBassEnergy = bassEnergy;
 
         // 手动点击辅助（调试用）
         if (Input.GetMouseButtonDown(0) && timeSinceLast > minBeatInterval)
@@ -797,13 +833,13 @@ public class AudioVisualizer : MonoBehaviour
     }
 
     /// <summary>
-    /// 更新 BPM（改进版 - 解决检测值偏低问题）
+    /// 更新 BPM（鲁棒候选评分版）
     /// 
     /// 改进点：
-    /// 1. 使用自相关分析检测周期性，不依赖单一节拍检测
-    /// 2. 多假设跟踪：同时跟踪多个 BPM 候选，选择最稳定的
-    /// 3. 智能倍频修正：优先选择 90-150 BPM 常见范围
-    /// 4. 降低漏检影响：允许部分节拍缺失仍能正确计算
+    /// 1. 从平均/中位间隔、单个间隔和成对时间戳生成 BPM 候选。
+    /// 2. 按候选与历史间隔的匹配度评分，允许半拍、倍拍和漏拍。
+    /// 3. 常见 BPM 区间只做软偏置，不强行把真实 tempo 拉回 90-150。
+    /// 4. 根据候选稳定度动态调整平滑速度。
     /// </summary>
     private void UpdateBPM()
     {
@@ -830,36 +866,19 @@ public class AudioVisualizer : MonoBehaviour
             return;
         }
 
-        // ====== 步骤2：自相关分析检测周期性（核心改进）======
         float[] intervalArray = intervals.ToArray();
-        float bestPeriod = FindBestPeriod(intervalArray);
 
-        // ====== 步骤3：多假设 BPM 候选 ======
-        List<float> bpmCandidates = new List<float>();
-
-        // 候选1：基于平均间隔
+        // ====== 步骤2：多来源 BPM 候选 ======
         float avgInterval = intervals.Average();
-        bpmCandidates.Add(60f / avgInterval);
-
-        // 候选2：基于自相关最佳周期
-        if (bestPeriod > 0)
-            bpmCandidates.Add(60f / bestPeriod);
-
-        // 候选3：基于中位数间隔
         float medianInterval = GetMedian(intervalArray);
-        bpmCandidates.Add(60f / medianInterval);
+        List<float> bpmCandidates = BuildBpmCandidates(intervals, intConfidences, avgInterval, medianInterval);
 
-        // 候选4：2倍速假设（可能漏检了弱拍）
-        bpmCandidates.Add(60f / (avgInterval * 0.5f));
+        // ====== 步骤3：选择最佳 BPM（按历史间隔一致性评分）======
+        float bestBPM = SelectBestBPM(bpmCandidates, intervals, intConfidences);
 
-        // 候选5：1.5倍速假设（三连音情况）
-        bpmCandidates.Add(60f / (avgInterval * 0.67f));
-
-        // ====== 步骤4：选择最佳 BPM（优先 90-150 范围）======
-        float bestBPM = SelectBestBPM(bpmCandidates, intervals);
-
-        // ====== 步骤5：指数移动平均平滑（替代卡尔曼）======
-        float emaAlpha = 0.3f; // 响应速度系数
+        // ====== 步骤4：指数移动平均平滑 ======
+        float stability = 1f - Mathf.Clamp01(CalculateRelativeTempoError(bestBPM, intervals));
+        float emaAlpha = Mathf.Lerp(0.18f, 0.42f, stability);
         if (kalmanEstimate == 0f)
         {
             kalmanEstimate = bestBPM;
@@ -871,10 +890,10 @@ public class AudioVisualizer : MonoBehaviour
 
         detectedBPM = kalmanEstimate;
 
-        // ====== 步骤6：智能倍频修正 ======
+        // ====== 步骤5：倍频修正 ======
         LimitBPM();
 
-        // ====== 步骤7：根据稳定性动态调整置信度阈值 ======
+        // ====== 步骤6：根据稳定性动态调整置信度阈值 ======
         bpmVariance = CalculateStdDev(intervalArray, avgInterval);
         minBeatConfidence = bpmVariance < 0.08f
             ? Mathf.Max(0.25f, minBeatConfidence - 0.02f)
@@ -932,10 +951,75 @@ public class AudioVisualizer : MonoBehaviour
         return bestCorrelation > 0.7f ? bestPeriod : 0f;
     }
 
+    private List<float> BuildBpmCandidates(List<float> intervals, List<float> confidences, float avgInterval, float medianInterval)
+    {
+        List<float> candidates = new List<float>();
+
+        AddTempoCandidate(candidates, 60f / avgInterval);
+        AddTempoCandidate(candidates, 60f / medianInterval);
+
+        for (int i = 0; i < intervals.Count; i++)
+        {
+            float confidence = i < confidences.Count ? confidences[i] : 1f;
+            if (confidence < 0.2f) continue;
+
+            AddTempoCandidate(candidates, 60f / intervals[i]);
+            AddTempoCandidate(candidates, 120f / intervals[i]);
+            AddTempoCandidate(candidates, 30f / intervals[i]);
+        }
+
+        // Pairwise timestamps let the tracker recover when weak beats are missed.
+        for (int i = 0; i < beatTimestamps.Count - 1; i++)
+        {
+            for (int j = i + 1; j < beatTimestamps.Count; j++)
+            {
+                float span = beatTimestamps[j] - beatTimestamps[i];
+                int beatSteps = j - i;
+                if (span <= 0f || beatSteps <= 0) continue;
+
+                AddTempoCandidate(candidates, 60f * beatSteps / span);
+                AddTempoCandidate(candidates, 30f * beatSteps / span);
+                AddTempoCandidate(candidates, 120f * beatSteps / span);
+            }
+        }
+
+        if (kalmanEstimate > 0f) AddTempoCandidate(candidates, kalmanEstimate);
+        if (limitedBPM > 0f) AddTempoCandidate(candidates, limitedBPM);
+
+        return candidates;
+    }
+
+    private void AddTempoCandidate(List<float> candidates, float bpm)
+    {
+        if (float.IsNaN(bpm) || float.IsInfinity(bpm) || bpm <= 0f)
+            return;
+
+        bpm = NormalizeBpmToTrackingRange(bpm);
+
+        for (int i = 0; i < candidates.Count; i++)
+        {
+            if (Mathf.Abs(candidates[i] - bpm) < 0.75f)
+                return;
+        }
+
+        candidates.Add(bpm);
+    }
+
+    private float NormalizeBpmToTrackingRange(float bpm)
+    {
+        while (bpm < 60f && bpm * 2f <= 220f)
+            bpm *= 2f;
+
+        while (bpm > 200f && bpm * 0.5f >= 50f)
+            bpm *= 0.5f;
+
+        return Mathf.Clamp(bpm, 50f, 220f);
+    }
+
     /// <summary>
-    /// 从多个 BPM 候选中选择最佳值（优先常见范围）
+    /// 从多个 BPM 候选中选择最佳值（以间隔一致性为主，常见范围为软偏置）
     /// </summary>
-    private float SelectBestBPM(List<float> candidates, List<float> intervals)
+    private float SelectBestBPM(List<float> candidates, List<float> intervals, List<float> confidences)
     {
         if (candidates.Count == 0) return 60f / intervals.Average();
 
@@ -948,28 +1032,30 @@ public class AudioVisualizer : MonoBehaviour
 
             float score = 0f;
 
-            // 优先奖励 90-150 BPM 范围（最常见）
-            if (bpm >= 90 && bpm <= 150)
-                score += 3f;
-            else if (bpm >= 72 && bpm <= 180)
-                score += 1f;
+            // 常见舞曲区间只作为软偏置，避免把 70/160 这类真实 tempo 强行拉回中段。
+            score += GetTempoPlausibilityScore(bpm);
 
             // 奖励稳定性（与历史 BPM 接近）
             if (kalmanEstimate > 0)
             {
                 float diff = Mathf.Abs(bpm - kalmanEstimate);
-                score += 2f / (1f + diff);
+                score += 1.5f / (1f + diff * 0.08f);
             }
 
             // 奖励与间隔数据的一致性
-            float expectedInterval = 60f / bpm;
-            float matchCount = 0;
-            foreach (float interval in intervals)
+            float weightedMatch = 0f;
+            float totalWeight = 0f;
+            for (int i = 0; i < intervals.Count; i++)
             {
-                if (Mathf.Abs(interval - expectedInterval) < expectedInterval * 0.2f)
-                    matchCount++;
+                float confidence = i < confidences.Count ? Mathf.Clamp01(confidences[i]) : 1f;
+                float intervalScore = ScoreIntervalAgainstTempo(intervals[i], bpm);
+                weightedMatch += intervalScore * Mathf.Lerp(0.5f, 1.5f, confidence);
+                totalWeight += Mathf.Lerp(0.5f, 1.5f, confidence);
             }
-            score += matchCount / intervals.Count;
+            score += totalWeight > 0f ? weightedMatch / totalWeight * 4f : 0f;
+
+            float relativeError = CalculateRelativeTempoError(bpm, intervals);
+            score += 2f / (1f + relativeError * 10f);
 
             if (score > bestScore)
             {
@@ -979,6 +1065,46 @@ public class AudioVisualizer : MonoBehaviour
         }
 
         return bestBPM;
+    }
+
+    private float ScoreIntervalAgainstTempo(float interval, float bpm)
+    {
+        if (interval <= 0f || bpm <= 0f) return 0f;
+
+        float beatPeriod = 60f / bpm;
+        float bestScore = 0f;
+        float[] multiples = { 0.5f, 1f, 1.5f, 2f, 3f, 4f };
+
+        for (int i = 0; i < multiples.Length; i++)
+        {
+            float expected = beatPeriod * multiples[i];
+            float tolerance = Mathf.Max(0.035f, expected * 0.16f);
+            float error = Mathf.Abs(interval - expected) / tolerance;
+            bestScore = Mathf.Max(bestScore, 1f / (1f + error * error));
+        }
+
+        return bestScore;
+    }
+
+    private float CalculateRelativeTempoError(float bpm, List<float> intervals)
+    {
+        if (bpm <= 0f || intervals.Count == 0) return 1f;
+
+        float error = 0f;
+        for (int i = 0; i < intervals.Count; i++)
+        {
+            error += 1f - ScoreIntervalAgainstTempo(intervals[i], bpm);
+        }
+
+        return error / intervals.Count;
+    }
+
+    private float GetTempoPlausibilityScore(float bpm)
+    {
+        if (bpm >= 90f && bpm <= 150f) return 1.2f;
+        if (bpm >= 72f && bpm <= 180f) return 0.8f;
+        if (bpm >= 60f && bpm <= 200f) return 0.35f;
+        return -1f;
     }
 
     /// <summary>
@@ -1008,8 +1134,9 @@ public class AudioVisualizer : MonoBehaviour
         // 最终硬限制
         limitedBPM = Mathf.Clamp(limitedBPM, 60, 200);
 
-        // 更新节拍间隔
-        beatInterval = 60f / Mathf.Max(detectedBPM, limitedBPM);
+        // 更新节拍间隔。这里必须用倍频修正后的 limitedBPM，避免 70/140 或 170/85
+        // 这类半速/倍速修正后，预测窗口仍按未修正值运行。
+        beatInterval = 60f / Mathf.Max(limitedBPM, 1f);
         beatDisplayTime = beatInterval / 4f;
 
         Debug.Log($"[BPM] 倍频修正后：{Mathf.RoundToInt(limitedBPM)} BPM");
@@ -1022,6 +1149,7 @@ public class AudioVisualizer : MonoBehaviour
     {
         kickEnergyHistory.Clear();
         snareEnergyHistory.Clear();
+        bassEnergyHistory.Clear();
         beatTimestamps.Clear();
         beatConfidences.Clear();
         beatStrengths.Clear();
@@ -1030,6 +1158,12 @@ public class AudioVisualizer : MonoBehaviour
         kalmanEstimate = 0f;
         kalmanErrorCovariance = 1f;
         predictedNextBeat = 0f;
+        previousBassEnergy = 0f;
+        hasSmoothedChroma = false;
+        pendingKey = "Unknown";
+        pendingMode = "Unknown";
+        pendingKeyFrames = 0;
+        currentKeyConfidence = 0f;
 
         // 重置静音状态
         wasSilent = false;
@@ -1167,58 +1301,55 @@ public class AudioVisualizer : MonoBehaviour
     // ==================== 调性检测算法 ====================
 
     /// <summary>
-    /// 调性检测（即时版）
+    /// 调性检测（稳定版）
     ///
-    /// 设计原则：去掉所有缓冲、投票、置信度门控，每次调用直接输出最佳匹配调性。
-    /// 唯一的节流是 keyUpdateInterval（默认 0，即每帧更新）。
+    /// 设计原则：保留实时响应，但不再让单帧 FFT 直接改写调性。
     ///
     /// 流程：
     ///   1. ExtractChromaFeatures：将 FFT 频谱映射到 12 个色度 bin，
-    ///      权重 = sqrt(amplitude)，噪声频率自然趋零，无需阈值过滤。
-    ///   2. NormalizeChroma：L2 归一化，消除响度差异。
+    ///      权重 = sqrt(amplitude)，并对低频根音稍加权。
+    ///   2. 色度做指数平滑后再 L2 归一化，降低瞬时泛音和噪声的影响。
     ///   3. 遍历 24 个调（12 大调 + 12 小调），用皮尔逊相关系数与 K-S 模板匹配，
-    ///      取相关系数最大的那个调直接作为结果，无平局处理、无粘滞偏置。
-    ///   4. 结果与上一帧不同时立即更新 currentKey / currentMode 并触发回调。
+    ///      同时记录最佳与次佳分数差作为置信度。
+    ///   4. 新调性需要连续确认且分数超过当前调性一定边距，避免显示频繁跳动。
     /// </summary>
     private void DetectKeyFromFft(float[] fft)
     {
         try
         {
             double[] chroma = ExtractChromaFeatures(fft);
+            chroma = SmoothChroma(chroma);
             chroma = NormalizeChroma(chroma);
+            lastKeyUpdateTime = Time.time;
 
             // 遍历全部 24 个调，取皮尔逊相关系数最大者
             double bestScore = double.MinValue;
+            double secondBestScore = double.MinValue;
             string bestKey = "C";
             string bestMode = "Major";
 
             for (int shift = 0; shift < 12; shift++)
             {
                 double scoreMajor = PearsonCorr(chroma, majorProfile, shift);
-                if (scoreMajor > bestScore)
-                {
-                    bestScore = scoreMajor;
-                    bestKey = keyNames[shift];
-                    bestMode = "Major";
-                }
+                TrackKeyCandidate(scoreMajor, keyNames[shift], "Major",
+                    ref bestScore, ref secondBestScore, ref bestKey, ref bestMode);
 
                 double scoreMinor = PearsonCorr(chroma, minorProfile, shift);
-                if (scoreMinor > bestScore)
-                {
-                    bestScore = scoreMinor;
-                    bestKey = keyNames[shift];
-                    bestMode = "Minor";
-                }
+                TrackKeyCandidate(scoreMinor, keyNames[shift], "Minor",
+                    ref bestScore, ref secondBestScore, ref bestKey, ref bestMode);
             }
 
-            // 结果变化时立即更新，无任何延迟
-            if (bestKey != currentKey || bestMode != currentMode)
+            currentKeyConfidence = Mathf.Clamp01((float)(bestScore - secondBestScore));
+
+            if (ShouldAcceptKeyCandidate(bestKey, bestMode, bestScore, chroma))
             {
                 currentKey = bestKey;
                 currentMode = bestMode;
-                lastKeyUpdateTime = Time.time;
+                pendingKey = "Unknown";
+                pendingMode = "Unknown";
+                pendingKeyFrames = 0;
                 OnKeyChanged();
-                Debug.Log($"[Key] 🎵 {currentKey} {currentMode}");
+                Debug.Log($"[Key] {currentKey} {currentMode} (confidence {currentKeyConfidence:F2})");
             }
         }
         catch (Exception ex)
@@ -1247,16 +1378,110 @@ public class AudioVisualizer : MonoBehaviour
 
             double freq = i * freqRes;
             double midiNote = 12.0 * Math.Log(freq / 440.0, 2.0) + 69.0;
-            int noteClass = ((int)Math.Round(midiNote) % 12 + 12) % 12;
-            double weight = Math.Sqrt(fft[i]);
+            int lowerNote = (int)Math.Floor(midiNote);
+            int noteClass = (lowerNote % 12 + 12) % 12;
+            double weight = Math.Sqrt(fft[i]) * GetChromaFrequencyWeight(freq);
 
             // 高斯扩散到相邻半音，减少频率量化误差
-            double frac = midiNote - Math.Floor(midiNote);
+            double frac = midiNote - lowerNote;
             chroma[noteClass] += weight * Math.Exp(-0.5 * frac * frac);
             chroma[(noteClass + 1) % 12] += weight * Math.Exp(-0.5 * (1.0 - frac) * (1.0 - frac));
         }
 
         return chroma;
+    }
+
+    private double GetChromaFrequencyWeight(double freq)
+    {
+        if (freq < 120.0) return 0.65;
+        if (freq < 1000.0) return 1.25;
+        if (freq < 2500.0) return 1.0;
+        return 0.75;
+    }
+
+    private double[] SmoothChroma(double[] chroma)
+    {
+        double smoothing = Mathf.Clamp01(keyChromaSmoothing);
+
+        if (!hasSmoothedChroma)
+        {
+            for (int i = 0; i < 12; i++)
+                smoothedChroma[i] = chroma[i];
+            hasSmoothedChroma = true;
+        }
+        else
+        {
+            for (int i = 0; i < 12; i++)
+                smoothedChroma[i] = smoothedChroma[i] * smoothing + chroma[i] * (1.0 - smoothing);
+        }
+
+        double[] result = new double[12];
+        for (int i = 0; i < 12; i++)
+            result[i] = smoothedChroma[i];
+        return result;
+    }
+
+    private void TrackKeyCandidate(
+        double score,
+        string key,
+        string mode,
+        ref double bestScore,
+        ref double secondBestScore,
+        ref string bestKey,
+        ref string bestMode)
+    {
+        if (score > bestScore)
+        {
+            secondBestScore = bestScore;
+            bestScore = score;
+            bestKey = key;
+            bestMode = mode;
+        }
+        else if (score > secondBestScore)
+        {
+            secondBestScore = score;
+        }
+    }
+
+    private bool ShouldAcceptKeyCandidate(string bestKey, string bestMode, double bestScore, double[] chroma)
+    {
+        if (currentKey == "Unknown" || currentMode == "Unknown")
+            return true;
+
+        if (bestKey == currentKey && bestMode == currentMode)
+        {
+            pendingKey = "Unknown";
+            pendingMode = "Unknown";
+            pendingKeyFrames = 0;
+            return false;
+        }
+
+        double currentScore = GetKeyScore(chroma, currentKey, currentMode);
+        if (bestScore < currentScore + keySwitchMargin)
+            return false;
+
+        if (bestKey == pendingKey && bestMode == pendingMode)
+        {
+            pendingKeyFrames++;
+        }
+        else
+        {
+            pendingKey = bestKey;
+            pendingMode = bestMode;
+            pendingKeyFrames = 1;
+        }
+
+        return pendingKeyFrames >= Mathf.Max(1, keyStableFrameThreshold);
+    }
+
+    private double GetKeyScore(double[] chroma, string key, string mode)
+    {
+        int keyIndex = Array.IndexOf(keyNames, key);
+        if (keyIndex < 0) return double.MinValue;
+
+        return mode == "Minor"
+            ? PearsonCorr(chroma, minorProfile, keyIndex)
+            : PearsonCorr(chroma, majorProfile, keyIndex);
     }
 
     /// <summary>L2 归一化，消除响度差异。</summary>
