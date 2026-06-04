@@ -23426,11 +23426,11 @@ MonoBehaviour:
   baseBarEmissionIntensity: 0.8
   audioBarEmissionIntensity: 8
   beatBarEmissionBoost: 10
-  barHueCycleSpeed: 0.16
+  barHueCycleSpeed: 0.08
   barGlowSmoothingSpeed: 12
   barFrequencyHueSpread: 0.42
   kickHueInfluence: 0.12
-  synthHueInfluence: 0.3
+  synthHueInfluence: 0.2
   energyHistorySize: 200
   beatTimestamps: []
   lastBeatTime: 0
