@@ -1,55 +1,57 @@
-﻿using UnityEngine;
+using UnityEngine;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 
+/// <summary>
+/// Builds an audio-reactive bar visualizer and exposes beat, BPM, silence, and key-analysis data.
+/// </summary>
 public class AudioVisualizer : MonoBehaviour
 {
     public bool movingBars;
 
-    [Tooltip("FFT 数据的时域平滑权重（0=无平滑，趋近1=极度平滑）")]
+    [Tooltip("Time-domain smoothing weight for FFT data. 0 disables smoothing; values near 1 are highly smoothed.")]
     public float smoothingWeight = 0.5f;
 
     public GameObject barPrefab;
 
-    [Tooltip("柱状条的总数量")]
+    [Tooltip("Total number of visualizer bars.")]
     public int barCount = 64;
 
-    [Tooltip("柱状条组的父级 Transform，用于定位")]
+    [Tooltip("Parent transform used to position the visualizer bar group.")]
     public Transform barPosition;
 
-    [Tooltip("柱状条之间的水平间距")]
+    [Tooltip("Horizontal spacing between visualizer bars.")]
     public float horizontalScale = 0.01f;
 
-    [Tooltip("柱状条高度的缩放系数")]
+    [Tooltip("Height multiplier applied to visualizer bars.")]
     public float verticalScale = 1f;
 
-    [Tooltip("柱状条排列椭圆的半长轴 a（控制宽度）")]
+    [Tooltip("Semi-major axis of the bar placement ellipse. Controls width.")]
     public float a = 5;
 
-    [Tooltip("柱状条排列椭圆的半短轴 b（控制深度）")]
+    [Tooltip("Semi-minor axis of the bar placement ellipse. Controls depth.")]
     public float b = 1;
 
-    // ==================== 新增：对数压缩参数 ====================
-    [Header("对数压缩设置")]
-    [Tooltip("对数压缩强度（值越大压缩越明显，建议 1.0~3.0）")]
+    [Header("Log Compression")]
+    [Tooltip("Log compression strength. Higher values increase compression; 1.0 to 3.0 is recommended.")]
     [Range(0.1f, 100f)]
     public float logCompressionStrength = 1.5f;
 
-    [Tooltip("对数压缩偏移量（避免 log(0)，建议 0.01~1.0）")]
+    [Tooltip("Log compression offset. Prevents log(0); 0.01 to 1.0 is recommended.")]
     [Range(0.001f, 2f)]
     public float logCompressionOffset = 0.1f;
 
-    [Tooltip("柱状条高度最大值限制")]
+    [Tooltip("Maximum visualizer bar height.")]
     public float maxBarHeight = 10f;
 
-    [Tooltip("柱状条高度最小值（确保可见性）")]
+    [Tooltip("Minimum visualizer bar height to keep bars visible.")]
     public float minBarHeight = 0.05f;
 
-    [Tooltip("启用动态范围自动调整")]
+    [Tooltip("Enables automatic dynamic range adjustment.")]
     public bool enableDynamicRange = true;
 
-    [Tooltip("动态范围调整速度")]
+    [Tooltip("Speed used for dynamic range adjustment.")]
     [Range(0.1f, 5f)]
     public float dynamicRangeSpeed = 1f;
 
@@ -64,63 +66,61 @@ public class AudioVisualizer : MonoBehaviour
     private MaterialPropertyBlock barPropertyBlock;
     private Material runtimeBarGlowMaterial;
 
-    [Header("发光柱状条设置")]
-    [Tooltip("启用柱状条发光材质和随音频变化的颜色")]
+    [Header("Emissive Bars")]
+    [Tooltip("Enables emissive bar materials and audio-reactive color changes.")]
     public bool enableBarGlow = true;
 
-    [Tooltip("可选：指定柱状条发光材质。为空时运行时自动创建 URP/Lit 发光材质")]
+    [Tooltip("Optional emissive bar material. When empty, a URP/Lit material is created at runtime.")]
     public Material barGlowMaterial;
 
-    [Tooltip("静音或低能量时的基础发光强度")]
+    [Tooltip("Base emission intensity during silence or low-energy playback.")]
     [Range(0f, 8f)]
     public float baseBarEmissionIntensity = 0.8f;
 
-    [Tooltip("音频能量映射到发光强度的倍率")]
+    [Tooltip("Multiplier that maps audio energy to bar emission intensity.")]
     [Range(0f, 30f)]
     public float audioBarEmissionIntensity = 8f;
 
-    [Tooltip("检测到节拍时额外增加的发光强度")]
+    [Tooltip("Additional emission intensity applied when a beat is detected.")]
     [Range(0f, 20f)]
     public float beatBarEmissionBoost = 4f;
 
-    [Tooltip("颜色随时间循环的速度")]
+    [Tooltip("Speed of time-based hue cycling.")]
     [Range(0f, 2f)]
     public float barHueCycleSpeed = 0.16f;
 
-    [Tooltip("颜色/亮度响应速度")]
+    [Tooltip("Color and brightness response speed.")]
     [Range(1f, 30f)]
     public float barGlowSmoothingSpeed = 12f;
 
-    [Tooltip("频段颜色梯度强度，值越大不同柱状条色差越明显")]
+    [Tooltip("Frequency-band hue spread. Higher values create stronger color separation between bars.")]
     [Range(0f, 1f)]
     public float barFrequencyHueSpread = 0.42f;
 
-    [Tooltip("Kick 能量对整体色相的影响")]
+    [Tooltip("Influence of kick energy on the overall hue.")]
     [Range(0f, 1f)]
     public float kickHueInfluence = 0.16f;
 
-    [Tooltip("Synth 能量对整体色相的影响")]
+    [Tooltip("Influence of synth energy on the overall hue.")]
     [Range(0f, 1f)]
     public float synthHueInfluence = 0.22f;
-
-    // ==================== 改进的BPM检测字段 ====================
 
     private Queue<float> kickEnergyHistory = new Queue<float>();
     private Queue<float> snareEnergyHistory = new Queue<float>();
     private Queue<float> bassEnergyHistory = new Queue<float>();
 
-    [Tooltip("用于计算自适应阈值的能量历史窗口大小（帧数）")]
+    [Tooltip("Energy history window size in frames for adaptive threshold calculation.")]
     public int energyHistorySize = 50;
 
-    [Tooltip("记录最近若干节拍的间隔时间（秒），用于BPM计算")]
+    [Tooltip("Recent beat timestamps used for BPM calculation.")]
     public List<float> beatTimestamps = new List<float>();
 
     private List<float> beatConfidences = new List<float>();
 
-    [Tooltip("上一次检测到节拍的时间戳（Time.time）")]
+    [Tooltip("Timestamp of the last detected beat, in Time.time seconds.")]
     public float lastBeatTime = 0f;
 
-    [Tooltip("上一次更新BPM的时间戳（Time.time）")]
+    [Tooltip("Timestamp of the last BPM update, in Time.time seconds.")]
     public float lastBpmUpdateTime = 0f;
 
     public bool useKalmanEstimate = true;
@@ -131,50 +131,49 @@ public class AudioVisualizer : MonoBehaviour
 
     private float bpmVariance = 0f;
 
-    [Tooltip("基于历史能量均值和标准差动态计算的 Kick 鼓触发阈值")]
+    [Tooltip("Kick trigger threshold calculated from historical energy statistics.")]
     public float dynamicKickThreshold;
 
-    [Tooltip("基于历史能量均值和标准差动态计算的 Snare 鼓触发阈值")]
+    [Tooltip("Snare trigger threshold calculated from historical energy statistics.")]
     public float dynamicSnareThreshold;
 
-    private float energyStdDev = 0f;
     private float predictedNextBeat = 0f;
     private float phaseError = 0f;
 
-    [Tooltip("BPM 更新的时间间隔（秒），数值越小响应越快但越不稳定")]
+    [Tooltip("BPM update interval in seconds. Lower values respond faster but are less stable.")]
     public float bpmUpdateInterval = 0.5f;
 
-    [Tooltip("BPM 估计的最低输出值")]
+    [Tooltip("Minimum output value for BPM estimation.")]
     public float minTrackedBPM = 60f;
 
-    [Tooltip("BPM 估计的最高输出值，防止短间隔误检导致原始 BPM 持续上飘")]
+    [Tooltip("Maximum output value for BPM estimation. Prevents short-interval false positives from drifting upward.")]
     public float maxTrackedBPM = 200f;
 
-    [Tooltip("每次 BPM 更新允许变化的最大比例，用于抑制短间隔正反馈")]
+    [Tooltip("Maximum allowed BPM change ratio per update. Reduces short-interval feedback loops.")]
     [Range(0.05f, 0.5f)]
     public float maxBpmChangeRatio = 0.14f;
 
-    [Tooltip("两次有效节拍之间的最小间隔（秒），对应最大 BPM 约 200")]
+    [Tooltip("Minimum interval between valid beats in seconds. Corresponds to roughly 200 BPM.")]
     public float minBeatInterval = 0.25f;
 
 
-    [Tooltip("节拍硬冷却时间（秒）。触发后此窗口内的 onset 全部忽略，防止鼓击瞬态衰减被重复记录。建议为 minBeatInterval * 1.5")]
+    [Tooltip("Hard beat cooldown in seconds. Onsets inside this window are ignored to avoid duplicate hits.")]
     public float beatCooldown = 0.35f;
-    [Tooltip("两次有效节拍之间的最大间隔（秒），对应最小 BPM 约 50")]
+    [Tooltip("Maximum interval between valid beats in seconds. Corresponds to roughly 50 BPM.")]
     public float maxBeatInterval = 1.2f;
 
-    [Tooltip("当前节拍间隔（秒），由 limitedBPM 自动推算")]
+    [Tooltip("Current beat interval in seconds, derived from limitedBPM.")]
     public float beatInterval = 0.5f;
 
-    [Tooltip("是否正在显示节拍提示文字（在 OnGUI 中控制 BEAT 字样的闪烁）")]
+    [Tooltip("Controls whether the BEAT overlay text is currently visible.")]
     public bool showBeatText = false;
 
-    [Tooltip("节拍文字的显示持续时间（秒），自动设为节拍间隔的 1/4")]
+    [Tooltip("Beat overlay display duration in seconds. Automatically set to one quarter of the beat interval.")]
     public float beatDisplayTime = 0.2f;
 
     private float beatTimer = 0f;
 
-    [Tooltip("节拍被接受所需的最低置信度（0~1），系统会根据BPM稳定性动态调整")]
+    [Tooltip("Minimum confidence required to accept a beat. The system adjusts this based on BPM stability.")]
     [Range(0f, 1f)]
     public float minBeatConfidence = 0.4f;
 
@@ -184,28 +183,28 @@ public class AudioVisualizer : MonoBehaviour
     private float playStartTime = 0f;
     private float silenceStartTime = 0f;
 
-    [Header("调试显示设置")]
-    [Tooltip("当 AudioCaptureCSCore 没有显示合并调试面板时，单独显示 AudioVisualizer 状态")]
+    [Header("Debug Display")]
+    [Tooltip("Shows a standalone AudioVisualizer status overlay when AudioCaptureCSCore is not displaying a combined debug panel.")]
     public bool showStandaloneStatusOverlay = true;
 
-    [Header("静音检测设置")]
-    [Tooltip("低于该宽频能量并持续一段时间后，才判定进入静音")]
+    [Header("Silence Detection")]
+    [Tooltip("Broadband energy must stay below this threshold before entering silence.")]
     public float silenceEnterThreshold = 0.001f;
 
-    [Tooltip("高于该宽频能量并持续一段时间后，才判定恢复播放。应大于进入阈值，避免状态抖动")]
+    [Tooltip("Broadband energy must stay above this threshold before playback resumes. Keep above the enter threshold.")]
     public float silenceExitThreshold = 0.003f;
 
-    [Tooltip("进入静音前需要连续低能量的时间（秒）")]
+    [Tooltip("Continuous low-energy duration required before entering silence, in seconds.")]
     public float silenceEnterDelay = 0.25f;
 
-    [Tooltip("退出静音前需要连续高能量的时间（秒）")]
+    [Tooltip("Continuous high-energy duration required before exiting silence, in seconds.")]
     public float silenceExitDelay = 0.05f;
 
-    [Tooltip("静音能量平滑速度。值越大响应越快，值越小越抗抖动")]
+    [Tooltip("Smoothing speed for silence energy. Higher values respond faster; lower values reduce jitter.")]
     [Range(1f, 30f)]
     public float silenceEnergySmoothSpeed = 18f;
 
-    [Tooltip("低能量但非静音时的判定倍率，用于临时降低节拍置信度")]
+    [Tooltip("Multiplier used to reduce beat confidence during low-energy but non-silent playback.")]
     public float lowEnergyThresholdMultiplier = 4f;
 
     private float smoothedSilenceEnergy = 0f;
@@ -214,50 +213,45 @@ public class AudioVisualizer : MonoBehaviour
     public bool wasSilent = true;
     private List<float> beatStrengths = new List<float>();
 
-    [Tooltip("Onset 灵敏度系数，值越大需要更强的能量突变才能触发节拍（1.0=宽松，3.0=严格）")]
+    [Tooltip("Onset sensitivity. Higher values require stronger energy spikes before triggering a beat.")]
     [Range(0.3f, 3.0f)]
     public float onsetSensitivity = 1.5f;
 
-    [Tooltip("Kick 阈值平滑速度（值越大变化越快，1=慢速平滑，10=快速响应）")]
+    [Tooltip("Kick threshold smoothing speed. Higher values adapt faster.")]
     [Range(1f, 100f)]
     public float dynamicKickThresholdSpeed = 2f;
 
-    [Tooltip("Snare 阈值平滑速度（值越大变化越快，1=慢速平滑，10=快速响应）")]
+    [Tooltip("Snare threshold smoothing speed. Higher values adapt faster.")]
     [Range(1f, 100f)]
     public float dynamicSnareThresholdSpeed = 2f;
 
-    // 私有变量：存储平滑后的阈值（内部使用）
     private float smoothedKickThreshold = 0.5f;
     private float smoothedSnareThreshold = 0.5f;
 
     private float kalmanEstimate = 0f;
-    private float kalmanErrorCovariance = 1f;
-    private float kalmanProcessNoise = 0.01f;
-    private float kalmanMeasurementNoise = 0.1f;
 
-    // ==================== 调性检测字段 ====================
-    [Tooltip("当前检测到的调名（C / C# / D ... B）")]
+    [Tooltip("Detected key name, such as C, C#, D, or B.")]
     public string currentKey = "Unknown";
 
-    [Tooltip("当前检测到的调式（Major / Minor）")]
+    [Tooltip("Detected key mode, such as Major or Minor.")]
     public string currentMode = "Unknown";
 
-    [Tooltip("调性检测更新间隔（秒）。每隔此时间重新计算一次，0 = 每帧更新")]
+    [Tooltip("Key detection update interval in seconds. Set to 0 to update every frame.")]
     public float keyUpdateInterval = 0.0f;
 
-    [Tooltip("调性色度平滑系数。值越大越稳定，值越小响应越快")]
+    [Tooltip("Chroma smoothing factor for key detection. Higher values are more stable; lower values respond faster.")]
     [Range(0f, 0.98f)]
     public float keyChromaSmoothing = 0.55f;
 
-    [Tooltip("新调性需要比当前调性高出的相关分数差，避免频繁跳调")]
+    [Tooltip("Minimum score margin required before switching to a new key.")]
     [Range(0f, 0.3f)]
     public float keySwitchMargin = 0.015f;
 
-    [Tooltip("调性结果切换前需要连续确认的次数")]
+    [Tooltip("Number of consecutive confirmations required before switching key results.")]
     [Range(1, 12)]
     public int keyStableFrameThreshold = 2;
 
-    [Tooltip("当前调性检测置信度（最佳模板与次佳模板的相关分差）")]
+    [Tooltip("Current key detection confidence, measured as the score gap between the best and second-best templates.")]
     public float currentKeyConfidence = 0f;
 
     private float lastKeyUpdateTime = 0f;
@@ -267,7 +261,7 @@ public class AudioVisualizer : MonoBehaviour
     private string pendingMode = "Unknown";
     private int pendingKeyFrames = 0;
 
-    // Krumhansl-Schmuckler 调性模板（标准值）
+    // Standard Krumhansl-Schmuckler key profiles.
     private static readonly double[] majorProfile = new double[]
     {
         6.35, 2.23, 3.48, 2.33, 4.38, 4.09,
@@ -286,25 +280,25 @@ public class AudioVisualizer : MonoBehaviour
         "F#", "G", "G#", "A", "A#", "B"
     };
 
-    [Tooltip("当前帧的 Kick 频段（40~100Hz）能量均值")]
+    [Tooltip("Mean energy of the kick frequency band for the current frame, roughly 40 to 100 Hz.")]
     public float kickEnergy;
     public float smoothedKickEnergy;
 
-    [Tooltip("当前帧的 Bass 频段（60~250Hz）能量均值")]
+    [Tooltip("Mean energy of the bass frequency band for the current frame, roughly 60 to 250 Hz.")]
     public float bassEnergy;
     public float smoothedBassEnergy;
 
-    [Tooltip("当前帧的 Synth 频段（400~4000Hz）能量均值")]
+    [Tooltip("Mean energy of the synth frequency band for the current frame, roughly 400 to 4000 Hz.")]
     public float synthEnergy;
     public float smoothedSynthEnergy;
 
-    [Tooltip("触发 Kick VFX 事件所需的最低 kickEnergy 值")]
+    [Tooltip("Minimum kickEnergy required to trigger kick VFX events.")]
     public float kickThreshold = 0.5f;
 
-    [Tooltip("Bass 能量映射到 VFX 参数 BassRate 的灵敏度倍率")]
+    [Tooltip("Sensitivity multiplier for mapping bass energy to the VFX BassRate parameter.")]
     public float bassSensitivity = 20f;
 
-    [Tooltip("Synth 能量映射到 VFX 参数 SynthStrength 的灵敏度倍率")]
+    [Tooltip("Sensitivity multiplier for mapping synth energy to the VFX SynthStrength parameter.")]
     public float synthSensitivity = 10f;
 
     void Start()
@@ -353,12 +347,7 @@ public class AudioVisualizer : MonoBehaviour
             return;
         }
 
-        // ====== 移除旧的自动触发逻辑 ======
-        if (limitedBPM > 0)
-        {
-            
-        }
-        else
+        if (limitedBPM <= 0)
         {
             if (Time.time - lastKeyUpdateTime >= keyUpdateInterval)
             {
@@ -366,7 +355,7 @@ public class AudioVisualizer : MonoBehaviour
             }
         }
 
-        // ====== 节拍文字显示的倒计时 ======
+        // Count down the transient beat overlay.
         if (showBeatText)
         {
             beatTimer -= Time.deltaTime;
@@ -376,7 +365,7 @@ public class AudioVisualizer : MonoBehaviour
             }
         }
 
-        // 频段能量计算
+        // Calculate band energy values.
         kickEnergy = GetBandEnergy(frequencyData, 40, 100);
         smoothedKickEnergy = GetBandEnergy(smoothedFftData, 40, 100);
 
@@ -386,24 +375,18 @@ public class AudioVisualizer : MonoBehaviour
         synthEnergy = GetBandEnergy(frequencyData, 400, 4000);
         smoothedSynthEnergy = GetBandEnergy(smoothedFftData, 400, 4000);
 
-        // 先用未平滑频谱更新静音状态，避免可视化平滑拖慢静音检测。
+        // Use the unsmoothed spectrum for silence detection so visual smoothing does not delay state changes.
         CheckAndHandleSilence(frequencyData, Time.time);
 
-        // 更新柱状条
+        // Update visualizer bars.
         UpdateBars(smoothedFftData);
 
-        // ====== 统一的节拍检测入口 ======
+        // Run the unified beat detection pipeline.
         DetectBeatImproved(frequencyData);
     }
 
     /// <summary>
-    /// 更新柱状条可视化（改进版 - 加入对数压缩）
-    /// 
-    /// 改进点：
-    /// 1. 对数压缩：使用 log(x + offset) 压缩动态范围，让低幅度信号更明显
-    /// 2. 动态范围调整：根据最近的最大幅度自动调整缩放，避免爆表或过小
-    /// 3. 高度限制：设置最小/最大高度，确保可见性和美观
-    /// 4. 平滑过渡：保持原有的平滑效果
+    /// Updates the bar visualization using log compression, dynamic range adjustment, height limits, and smoothing.
     /// </summary>
     private void UpdateBars(float[] spectrumData)
     {
@@ -449,10 +432,10 @@ public class AudioVisualizer : MonoBehaviour
             return;
         }
 
-        // ====== 动态范围调整 ======
+        // Adjust the dynamic range.
         if (enableDynamicRange)
         {
-            // 找到当前帧的最大幅度
+            // Find the maximum amplitude in the current frame.
             float currentMaxAmplitude = 0f;
             for (int i = 0; i < barCount; i++)
             {
@@ -461,10 +444,10 @@ public class AudioVisualizer : MonoBehaviour
                 currentMaxAmplitude = Mathf.Max(currentMaxAmplitude, spectrumData[fftIndex]);
             }
 
-            // 平滑更新最大幅度记录
+            // Smoothly update the recent maximum amplitude.
             maxRecentAmplitude = Mathf.Lerp(maxRecentAmplitude, currentMaxAmplitude, Time.deltaTime * dynamicRangeSpeed);
 
-            // 根据最大幅度调整缩放因子（避免除以0）
+            // Adjust the scale factor from the maximum amplitude while avoiding division by zero.
             if (maxRecentAmplitude > 0.001f)
             {
                 dynamicScaleFactor = maxBarHeight / Mathf.Log(maxRecentAmplitude + logCompressionOffset, 10f + logCompressionStrength);
@@ -475,7 +458,7 @@ public class AudioVisualizer : MonoBehaviour
             dynamicScaleFactor = 1f;
         }
 
-        // ====== 更新每根柱状条 ======
+        // Update each bar.
         EnsureBarVisualArrays();
 
         for (int i = 0; i < barCount; i++)
@@ -485,27 +468,23 @@ public class AudioVisualizer : MonoBehaviour
 
             if (!wasSilent)
             {
-                // 对数频率映射（低频区域更宽）
+                // Logarithmic frequency mapping gives the low-frequency range more space.
                 float logIndex = Mathf.Pow((float)(i + 1) / barCount, 1);
                 int fftIndex = Mathf.Clamp((int)(logIndex * (spectrumData.Length - 1)), 0, spectrumData.Length - 1);
 
                 rawAmplitude = spectrumData[fftIndex];
 
-                // ====== 对数压缩 ======
-                // 使用 log10(x + offset) 进行压缩
-                // logCompressionStrength 控制压缩程度
-                // logCompressionOffset 避免 log(0) 并控制低幅度信号的提升
+                // Compress dynamic range with log(rawAmplitude + offset).
                 float compressedHeight = Mathf.Log(rawAmplitude + logCompressionOffset, 10f + logCompressionStrength);
 
-                // 应用动态缩放
+                // Apply dynamic scaling.
                 float scaledHeight = compressedHeight * dynamicScaleFactor;
 
-                // ====== 高度限制 ======
-                // 确保柱状条在可见范围内，不会太小或太大
+                // Keep bars within the configured visible height range.
                 finalHeight = Mathf.Clamp(scaledHeight, minBarHeight, maxBarHeight);
             }
 
-            // ====== 更新柱状条缩放 ======
+            // Update bar scale and emission.
             if (bars[i] != null)
             {
                 Vector3 newScale = bars[i].transform.localScale;
@@ -654,35 +633,27 @@ public class AudioVisualizer : MonoBehaviour
         }
     }
 
-    // ==================== 节拍检测算法 ====================
-
     /// <summary>
-    /// 节拍检测算法
+    /// Detects beats from multi-band onset energy.
     ///
-    /// 修复了原版"间隔不断漂移至 minBeatInterval"的根本原因：
+    /// Fixes the root cause of the previous drift toward minBeatInterval.
     ///
-    /// 【问题根源】
-    ///   原版将 beatTimestamps 存为 deltaTime（距上次节拍的秒数），并在每次触发后
-    ///   立刻重置 lastBeatTime。鼓击的瞬态衰减会在 minBeatInterval 内连续触发多次，
-    ///   每次间隔都约等于 minBeatInterval，大量污染数据；中位数也跟着漂移，
-    ///   过滤逻辑失效，形成正反馈死锁。
+    /// Root cause:
+    ///   The earlier implementation stored deltaTime values in beatTimestamps and reset lastBeatTime
+    ///   immediately after every trigger. A drum transient could retrigger repeatedly inside
+    ///   minBeatInterval, filling the history with intervals near minBeatInterval and breaking filtering.
     ///
-    /// 【修复方案】
-    ///   1. beatTimestamps 改为存储"绝对触发时间戳"（Time.time），
-    ///      BPM 在 UpdateBPM 时统一用相邻时间戳差值计算，不再实时写入 deltaTime。
-    ///   2. 引入 beatCooldown（默认 = minBeatInterval * 1.5）硬冷却：
-    ///      冷却期内的 onset 全部忽略，从根本上防止同一鼓击被重复记录。
-    ///   3. UpdateBPM 中的合法性检查改为对"相邻时间戳差"做范围约束
-    ///      （必须在 minBeatInterval ~ maxBeatInterval 之间），
-    ///      而不是对早已污染的中位数做偏差过滤。
-    ///   4. 移除 OnKeyChanged 对 beatTimestamps 的写入，
-    ///      调性变化不再污染节拍数据。
+    /// Fix:
+    ///   1. beatTimestamps stores absolute Time.time values.
+    ///   2. UpdateBPM calculates adjacent timestamp deltas in one place.
+    ///   3. beatCooldown ignores onsets inside the hard cooldown window.
+    ///   4. OnKeyChanged no longer writes into beatTimestamps.
     /// </summary>
     private void DetectBeatImproved(float[] fft)
     {
         float time = Time.time;
 
-        // ====== 步骤1：计算多频段能量 ======
+        // Step 1: calculate multi-band energy.
         float snareEnergy = GetBandEnergy(fft, 150, 300);
 
         if (wasSilent)
@@ -693,7 +664,7 @@ public class AudioVisualizer : MonoBehaviour
             return;
         }
 
-        // ====== 步骤2：维护能量历史 ======
+        // Step 2: maintain energy history.
         kickEnergyHistory.Enqueue(kickEnergy);
         snareEnergyHistory.Enqueue(snareEnergy);
         bassEnergyHistory.Enqueue(bassEnergy);
@@ -710,7 +681,7 @@ public class AudioVisualizer : MonoBehaviour
             return;
         }
 
-        // ====== 步骤3：计算自适应阈值 ======
+        // Step 3: calculate adaptive thresholds.
         float kickMean = kickEnergyHistory.Average();
         float snareMean = snareEnergyHistory.Average();
         float bassMean = bassEnergyHistory.Count > 0 ? bassEnergyHistory.Average() : bassEnergy;
@@ -721,23 +692,22 @@ public class AudioVisualizer : MonoBehaviour
         float rawKickThreshold = kickMean + onsetSensitivity * kickStdDev;
         float rawSnareThreshold = snareMean + onsetSensitivity * snareStdDev;
 
-        // ====== 新增：阈值平滑过渡 ======
-        // 使用 Lerp 实现指数平滑，speed 越大响应越快
+        // Smooth thresholds with Lerp; higher speeds respond faster.
         smoothedKickThreshold = Mathf.Lerp(smoothedKickThreshold, rawKickThreshold,
             Time.deltaTime * dynamicKickThresholdSpeed);
         smoothedSnareThreshold = Mathf.Lerp(smoothedSnareThreshold, rawSnareThreshold,
             Time.deltaTime * dynamicSnareThresholdSpeed);
 
-        // 将平滑后的值赋给公开字段（供 UI 显示和其他逻辑使用）
+        // Expose smoothed thresholds for UI and dependent systems.
         dynamicKickThreshold = smoothedKickThreshold;
         dynamicSnareThreshold = smoothedSnareThreshold;
 
-        // ====== 步骤4：Onset 检测（正向能量突变）======
+        // Step 4: detect positive energy onsets.
         float kickOnset = Mathf.Max(0, kickEnergy - previousKickEnergy);
         float snareOnset = Mathf.Max(0, snareEnergy - previousSnareEnergy);
         float bassOnset = Mathf.Max(0, bassEnergy - previousBassEnergy);
 
-        // ====== 步骤5：判断是否为有效 onset ======
+        // Step 5: validate onset candidates.
         float kickOnsetFloor = Mathf.Max(kickStdDev * 0.45f, kickMean * 0.08f, 1e-6f);
         float snareOnsetFloor = Mathf.Max(snareStdDev * 0.45f, snareMean * 0.08f, 1e-6f);
         float bassOnsetFloor = Mathf.Max(bassStdDev * 0.35f, bassMean * 0.06f, 1e-6f);
@@ -752,7 +722,7 @@ public class AudioVisualizer : MonoBehaviour
             : 0f;
         float totalConfidence = Mathf.Clamp01(Mathf.Max(kickConfidence, snareConfidence) + bassConfidence);
 
-        // ====== 步骤6：相位窗口加权（锁相后提升置信度）======
+        // Step 6: boost confidence inside the predicted phase window.
         float timeSinceLast = time - lastBeatTime;
 
         if (predictedNextBeat > 0f)
@@ -762,32 +732,30 @@ public class AudioVisualizer : MonoBehaviour
                 totalConfidence = Mathf.Clamp01(totalConfidence * 1.3f);
         }
 
-        // ====== 步骤7：硬冷却 + 置信度门控 ======
-        // beatCooldown 防止同一鼓击的瞬态衰减被重复记录，
-        // 这是解决"漂移至 minBeatInterval"的核心修复。
+        // Step 7: apply hard cooldown and confidence gating.
         bool cooldownPassed = timeSinceLast >= beatCooldown;
         bool isBeat = (isKickBeat || isSnareBeat)
                       && totalConfidence > minBeatConfidence
                       && cooldownPassed;
 
-        // ====== 步骤8：节拍丢失检测（超过最大间隔则重置）======
+        // Step 8: optional lost-beat reset when the maximum interval is exceeded.
         //if (predictedNextBeat > 0f && timeSinceLast > maxBeatInterval)
         //{
-        //    Debug.Log("[Beat] 节拍丢失，重置检测");
+        //    Debug.Log("[Beat] Lost beat; resetting detection.");
         //    ResetBeatDetection();
         //}
 
-        // ====== 步骤9：记录绝对时间戳并触发节拍显示 ======
+        // Step 9: record the absolute timestamp and trigger beat display.
         if (isBeat)
         {
             float beatStrength = kickEnergy + snareEnergy;
 
-            // 存储绝对时间戳
+            // Store the absolute timestamp.
             beatTimestamps.Add(time);
             beatConfidences.Add(totalConfidence);
             beatStrengths.Add(beatStrength);
 
-            // 限制历史窗口大小
+            // Limit the history window size.
             int maxSize = 16;
             if (beatTimestamps.Count > maxSize)
             {
@@ -798,65 +766,62 @@ public class AudioVisualizer : MonoBehaviour
 
             lastBeatTime = time;
 
-            // ====== 触发节拍显示 ======
+            // Trigger the transient beat display.
             showBeatText = true;
             beatTimer = beatDisplayTime;
 
-            // 在节拍发生时更新调性（可选）
+            // Optionally update key detection on the beat.
             if (limitedBPM > 0)
             {
                 DetectKeyFromFft(AudioCaptureCSCore.instance.frequencyData);
             }
 
-            Debug.Log($"[Beat] 触发节拍 - 置信度: {totalConfidence:F2}, Kick: {kickEnergy:F3}, Snare: {snareEnergy:F3}");
+            Debug.Log($"[Beat] Triggered beat - confidence: {totalConfidence:F2}, Kick: {kickEnergy:F3}, Snare: {snareEnergy:F3}");
         }
 
-            // ====== 步骤10：定期更新 BPM ======
+        // Step 10: periodically update BPM.
         if (time - lastBpmUpdateTime > bpmUpdateInterval && beatTimestamps.Count >= 4)
         {
             UpdateBPM();
             lastBpmUpdateTime = time;
         }
 
-        // ====== 步骤11：预测下一个节拍 ======
+        // Step 11: predict the next beat.
         if (limitedBPM > 0f)
         {
             predictedNextBeat = lastBeatTime + beatInterval;
             if (isBeat) phaseError = time - predictedNextBeat;
         }
 
-        // 更新前一帧能量
+        // Update previous-frame energy values.
         previousKickEnergy = kickEnergy;
         previousSnareEnergy = snareEnergy;
         previousBassEnergy = bassEnergy;
 
-        // 手动点击辅助（调试用）
+        // Manual tap helper for debugging.
         if (Input.GetMouseButtonDown(0) && timeSinceLast > minBeatInterval)
         {
             beatTimestamps.Add(time);
             beatConfidences.Add(1.0f);
             beatStrengths.Add(kickEnergy + snareEnergy);
             lastBeatTime = time;
-            Debug.Log($"[Beat] 手动节拍 @ {time:F2}s");
+            Debug.Log($"[Beat] Manual tap @ {time:F2}s");
         }
 
     }
 
     /// <summary>
-    /// 更新 BPM（鲁棒候选评分版）
+    /// Updates BPM using robust candidate scoring.
     /// 
-    /// 改进点：
-    /// 1. 从平均/中位间隔、单个间隔和成对时间戳生成 BPM 候选。
-    /// 2. 按候选与历史间隔的匹配度评分，允许半拍、倍拍和漏拍。
-    /// 3. 常见 BPM 区间只做软偏置，不强行把真实 tempo 拉回 90-150。
-    /// 4. 根据候选稳定度动态调整平滑速度。
+    /// Candidate scoring uses average, median, individual intervals, and paired timestamps.
+    /// It allows half-time, double-time, and missed beats without forcing every tempo into 90-150 BPM.
     /// </summary>
     private void UpdateBPM()
     {
         if (beatTimestamps.Count < 4)
             return;
 
-        // ====== 步骤1：将绝对时间戳转换为相邻差值 ======
+        // Step 1: convert absolute timestamps into adjacent deltas.
         List<float> intervals = new List<float>();
         List<float> intConfidences = new List<float>();
 
@@ -872,22 +837,22 @@ public class AudioVisualizer : MonoBehaviour
 
         if (intervals.Count < 3)
         {
-            Debug.Log("[BPM] 合法间隔不足3个，等待更多节拍");
+            Debug.Log("[BPM] Fewer than three valid intervals; waiting for more beats.");
             return;
         }
 
         float[] intervalArray = intervals.ToArray();
 
-        // ====== 步骤2：多来源 BPM 候选 ======
+        // Step 2: build BPM candidates from multiple sources.
         float avgInterval = intervals.Average();
         float medianInterval = GetMedian(intervalArray);
         List<float> bpmCandidates = BuildBpmCandidates(intervals, intConfidences, avgInterval, medianInterval);
 
-        // ====== 步骤3：选择最佳 BPM（按历史间隔一致性评分）======
+        // Step 3: select the best BPM by historical interval consistency.
         float bestBPM = SelectBestBPM(bpmCandidates, intervals, intConfidences);
         bestBPM = ConstrainBpmEstimate(bestBPM);
 
-        // ====== 步骤4：指数移动平均平滑 ======
+        // Step 4: smooth with an exponential moving average.
         float stability = 1f - Mathf.Clamp01(CalculateRelativeTempoError(bestBPM, intervals));
         float emaAlpha = Mathf.Lerp(0.18f, 0.42f, stability);
         if (kalmanEstimate == 0f)
@@ -902,21 +867,21 @@ public class AudioVisualizer : MonoBehaviour
 
         detectedBPM = kalmanEstimate;
 
-        // ====== 步骤5：倍频修正 ======
+        // Step 5: apply half-time or double-time correction.
         LimitBPM();
 
-        // ====== 步骤6：根据稳定性动态调整置信度阈值 ======
+        // Step 6: adjust confidence threshold from stability.
         bpmVariance = CalculateStdDev(intervalArray, avgInterval);
         minBeatConfidence = bpmVariance < 0.08f
             ? Mathf.Max(0.25f, minBeatConfidence - 0.02f)
             : 0.4f;
 
-        Debug.Log($"[BPM] 更新：{Mathf.RoundToInt(limitedBPM)} BPM " +
-                  $"（原始：{bestBPM:F1}, 平滑：{kalmanEstimate:F1}, 方差：{bpmVariance:F3}）");
+        Debug.Log($"[BPM] Updated: {Mathf.RoundToInt(limitedBPM)} BPM " +
+                  $"(raw: {bestBPM:F1}, smoothed: {kalmanEstimate:F1}, variance: {bpmVariance:F3})");
     }
 
     /// <summary>
-    /// 使用自相关分析找到最佳周期
+    /// Finds the best period using autocorrelation analysis.
     /// </summary>
     private float FindBestPeriod(float[] intervals)
     {
@@ -926,7 +891,7 @@ public class AudioVisualizer : MonoBehaviour
         float bestCorrelation = 0f;
         float bestPeriod = mean;
 
-        // 测试不同滞后量的自相关
+        // Test autocorrelation at different lags.
         for (int lag = 1; lag < Mathf.Min(5, intervals.Length - 1); lag++)
         {
             float correlation = 0f;
@@ -934,14 +899,14 @@ public class AudioVisualizer : MonoBehaviour
 
             for (int i = 0; i < intervals.Length - lag; i++)
             {
-                // 累加滞后 lag 的间隔和
+                // Accumulate interval sums for the current lag.
                 float sumLag = 0f;
                 for (int j = 0; j < lag; j++)
                 {
                     sumLag += intervals[i + j];
                 }
 
-                // 计算与平均周期的偏差
+                // Calculate deviation from the mean period.
                 float deviation = Mathf.Abs(sumLag - mean * lag);
                 float score = 1f / (1f + deviation);
 
@@ -1056,7 +1021,7 @@ public class AudioVisualizer : MonoBehaviour
     }
 
     /// <summary>
-    /// 从多个 BPM 候选中选择最佳值（以间隔一致性为主，常见范围为软偏置）
+    /// Selects the best BPM candidate using interval consistency with a soft bias toward common tempo ranges.
     /// </summary>
     private float SelectBestBPM(List<float> candidates, List<float> intervals, List<float> confidences)
     {
@@ -1071,17 +1036,17 @@ public class AudioVisualizer : MonoBehaviour
 
             float score = 0f;
 
-            // 常见舞曲区间只作为软偏置，避免把 70/160 这类真实 tempo 强行拉回中段。
+            // Common dance tempo ranges are only a soft bias; do not force 70/160 BPM material into the middle range.
             score += GetTempoPlausibilityScore(bpm);
 
-            // 奖励稳定性（与历史 BPM 接近）
+            // Reward stability relative to historical BPM.
             if (kalmanEstimate > 0)
             {
                 float diff = Mathf.Abs(bpm - kalmanEstimate);
                 score += 1.5f / (1f + diff * 0.08f);
             }
 
-            // 奖励与间隔数据的一致性
+            // Reward consistency with interval data.
             float weightedMatch = 0f;
             float totalWeight = 0f;
             for (int i = 0; i < intervals.Count; i++)
@@ -1147,7 +1112,7 @@ public class AudioVisualizer : MonoBehaviour
     }
 
     /// <summary>
-    /// 限制 BPM 范围到合理值（改进版）
+    /// Constrains BPM to a musically useful range.
     /// </summary>
     private void LimitBPM()
     {
@@ -1155,34 +1120,32 @@ public class AudioVisualizer : MonoBehaviour
 
         limitedBPM = detectedBPM;
 
-        // ====== 智能倍频修正 ======
-        // 策略：优先将 BPM 调整到 90-150 范围，这是最常见的音乐 BPM 区间
+        // Prefer the common 90-150 BPM range when half-time or double-time correction is plausible.
 
-        // 如果太低，尝试倍频
+        // If the estimate is too low, try double-time correction.
         while (limitedBPM < 90 && limitedBPM * 2 <= 200)
         {
             limitedBPM *= 2;
         }
 
-        // 如果太高，尝试半频
+        // If the estimate is too high, try half-time correction.
         while (limitedBPM > 150 && limitedBPM / 2 >= 60)
         {
             limitedBPM /= 2;
         }
 
-        // 最终硬限制
+        // Apply final hard limits.
         limitedBPM = Mathf.Clamp(limitedBPM, GetMinTrackedBpm(), GetMaxTrackedBpm());
 
-        // 更新节拍间隔。这里必须用倍频修正后的 limitedBPM，避免 70/140 或 170/85
-        // 这类半速/倍速修正后，预测窗口仍按未修正值运行。
+        // Use the corrected limitedBPM for the beat interval so prediction stays aligned after tempo correction.
         beatInterval = 60f / Mathf.Max(limitedBPM, 1f);
         beatDisplayTime = beatInterval / 4f;
 
-        Debug.Log($"[BPM] 倍频修正后：{Mathf.RoundToInt(limitedBPM)} BPM");
+        Debug.Log($"[BPM] After tempo correction: {Mathf.RoundToInt(limitedBPM)} BPM");
     }
 
     /// <summary>
-    /// 重置节拍检测
+    /// Resets beat detection state.
     /// </summary>
     private void ResetBeatDetection()
     {
@@ -1195,7 +1158,6 @@ public class AudioVisualizer : MonoBehaviour
         detectedBPM = 0f;
         limitedBPM = 0f;
         kalmanEstimate = 0f;
-        kalmanErrorCovariance = 1f;
         predictedNextBeat = 0f;
         previousBassEnergy = 0f;
         hasSmoothedChroma = false;
@@ -1204,16 +1166,16 @@ public class AudioVisualizer : MonoBehaviour
         pendingKeyFrames = 0;
         currentKeyConfidence = 0f;
 
-        // 重置静音状态
+        // Reset silence state.
         wasSilent = false;
         silenceStartTime = -1f;
-        minBeatConfidence = 0.3f; // 恢复默认阈值
+        minBeatConfidence = 0.3f;
 
-        Debug.Log("[Beat] 重置节拍检测");
+        Debug.Log("[Beat] Reset beat detection.");
     }
 
     /// <summary>
-    /// 计算标准差
+    /// Calculates standard deviation.
     /// </summary>
     private float CalculateStdDev(float[] values, float mean)
     {
@@ -1231,7 +1193,7 @@ public class AudioVisualizer : MonoBehaviour
     }
 
     /// <summary>
-    /// 计算中位数
+    /// Calculates the median value.
     /// </summary>
     private float GetMedian(float[] values)
     {
@@ -1252,11 +1214,9 @@ public class AudioVisualizer : MonoBehaviour
     }
 
     /// <summary>
-    /// 检测静音并进行渐进式清理
-    /// 改进点：
-    /// 1. 需要持续静音一定时间才清空（避免短暂停顿误触发）
-    /// 2. 静音时保留部分历史数据（便于快速恢复）
-    /// 3. 区分完全静音和低能量
+    /// Detects silence and progressively clears transient beat state.
+    /// Requires sustained low energy before entering silence, preserves useful history during silence,
+    /// and distinguishes full silence from low-energy playback.
     /// </summary>
     private void CheckAndHandleSilence(float[] spectrumData, float currentTime)
     {
@@ -1293,7 +1253,7 @@ public class AudioVisualizer : MonoBehaviour
                     wasSilent = false;
                     pendingSoundStartTime = -1f;
 
-                    Debug.Log($"[Silence] 音频恢复，静音持续了 {silenceDurationTotal:F2}s，能量: {smoothedSilenceEnergy:F5}");
+                    Debug.Log($"[Silence] Audio resumed after {silenceDurationTotal:F2}s of silence. Energy: {smoothedSilenceEnergy:F5}");
                 }
             }
             else
@@ -1319,7 +1279,7 @@ public class AudioVisualizer : MonoBehaviour
                 pendingSilenceStartTime = -1f;
                 showBeatText = false;
 
-                Debug.Log($"[Silence] 检测到静音开始，时间: {currentTime:F2}，能量: {smoothedSilenceEnergy:F5}");
+                Debug.Log($"[Silence] Silence detected at {currentTime:F2}. Energy: {smoothedSilenceEnergy:F5}");
             }
         }
         else
@@ -1337,20 +1297,16 @@ public class AudioVisualizer : MonoBehaviour
         }
     }
 
-    // ==================== 调性检测算法 ====================
-
     /// <summary>
-    /// 调性检测（稳定版）
+    /// Detects musical key using a stabilized chroma analysis pipeline.
     ///
-    /// 设计原则：保留实时响应，但不再让单帧 FFT 直接改写调性。
+    /// Maintains real-time response without allowing a single FFT frame to overwrite the displayed key.
     ///
-    /// 流程：
-    ///   1. ExtractChromaFeatures：将 FFT 频谱映射到 12 个色度 bin，
-    ///      权重 = sqrt(amplitude)，并对低频根音稍加权。
-    ///   2. 色度做指数平滑后再 L2 归一化，降低瞬时泛音和噪声的影响。
-    ///   3. 遍历 24 个调（12 大调 + 12 小调），用皮尔逊相关系数与 K-S 模板匹配，
-    ///      同时记录最佳与次佳分数差作为置信度。
-    ///   4. 新调性需要连续确认且分数超过当前调性一定边距，避免显示频繁跳动。
+    /// Pipeline:
+    ///   1. Map the FFT spectrum to 12 chroma bins.
+    ///   2. Smooth and L2-normalize chroma to reduce transient overtone and noise influence.
+    ///   3. Compare all 24 major/minor keys against Krumhansl-Schmuckler templates.
+    ///   4. Require repeated confirmation and a score margin before switching keys.
     /// </summary>
     private void DetectKeyFromFft(float[] fft)
     {
@@ -1361,7 +1317,7 @@ public class AudioVisualizer : MonoBehaviour
             chroma = NormalizeChroma(chroma);
             lastKeyUpdateTime = Time.time;
 
-            // 遍历全部 24 个调，取皮尔逊相关系数最大者
+            // Evaluate all 24 major and minor keys and choose the highest Pearson correlation.
             double bestScore = double.MinValue;
             double secondBestScore = double.MinValue;
             string bestKey = "C";
@@ -1398,9 +1354,7 @@ public class AudioVisualizer : MonoBehaviour
     }
 
     /// <summary>
-    /// 将 FFT 频谱映射到 12 色度 bin。
-    /// 权重 = sqrt(amplitude)，使高幅度音符突出，噪声趋零，无需硬阈值。
-    /// 相邻半音之间按音符内小数部分做高斯扩散，减少量化误差。
+    /// Maps the FFT spectrum into 12 chroma bins using sqrt(amplitude) weighting and Gaussian semitone spreading.
     /// </summary>
     private double[] ExtractChromaFeatures(float[] fft)
     {
@@ -1421,7 +1375,7 @@ public class AudioVisualizer : MonoBehaviour
             int noteClass = (lowerNote % 12 + 12) % 12;
             double weight = Math.Sqrt(fft[i]) * GetChromaFrequencyWeight(freq);
 
-            // 高斯扩散到相邻半音，减少频率量化误差
+            // Spread energy into neighboring semitones to reduce frequency quantization error.
             double frac = midiNote - lowerNote;
             chroma[noteClass] += weight * Math.Exp(-0.5 * frac * frac);
             chroma[(noteClass + 1) % 12] += weight * Math.Exp(-0.5 * (1.0 - frac) * (1.0 - frac));
@@ -1523,7 +1477,7 @@ public class AudioVisualizer : MonoBehaviour
             : PearsonCorr(chroma, majorProfile, keyIndex);
     }
 
-    /// <summary>L2 归一化，消除响度差异。</summary>
+    /// <summary>L2-normalizes chroma to remove loudness differences.</summary>
     private double[] NormalizeChroma(double[] chroma)
     {
         double sq = 0;
@@ -1535,7 +1489,7 @@ public class AudioVisualizer : MonoBehaviour
         return n;
     }
 
-    /// <summary>皮尔逊相关系数：chroma 与 template 在偏移 shift 处的相关度（-1 ~ 1）。</summary>
+    /// <summary>Calculates Pearson correlation between chroma and a shifted key template.</summary>
     private double PearsonCorr(double[] chroma, double[] template, int shift)
     {
         double cMean = 0, tMean = 0;
@@ -1563,10 +1517,8 @@ public class AudioVisualizer : MonoBehaviour
 
     private void OnKeyChanged()
     {
-        // 调性变化不写入 beatTimestamps，避免污染节拍间隔数据。
-        // 原版此处会把 deltaTime（往往很短）塞入列表并重置 lastBeatTime，
-        // 是导致间隔漂移至 minBeatInterval 的原因之一。
-        Debug.Log($"[Key] 调性变化回调（不写入节拍数据）");
+        // Key changes do not write into beatTimestamps, preventing key updates from polluting beat intervals.
+        Debug.Log("[Key] Key changed without modifying beat timing data.");
     }
 
     private float GetBandEnergy(float[] spectrum, float fMin, float fMax)
@@ -1604,19 +1556,19 @@ public class AudioVisualizer : MonoBehaviour
         GUILayout.Label($"Confidence: {(beatConfidences.Count > 0 ? beatConfidences.Last() : 0):F2}", style);
         GUILayout.Label($"Variance: {bpmVariance:F3}", style);
 
-        // 显示静音状态
+        // Display silence state.
         style.normal.textColor = Color.yellow;
         GUILayout.Label(GetPlaybackStatusText(), style);
         GUILayout.Label($"Silence Energy: {smoothedSilenceEnergy:F5}", style);
         style.normal.textColor = Color.green;
 
-        // 显示对数压缩参数（调试用）
+        // Display log compression debug values.
         if (enableDynamicRange)
         {
-            GUILayout.Label($"动态缩放: {dynamicScaleFactor:F2} | 最大幅度: {maxRecentAmplitude:F3}", style);
+            GUILayout.Label($"Dynamic Scale: {dynamicScaleFactor:F2} | Max Amplitude: {maxRecentAmplitude:F3}", style);
         }
 
-        GUILayout.Label($"原始 BPM: {detectedBPM:F1} | 方差: {bpmVariance:F3}", style);
+        GUILayout.Label($"Raw BPM: {detectedBPM:F1} | Variance: {bpmVariance:F3}", style);
     }
 
     private string GetPlaybackStatusText()
@@ -1624,11 +1576,11 @@ public class AudioVisualizer : MonoBehaviour
         if (wasSilent)
         {
             float startTime = silenceStartTime >= 0f ? silenceStartTime : Time.time;
-            return $"静音 {FormatDuration(Time.time - startTime)}";
+            return $"Silent {FormatDuration(Time.time - startTime)}";
         }
 
         float playTime = playStartTime > 0f ? playStartTime : Time.time;
-        return $"播放 {FormatDuration(Time.time - playTime)}";
+        return $"Playing {FormatDuration(Time.time - playTime)}";
     }
 
     private string FormatDuration(float duration)

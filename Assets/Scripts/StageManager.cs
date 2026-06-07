@@ -60,7 +60,7 @@ public partial class StageManager : MonoBehaviour
 
     [Header("Advanced Runtime")]
     public StageRuntimeSettings runtime = new StageRuntimeSettings();
-    public StageAudioSettings audio = new StageAudioSettings();
+    public new StageAudioSettings audio = new StageAudioSettings();
     public StageLightingSettings lighting = new StageLightingSettings();
     public StageVJSettings vj = new StageVJSettings();
     public StageVFXSettings vfx = new StageVFXSettings();

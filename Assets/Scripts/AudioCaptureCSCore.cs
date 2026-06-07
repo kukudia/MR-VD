@@ -1,4 +1,4 @@
-﻿using CSCore;
+using CSCore;
 using CSCore.DSP;
 using CSCore.SoundIn;
 using CSCore.Streams;
@@ -10,23 +10,26 @@ using System.Linq;
 using UnityEngine;
 using UnityEngine.Events;
 
+/// <summary>
+/// Captures Windows audio through CSCore and exposes FFT buffers for visualization systems.
+/// </summary>
 public class AudioCaptureCSCore : MonoBehaviour
 {
     public static AudioCaptureCSCore instance;
 
-    // ================= 捕获模式枚举 =================
+    /// <summary>
+    /// Selects whether audio comes from an input device or system playback loopback.
+    /// </summary>
     public enum CaptureMode
     {
-        Input,    // 麦克风 / 音频输入设备（WasapiCapture）
-        Loopback  // 系统播放回环，即扬声器输出（WasapiLoopbackCapture）
+        Input,
+        Loopback
     }
 
     [Header("Capture Mode")]
-    [Tooltip("Input = 麦克风输入；Loopback = 系统播放回环（捕获扬声器输出）")]
+    [Tooltip("Input captures microphones or audio input devices. Loopback captures system playback from output devices.")]
     public CaptureMode captureMode = CaptureMode.Loopback;
-    // =================================================
 
-    // 原有变量保留（Loopback 模式时 capture 实际类型为 WasapiLoopbackCapture，基类均为 WasapiCapture）
     private WasapiCapture capture;
     private SoundInSource soundInSource;
     public IWaveSource waveSource;
@@ -38,87 +41,78 @@ public class AudioCaptureCSCore : MonoBehaviour
     public bool linearFftData = true;
 
     [Header("FFT Data Output")]
-    [Tooltip("公开 FFT 数组的长度，需要与可视化端使用的 FFT size 保持一致")]
+    [Tooltip("Length of the exposed FFT arrays. Keep this aligned with the visualizer FFT size.")]
     public int fftDataSize = 2048;
 
-    [Tooltip("当没有其他脚本主动更新 FFT 数组时，由 AudioCaptureCSCore 自动更新 frequencyData / smoothedFftData")]
+    [Tooltip("Automatically updates frequencyData and smoothedFftData when no other script updates the FFT arrays manually.")]
     public bool updateFftDataAutomatically = true;
 
-    [Tooltip("自动更新公开 FFT 数组时使用的输出缩放")]
+    [Tooltip("Output scale applied when automatically updating exposed FFT arrays.")]
     public float fftDataOutputScale = 1f;
 
-    [Tooltip("自动更新公开 FFT 数组时使用的平滑权重")]
+    [Tooltip("Smoothing weight applied when automatically updating exposed FFT arrays.")]
     [Range(0f, 0.99f)]
     public float fftDataSmoothingWeight = 0.5f;
 
     public bool HasFftData { get; private set; }
 
-    // ================= 设备选择相关变量 =================
     [Header("Audio Device Selection")]
-    [Tooltip("当前选择的输入设备索引（0为默认；Loopback 模式下为输出设备索引）")]
+    [Tooltip("Selected capture device index. In Loopback mode this points to an output device.")]
     public int selectedDeviceIndex = 0;
 
-    [Tooltip("运行时动态获取的设备名称列表（随 captureMode 变化）")]
+    [Tooltip("Runtime device name list for the current capture mode.")]
     public List<string> deviceNames = new List<string>();
 
     private MMDevice[] availableDevices;
     private bool devicesRefreshed = false;
-    // =====================================================
 
-    // ================= 扩展设备选择功能变量 =================
     [Header("Device Selection - Extended")]
 
-    [Tooltip("是否在 Awake 时自动选择上次使用的设备（通过 PlayerPrefs 持久化）")]
+    [Tooltip("Restores the previously selected device from PlayerPrefs during Awake.")]
     public bool rememberLastDevice = true;
 
-    [Tooltip("是否启用设备热插拔检测（定时轮询）")]
+    [Tooltip("Enables periodic polling for audio device hotplug changes.")]
     public bool enableHotplugDetection = true;
 
-    [Tooltip("热插拔轮询间隔（秒），建议 2~5 秒")]
+    [Tooltip("Hotplug polling interval in seconds. Recommended range: 2 to 5 seconds.")]
     [Range(1f, 10f)]
     public float hotplugPollInterval = 3f;
 
-    [Tooltip("设备列表发生变化时触发（新增/移除设备）")]
+    [Tooltip("Invoked when audio devices are added or removed.")]
     public UnityEvent onDeviceListChanged;
 
-    [Tooltip("成功切换设备后触发，参数为新设备名称")]
+    [Tooltip("Invoked after a successful device switch. The event argument is the new device name.")]
     public UnityEvent<string> onDeviceSwitched;
 
-    [Tooltip("当前正在使用的设备友好名称（只读显示用）")]
+    [Tooltip("Friendly name of the active audio device for runtime display.")]
     [HideInInspector]
     public string currentDeviceName = "None";
 
-    // PlayerPrefs 持久化 Key
     private const string PREFS_KEY_DEVICE_NAME = "AudioCapture_LastDeviceName";
 
-    // 热插拔检测用：上一次的设备列表快照
     private List<string> _lastKnownDeviceNames = new List<string>();
 
-    // 防止 SwitchDevice / InitializeCapture 重入
     private bool _isSwitching = false;
     private EventHandler<DataAvailableEventArgs> _soundInDataAvailableHandler;
     private EventHandler<SingleBlockReadEventArgs> _singleBlockReadHandler;
     private float[] _sampleReadBuffer = Array.Empty<float>();
     private int _lastManualFftUpdateFrame = -1;
-    // =========================================================
 
-    // ================= 手动切换按钮面板 =================
     [Header("Manual Runtime Controls")]
-    [Tooltip("运行时显示一个调试按钮面板，用于手动切换捕获模式和设备")]
+    [Tooltip("Shows a runtime debug panel for manually switching capture modes and devices.")]
     public bool showManualControlPanel = true;
 
-    [Tooltip("手动按钮面板的位置与大小")]
+    [Tooltip("Position and size of the manual runtime control panel.")]
     public Rect manualControlPanelRect = new Rect(16f, 16f, 420f, 560f);
 
-    [Tooltip("合并显示 AudioVisualizer 的 BPM / 调性 / 静音状态")]
+    [Tooltip("Optional visualizer used to merge BPM, key, and silence status into the capture panel.")]
     public AudioVisualizer audioVisualizer;
 
-    [Tooltip("设备列表滚动区域高度")]
+    [Tooltip("Height of the scrollable device list in the manual runtime panel.")]
     [Range(80f, 360f)]
     public float manualDeviceListHeight = 180f;
 
     private Vector2 _manualDeviceListScrollPosition;
-    // =========================================================
 
     private void Awake()
     {
@@ -154,11 +148,8 @@ public class AudioCaptureCSCore : MonoBehaviour
         TryUpdateFftData(fftDataSize, fftDataOutputScale, fftDataSmoothingWeight);
     }
 
-    // ======================== 原有方法（保留并适配 CaptureMode） ========================
-
     /// <summary>
-    /// 右键组件菜单或代码调用：刷新可用音频设备。
-    /// Input 模式枚举输入设备（DataFlow.Capture），Loopback 模式枚举输出设备（DataFlow.Render）。
+    /// Refreshes the available audio devices for the current capture mode.
     /// </summary>
     [ContextMenu("Refresh Audio Devices")]
     public void RefreshDeviceList()
@@ -167,7 +158,6 @@ public class AudioCaptureCSCore : MonoBehaviour
         availableDevices = null;
         devicesRefreshed = false;
 
-        // Loopback 模式枚举输出（Render）设备；Input 模式枚举输入（Capture）设备
         DataFlow dataFlow = (captureMode == CaptureMode.Loopback) ? DataFlow.Render : DataFlow.Capture;
 
         try
@@ -191,28 +181,28 @@ public class AudioCaptureCSCore : MonoBehaviour
 
             if (availableDevices.Length == 0)
             {
-                Debug.LogWarning($"[AudioVisualizerCSCore] No active {captureMode} devices found.");
+                Debug.LogWarning($"[AudioCaptureCSCore] No active {captureMode} devices found.");
             }
             else
             {
-                Debug.Log($"[AudioVisualizerCSCore] Found {availableDevices.Length} {captureMode} device(s).");
+                Debug.Log($"[AudioCaptureCSCore] Found {availableDevices.Length} {captureMode} device(s).");
             }
             devicesRefreshed = true;
         }
         catch (Exception ex)
         {
-            Debug.LogError($"[AudioVisualizerCSCore] Error enumerating devices: {ex.Message}");
+            Debug.LogError($"[AudioCaptureCSCore] Error enumerating devices: {ex.Message}");
         }
     }
 
     /// <summary>
-    /// 运行时切换设备（通过索引）
+    /// Switches the active capture device by runtime device index.
     /// </summary>
     public void SwitchDevice(int index)
     {
         if (_isSwitching)
         {
-            Debug.LogWarning("[AudioVisualizerCSCore] Device switch already in progress, ignoring.");
+            Debug.LogWarning("[AudioCaptureCSCore] Device switch already in progress, ignoring.");
             return;
         }
 
@@ -223,13 +213,13 @@ public class AudioCaptureCSCore : MonoBehaviour
 
         if (availableDevices == null || availableDevices.Length == 0)
         {
-            Debug.LogWarning($"[AudioVisualizerCSCore] No active {captureMode} devices available.");
+            Debug.LogWarning($"[AudioCaptureCSCore] No active {captureMode} devices available.");
             return;
         }
 
         if (index < 0 || index >= availableDevices.Length)
         {
-            Debug.LogError($"[AudioVisualizerCSCore] Invalid device index: {index}");
+            Debug.LogError($"[AudioCaptureCSCore] Invalid device index: {index}");
             return;
         }
 
@@ -243,14 +233,12 @@ public class AudioCaptureCSCore : MonoBehaviour
         try
         {
             DisposeCaptureChain();
-            Debug.Log("[AudioVisualizerCSCore] Stopped and disposed previous capture.");
+            Debug.Log("[AudioCaptureCSCore] Stopped and disposed previous capture.");
 
             string initializedDeviceName;
 
-            // ---- 根据 captureMode 创建对应的捕获实例 ----
             if (captureMode == CaptureMode.Loopback)
             {
-                // Loopback：捕获系统播放的声音（扬声器输出回环）
                 var loopback = new WasapiLoopbackCapture();
 
                 if (devicesRefreshed && availableDevices != null && availableDevices.Length > 0)
@@ -258,25 +246,23 @@ public class AudioCaptureCSCore : MonoBehaviour
                     if (selectedDeviceIndex >= availableDevices.Length)
                     {
                         selectedDeviceIndex = 0;
-                        Debug.LogWarning("[AudioVisualizerCSCore] Selected device index out of range, resetting to 0.");
+                        Debug.LogWarning("[AudioCaptureCSCore] Selected device index out of range, resetting to 0.");
                     }
-                    // WasapiLoopbackCapture 通过 Device 属性指定输出设备
                     loopback.Device = availableDevices[selectedDeviceIndex];
-                    Debug.Log($"[AudioVisualizerCSCore] [Loopback] Using output device: {loopback.Device.FriendlyName}");
+                    Debug.Log($"[AudioCaptureCSCore] [Loopback] Using output device: {loopback.Device.FriendlyName}");
                     initializedDeviceName = loopback.Device.FriendlyName;
                 }
                 else
                 {
-                    Debug.LogWarning("[AudioVisualizerCSCore] [Loopback] No output devices enumerated, using system default.");
+                    Debug.LogWarning("[AudioCaptureCSCore] [Loopback] No output devices enumerated, using system default.");
                     initializedDeviceName = "System Default (Loopback)";
                 }
 
                 capture = loopback;
-                Debug.Log("[AudioVisualizerCSCore] Created WasapiLoopbackCapture.");
+                Debug.Log("[AudioCaptureCSCore] Created WasapiLoopbackCapture.");
             }
             else
             {
-                // Input：捕获麦克风等输入设备
                 var inputCapture = new WasapiCapture();
 
                 if (devicesRefreshed && availableDevices != null && availableDevices.Length > 0)
@@ -284,34 +270,32 @@ public class AudioCaptureCSCore : MonoBehaviour
                     if (selectedDeviceIndex >= availableDevices.Length)
                     {
                         selectedDeviceIndex = 0;
-                        Debug.LogWarning("[AudioVisualizerCSCore] Selected device index out of range, resetting to 0.");
+                        Debug.LogWarning("[AudioCaptureCSCore] Selected device index out of range, resetting to 0.");
                     }
                     inputCapture.Device = availableDevices[selectedDeviceIndex];
-                    Debug.Log($"[AudioVisualizerCSCore] [Input] Using device: {inputCapture.Device.FriendlyName}, State: {inputCapture.Device.DeviceState}");
+                    Debug.Log($"[AudioCaptureCSCore] [Input] Using device: {inputCapture.Device.FriendlyName}, State: {inputCapture.Device.DeviceState}");
                     initializedDeviceName = inputCapture.Device.FriendlyName;
                 }
                 else
                 {
-                    Debug.LogWarning("[AudioVisualizerCSCore] No input devices enumerated, using system default.");
+                    Debug.LogWarning("[AudioCaptureCSCore] No input devices enumerated, using system default.");
                     initializedDeviceName = "System Default (Input)";
                 }
 
                 capture = inputCapture;
-                Debug.Log("[AudioVisualizerCSCore] Created WasapiCapture.");
+                Debug.Log("[AudioCaptureCSCore] Created WasapiCapture.");
             }
-            // -----------------------------------------------
-
             capture.Initialize();
-            Debug.Log("[AudioVisualizerCSCore] Capture initialized.");
+            Debug.Log("[AudioCaptureCSCore] Capture initialized.");
 
             soundInSource = new SoundInSource(capture) { FillWithZeros = false };
             var sampleSource = soundInSource.ToSampleSource();
             notificationStream = new SingleBlockNotificationStream(sampleSource);
             waveSource = notificationStream.ToWaveSource();
-            Debug.Log("[AudioVisualizerCSCore] Audio stream and notification stream initialized.");
+            Debug.Log("[AudioCaptureCSCore] Audio stream and notification stream initialized.");
 
             fftProvider = new FftProvider(waveSource.WaveFormat.Channels, FftSize.Fft2048);
-            Debug.Log("[AudioVisualizerCSCore] FFT Provider created with channels: " + waveSource.WaveFormat.Channels);
+            Debug.Log("[AudioCaptureCSCore] FFT Provider created with channels: " + waveSource.WaveFormat.Channels);
 
             int channels = waveSource.WaveFormat.Channels;
             _sampleReadBuffer = new float[Mathf.Max(1024, waveSource.WaveFormat.SampleRate * channels / 10)];
@@ -341,7 +325,7 @@ public class AudioCaptureCSCore : MonoBehaviour
             soundInSource.DataAvailable += _soundInDataAvailableHandler;
 
             capture.Start();
-            Debug.Log("[AudioVisualizerCSCore] Capture started.");
+            Debug.Log("[AudioCaptureCSCore] Capture started.");
 
             currentDeviceName = initializedDeviceName;
             if (rememberLastDevice)
@@ -354,7 +338,7 @@ public class AudioCaptureCSCore : MonoBehaviour
         }
         catch (Exception ex)
         {
-            Debug.LogError($"[AudioVisualizerCSCore] Error initializing audio capture: {ex.Message}");
+            Debug.LogError($"[AudioCaptureCSCore] Error initializing audio capture: {ex.Message}");
         }
         finally
         {
@@ -364,7 +348,7 @@ public class AudioCaptureCSCore : MonoBehaviour
 
     void OnDisable()
     {
-        Debug.Log("[AudioVisualizerCSCore] Disposing capture and waveSource.");
+        Debug.Log("[AudioCaptureCSCore] Disposing capture and waveSource.");
         DisposeCaptureChain();
     }
 
@@ -389,7 +373,7 @@ public class AudioCaptureCSCore : MonoBehaviour
         }
         catch (Exception ex)
         {
-            Debug.LogWarning($"[AudioVisualizerCSCore] Error stopping capture: {ex.Message}");
+            Debug.LogWarning($"[AudioCaptureCSCore] Error stopping capture: {ex.Message}");
         }
 
         waveSource?.Dispose();
@@ -479,30 +463,27 @@ public class AudioCaptureCSCore : MonoBehaviour
         }
     }
 
-    // ======================== 新增方法 ========================
-
     /// <summary>
-    /// 运行时切换捕获模式，并重新刷新设备列表 & 重新初始化捕获。
-    /// 示例：SwitchCaptureMode(AudioCaptureCSCore.CaptureMode.Loopback)
+    /// Switches capture mode at runtime, then refreshes devices and reinitializes capture.
     /// </summary>
     public void SwitchCaptureMode(CaptureMode mode)
     {
         if (captureMode == mode)
         {
-            Debug.Log($"[AudioVisualizerCSCore] Already in {mode} mode, skipping.");
+            Debug.Log($"[AudioCaptureCSCore] Already in {mode} mode, skipping.");
             return;
         }
 
         captureMode = mode;
-        selectedDeviceIndex = 0; // 切换模式时重置设备索引，避免越界
+        selectedDeviceIndex = 0;
         RefreshDeviceList();
         InitializeCapture();
 
-        Debug.Log($"[AudioVisualizerCSCore] Capture mode switched to: {mode}");
+        Debug.Log($"[AudioCaptureCSCore] Capture mode switched to: {mode}");
     }
 
     /// <summary>
-    /// 供 Unity UI Button 直接绑定：切换到麦克风/输入设备模式。
+    /// Switches to microphone or input-device capture mode. Intended for Unity UI button bindings.
     /// </summary>
     public void SwitchToInputMode()
     {
@@ -510,7 +491,7 @@ public class AudioCaptureCSCore : MonoBehaviour
     }
 
     /// <summary>
-    /// 供 Unity UI Button 直接绑定：切换到系统声音回环模式。
+    /// Switches to system playback loopback capture mode. Intended for Unity UI button bindings.
     /// </summary>
     public void SwitchToLoopbackMode()
     {
@@ -518,7 +499,7 @@ public class AudioCaptureCSCore : MonoBehaviour
     }
 
     /// <summary>
-    /// 供 Unity UI Button 直接绑定：在输入和回环模式之间切换。
+    /// Toggles between input and loopback capture modes. Intended for Unity UI button bindings.
     /// </summary>
     public void ToggleCaptureMode()
     {
@@ -526,14 +507,13 @@ public class AudioCaptureCSCore : MonoBehaviour
     }
 
     /// <summary>
-    /// 通过设备友好名称切换设备（适合下拉框 UI 绑定）
-    /// 示例：SwitchDeviceByName("麦克风 (USB Audio Device)")
+    /// Switches capture devices by friendly name. Supports dropdown-style UI bindings.
     /// </summary>
     public void SwitchDeviceByName(string friendlyName)
     {
         if (!devicesRefreshed || availableDevices == null)
         {
-            Debug.LogWarning("[AudioVisualizerCSCore] Device list not ready. Call RefreshDeviceList() first.");
+            Debug.LogWarning("[AudioCaptureCSCore] Device list not ready. Call RefreshDeviceList() first.");
             return;
         }
 
@@ -546,7 +526,7 @@ public class AudioCaptureCSCore : MonoBehaviour
 
         if (index < 0)
         {
-            Debug.LogError($"[AudioVisualizerCSCore] Device not found: \"{friendlyName}\"");
+            Debug.LogError($"[AudioCaptureCSCore] Device not found: \"{friendlyName}\"");
             return;
         }
 
@@ -554,7 +534,7 @@ public class AudioCaptureCSCore : MonoBehaviour
     }
 
     /// <summary>
-    /// 切换到下一个设备（循环）
+    /// Switches to the next available device, wrapping at the end of the list.
     /// </summary>
     [ContextMenu("Switch To Next Device")]
     public void SwitchToNextDevice()
@@ -565,7 +545,7 @@ public class AudioCaptureCSCore : MonoBehaviour
     }
 
     /// <summary>
-    /// 切换到上一个设备（循环）
+    /// Switches to the previous available device, wrapping at the start of the list.
     /// </summary>
     [ContextMenu("Switch To Previous Device")]
     public void SwitchToPreviousDevice()
@@ -576,7 +556,7 @@ public class AudioCaptureCSCore : MonoBehaviour
     }
 
     /// <summary>
-    /// 获取当前所有设备名称数组（供 UI Dropdown 填充）
+    /// Gets the current device names for UI dropdown population.
     /// </summary>
     public string[] GetDeviceNames()
     {
@@ -584,7 +564,7 @@ public class AudioCaptureCSCore : MonoBehaviour
     }
 
     /// <summary>
-    /// 获取当前选中设备名称
+    /// Gets the friendly name of the active device.
     /// </summary>
     public string GetCurrentDeviceName()
     {
@@ -592,18 +572,18 @@ public class AudioCaptureCSCore : MonoBehaviour
     }
 
     /// <summary>
-    /// 清除持久化的设备记忆
+    /// Clears the persisted device preference.
     /// </summary>
     [ContextMenu("Clear Saved Device Preference")]
     public void ClearSavedDevicePreference()
     {
         PlayerPrefs.DeleteKey(PREFS_KEY_DEVICE_NAME);
         PlayerPrefs.Save();
-        Debug.Log("[AudioVisualizerCSCore] Cleared saved device preference.");
+        Debug.Log("[AudioCaptureCSCore] Cleared saved device preference.");
     }
 
     /// <summary>
-    /// 尝试从 PlayerPrefs 恢复上次使用的设备
+    /// Attempts to restore the previously selected device from PlayerPrefs.
     /// </summary>
     private void TryRestoreLastDevice()
     {
@@ -616,18 +596,17 @@ public class AudioCaptureCSCore : MonoBehaviour
         if (index >= 0)
         {
             selectedDeviceIndex = index;
-            Debug.Log($"[AudioVisualizerCSCore] Restored last device: \"{savedName}\" (index {index})");
+            Debug.Log($"[AudioCaptureCSCore] Restored last device: \"{savedName}\" (index {index})");
         }
         else
         {
-            Debug.LogWarning($"[AudioVisualizerCSCore] Saved device \"{savedName}\" not found, using default (index 0).");
+            Debug.LogWarning($"[AudioCaptureCSCore] Saved device \"{savedName}\" not found, using default (index 0).");
             selectedDeviceIndex = 0;
         }
     }
 
     /// <summary>
-    /// 热插拔检测协程：定时对比设备列表，有变化时触发 onDeviceListChanged 事件。
-    /// 自动根据当前 captureMode 枚举对应类型的设备。
+    /// Polls the device list and raises onDeviceListChanged when devices are added or removed.
     /// </summary>
     private IEnumerator HotplugDetectionCoroutine()
     {
@@ -651,14 +630,14 @@ public class AudioCaptureCSCore : MonoBehaviour
             }
             catch (Exception ex)
             {
-                Debug.LogWarning($"[AudioVisualizerCSCore] Hotplug poll error: {ex.Message}");
+                Debug.LogWarning($"[AudioCaptureCSCore] Hotplug poll error: {ex.Message}");
                 continue;
             }
 
             bool changed = !currentNames.SequenceEqual(_lastKnownDeviceNames);
             if (changed)
             {
-                Debug.Log("[AudioVisualizerCSCore] Audio device list changed, refreshing...");
+                Debug.Log("[AudioCaptureCSCore] Audio device list changed, refreshing...");
                 _lastKnownDeviceNames = currentNames;
 
                 string previousDevice = currentDeviceName;
@@ -674,7 +653,7 @@ public class AudioCaptureCSCore : MonoBehaviour
                 else if (availableDevices != null && availableDevices.Length > 0)
                 {
                     selectedDeviceIndex = 0;
-                    Debug.LogWarning($"[AudioVisualizerCSCore] Previous device \"{previousDevice}\" disconnected. Switching to index 0.");
+                    Debug.LogWarning($"[AudioCaptureCSCore] Previous device \"{previousDevice}\" disconnected. Switching to index 0.");
                     InitializeCapture();
                 }
 
