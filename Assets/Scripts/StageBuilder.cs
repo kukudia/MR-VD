@@ -131,6 +131,7 @@ public class StageBuilder : MonoBehaviour
             spotlight.spotAngle = 45f;
             spotlight.color = Color.white;
             spotlight.shadows = LightShadows.Soft;
+            ConfigureVisibleBeam(spotlight, 0.24f, 1f);
         }
 
         GameObject chaseLightsGroup = new GameObject("ChaseLights");
@@ -155,6 +156,7 @@ public class StageBuilder : MonoBehaviour
             chaseLight.range = 12f;
             chaseLight.spotAngle = 30f;
             chaseLight.color = Color.white;
+            ConfigureVisibleBeam(chaseLight, 0.22f, 1f);
         }
 
         GameObject rimLightsGroup = new GameObject("RimLights");
@@ -220,6 +222,7 @@ public class StageBuilder : MonoBehaviour
             laserLight.spotAngle = 10f;
             laserLight.color = Color.red;
             laserLight.enabled = false;
+            ConfigureVisibleBeam(laserLight, 0.34f, 0.55f);
         }
 
         GameObject strobeLightsGroup = new GameObject("StrobeLights");
@@ -247,9 +250,24 @@ public class StageBuilder : MonoBehaviour
             strobeLight.spotAngle = 60f;
             strobeLight.color = Color.white;
             strobeLight.enabled = false;
+            ConfigureVisibleBeam(strobeLight, 0.3f, 1f);
         }
 
         return lightingRoot;
+    }
+
+    private void ConfigureVisibleBeam(Light light, float opacity, float radiusScale)
+    {
+        StageVisibleLightBeam beam = light.GetComponent<StageVisibleLightBeam>();
+        if (beam == null)
+        {
+            beam = light.gameObject.AddComponent<StageVisibleLightBeam>();
+        }
+
+        beam.Configure(opacity, 1f, radiusScale, 8f);
+        beam.hideWhenLightDisabled = true;
+        beam.scaleOpacityByIntensity = true;
+        beam.useLightColor = true;
     }
 
     private GameObject CreateVFXSystem(GameObject parent)

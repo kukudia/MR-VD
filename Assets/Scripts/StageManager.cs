@@ -450,6 +450,7 @@ public partial class StageManager : MonoBehaviour
         CompleteVfxGraphBindings();
         CacheStageBounds();
         CacheFixtures();
+        EnsureVisibleLightBeams();
         CacheScreens();
         CacheVfx();
         EnsureLibraries();
@@ -754,6 +755,47 @@ public partial class StageManager : MonoBehaviour
         RegisterFixtures(chaseLights, FixtureRole.Chase, chaseFixtures);
         RegisterFixtures(laserLights, FixtureRole.Laser, laserFixtures);
         RegisterFixtures(strobeLights, FixtureRole.Strobe, strobeFixtures);
+    }
+
+    private void EnsureVisibleLightBeams()
+    {
+        if (!lighting.createVisibleLightBeams)
+        {
+            return;
+        }
+
+        for (int i = 0; i < fixtures.Count; i++)
+        {
+            FixtureState fixture = fixtures[i];
+            if (fixture == null || fixture.light == null || fixture.light.type != LightType.Spot)
+            {
+                continue;
+            }
+
+            StageVisibleLightBeam beam = StageVisibleLightBeamBootstrap.EnsureForLight(fixture.light);
+            if (beam == null)
+            {
+                continue;
+            }
+
+            float opacity = lighting.visibleBeamOpacity;
+            float radiusScale = lighting.visibleBeamRadiusScale;
+            if (fixture.role == FixtureRole.Laser)
+            {
+                opacity *= lighting.laserBeamOpacityMultiplier;
+                radiusScale *= 0.55f;
+            }
+            else if (fixture.role == FixtureRole.Strobe)
+            {
+                opacity *= lighting.strobeBeamOpacityMultiplier;
+            }
+
+            beam.Configure(opacity, lighting.visibleBeamLengthScale, radiusScale, lighting.visibleBeamFullOpacityIntensity);
+            beam.minVisibleIntensity = lighting.visibleBeamMinIntensity;
+            beam.hideWhenLightDisabled = true;
+            beam.scaleOpacityByIntensity = true;
+            beam.useLightColor = true;
+        }
     }
 
     private void RegisterFixtures(Light[] lights, FixtureRole role, List<FixtureState> cache)
@@ -1909,6 +1951,7 @@ public partial class StageManager : MonoBehaviour
         public bool allowStrobe = true;
         public bool forceStrobeWhite = false;
         public bool softShadowsOnPeak = true;
+        public bool createVisibleLightBeams = true;
         [Range(0f, 4f)] public float outputGain = 1f;
         [Range(0f, 2f)] public float spotGain = 1f;
         [Range(0f, 2f)] public float rimGain = 1f;
@@ -1930,6 +1973,13 @@ public partial class StageManager : MonoBehaviour
         [Range(0f, 1f)] public float strobeHold = 0.18f;
         [Range(1f, 120f)] public float minSpotAngle = 18f;
         [Range(1f, 120f)] public float maxSpotAngle = 62f;
+        [Range(0f, 1f)] public float visibleBeamOpacity = 0.26f;
+        [Range(0.05f, 2f)] public float visibleBeamLengthScale = 1f;
+        [Range(0.05f, 2f)] public float visibleBeamRadiusScale = 1f;
+        [Range(0.1f, 50f)] public float visibleBeamFullOpacityIntensity = 8f;
+        [Range(0f, 2f)] public float visibleBeamMinIntensity = 0.01f;
+        [Range(0f, 3f)] public float laserBeamOpacityMultiplier = 1.35f;
+        [Range(0f, 3f)] public float strobeBeamOpacityMultiplier = 1.15f;
     }
 
     [Serializable]
