@@ -1,22 +1,21 @@
-using UnityEngine;
 using System;
+using UnityEngine;
 
 /// <summary>
-/// 灯光预设配置
-/// 为不同音乐风格提供预设的灯光方案
+/// Defines reusable lighting values for stage presets and music styles.
 /// </summary>
 [CreateAssetMenu(fileName = "LightingPreset", menuName = "Stage/Lighting Preset")]
 public class StageLightingPreset : ScriptableObject
 {
-    [Header("预设信息")]
+    [Header("Preset Info")]
     public string presetName = "Default";
 
     [TextArea(3, 5)]
-    public string description = "默认灯光配置";
+    public string description = "Default lighting configuration";
 
     public MusicGenre genre = MusicGenre.Electronic;
 
-    [Header("主灯光参数")]
+    [Header("Primary Lighting")]
     [Range(0f, 10f)]
     public float baseLightIntensity = 2f;
 
@@ -26,10 +25,10 @@ public class StageLightingPreset : ScriptableObject
     [Range(0f, 5f)]
     public float colorChangeSpeed = 1f;
 
-    [Header("颜色方案")]
+    [Header("Color Scheme")]
     public ColorScheme colorScheme;
 
-    [Header("动画参数")]
+    [Header("Animation")]
     [Range(0f, 2f)]
     public float chaseLightSpeed = 0.5f;
 
@@ -38,7 +37,7 @@ public class StageLightingPreset : ScriptableObject
 
     public bool enableAutoColor = true;
 
-    [Header("特效参数")]
+    [Header("Effects")]
     [Range(0f, 1f)]
     public float strobeFrequency = 0.7f;
 
@@ -48,19 +47,19 @@ public class StageLightingPreset : ScriptableObject
     [Range(0f, 1f)]
     public float smokeAmount = 0.3f;
 
-    [Header("节拍响应")]
+    [Header("Beat Response")]
     public BeatResponse kickResponse;
     public BeatResponse snareResponse;
     public BeatResponse bassResponse;
 
     /// <summary>
-    /// 应用预设到 StageManager
+    /// Applies this preset's core values to a stage manager instance.
     /// </summary>
     public void ApplyToStage(StageManager stage)
     {
         if (stage == null)
         {
-            Debug.LogError("[LightingPreset] StageManager 引用为空");
+            Debug.LogError("[LightingPreset] StageManager reference is missing.");
             return;
         }
 
@@ -72,64 +71,64 @@ public class StageLightingPreset : ScriptableObject
         stage.laserThreshold = 1f - laserDensity;
         stage.smokeDensity = smokeAmount;
 
-        Debug.Log($"[LightingPreset] 已应用预设: {presetName}");
+        Debug.Log($"[LightingPreset] Applied preset: {presetName}");
     }
 }
 
 /// <summary>
-/// 音乐风格枚举
+/// Supported musical style categories for lighting presets.
 /// </summary>
 public enum MusicGenre
 {
-    Electronic,     // 电子音乐
-    Rock,          // 摇滚
-    HipHop,        // 嘻哈
-    Jazz,          // 爵士
-    Pop,           // 流行
-    Classical,     // 古典
-    Metal,         // 金属
-    Ambient        // 氛围
+    Electronic,
+    Rock,
+    HipHop,
+    Jazz,
+    Pop,
+    Classical,
+    Metal,
+    Ambient
 }
 
 /// <summary>
-/// 颜色方案
+/// Color gradients and palette colors used by a stage lighting preset.
 /// </summary>
 [Serializable]
 public class ColorScheme
 {
-    [Header("主色调")]
+    [Header("Primary Colors")]
     public Color primaryColor = Color.red;
     public Color secondaryColor = Color.blue;
     public Color accentColor = Color.white;
 
-    [Header("调式映射")]
+    [Header("Mode Mapping")]
     public Gradient majorMoodGradient;
     public Gradient minorMoodGradient;
 
-    [Header("能量映射")]
+    [Header("Energy Mapping")]
     public Gradient lowEnergyGradient;
     public Gradient highEnergyGradient;
 }
 
 /// <summary>
-/// 节拍响应配置
+/// Configures how a lighting preset responds to beat events.
 /// </summary>
 [Serializable]
 public class BeatResponse
 {
-    [Header("响应类型")]
+    [Header("Response Type")]
     public bool flashLights = true;
     public bool triggerParticles = true;
     public bool pulseIntensity = true;
 
-    [Header("响应强度")]
+    [Header("Response Strength")]
     [Range(0f, 2f)]
     public float intensityMultiplier = 1f;
 
     [Range(0f, 1f)]
     public float smoothing = 0.5f;
 
-    [Header("颜色变化")]
+    [Header("Color Change")]
     public bool changeColor = false;
     public Color responseColor = Color.white;
 }

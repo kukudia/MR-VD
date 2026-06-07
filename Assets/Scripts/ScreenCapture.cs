@@ -1,12 +1,14 @@
 using System;
 using System.Runtime.InteropServices;
+using Forms = System.Windows.Forms;
 using UnityEngine;
-using System.Windows.Forms;
-using UnityEngine.UI; // C:\Windows\Microsoft.NET\Framework\v4.0.30319\System.Windows.Forms.dll
+using UnityEngine.UI;
 
+/// <summary>
+/// Legacy GDI desktop capture implementation that writes the primary display into a RawImage texture.
+/// </summary>
 public class ScreenCapture : MonoBehaviour
 {
-    // 引入User32.dll中的方法 / Import methods from User32.dll
     [DllImport("user32.dll")]
     public static extern IntPtr GetDesktopWindow();
 
@@ -22,7 +24,6 @@ public class ScreenCapture : MonoBehaviour
     [DllImport("user32.dll")]
     public static extern bool DrawIcon(IntPtr hDC, int x, int y, IntPtr hIcon);
 
-    // 引入GDI32.dll中的方法 / Import methods from GDI32.dll
     [DllImport("gdi32.dll")]
     public static extern IntPtr CreateCompatibleDC(IntPtr hDC);
 
@@ -42,7 +43,10 @@ public class ScreenCapture : MonoBehaviour
     [DllImport("gdi32.dll")]
     public static extern bool DeleteDC(IntPtr hDC);
 
-    // 定义CURSORINFO结构体 / Define the CURSORINFO struct
+    [DllImport("gdi32.dll")]
+    public static extern int GetDIBits(IntPtr hdc, IntPtr hbmp, uint uStartScan, uint cScanLines,
+                                       IntPtr lpvBits, ref BITMAPINFO lpbmi, uint uUsage);
+
     [StructLayout(LayoutKind.Sequential)]
     public struct CURSORINFO
     {
@@ -52,7 +56,6 @@ public class ScreenCapture : MonoBehaviour
         public POINT ptScreenPos;
     }
 
-    // 定义POINT结构体 / Define the POINT struct
     [StructLayout(LayoutKind.Sequential)]
     public struct POINT
     {
@@ -60,11 +63,9 @@ public class ScreenCapture : MonoBehaviour
         public int y;
     }
 
-    // 定义CURSOR_SHOWING常量，用于判断光标是否可见 / Define CURSOR_SHOWING constant to check if the cursor is visible
     private const uint CURSOR_SHOWING = 0x00000001;
+    private const int SRCCOPY = 0x00CC0020;
 
-
-    // 定义必要的结构体 / Define necessary structs
     [StructLayout(LayoutKind.Sequential)]
     public struct BITMAPINFOHEADER
     {
@@ -87,147 +88,159 @@ public class ScreenCapture : MonoBehaviour
         public BITMAPINFOHEADER bmiHeader;
     }
 
-    public RawImage screenObject; // 需要将显示视频的3D对象拖到这里 / Drag the 3D object that displays the video here
+    [Tooltip("RawImage that displays the captured desktop texture.")]
+    public RawImage screenObject;
+
     public bool expand;
 
     private Texture2D screenTexture;
-    //private Texture2D lastCapturedTexture; // 缓存上一次的纹理 / Cache the last captured texture
-    private IntPtr buffer; // 缓存的像素数据缓冲区 / Cached pixel data buffer
-    private int bufferSize; // 缓存的像素数据大小 / Cached pixel data size
+    private IntPtr buffer;
+    private int bufferSize;
 
     private void Start()
     {
         GetMonitors();
 
-        // 创建一次纹理，后续直接复用 / Create the texture once and reuse it
-        int width = System.Windows.Forms.Screen.PrimaryScreen.Bounds.Width;
-        int height = System.Windows.Forms.Screen.PrimaryScreen.Bounds.Height;
+        int width = Forms.Screen.PrimaryScreen.Bounds.Width;
+        int height = Forms.Screen.PrimaryScreen.Bounds.Height;
         screenTexture = new Texture2D(width, height, TextureFormat.RGBA32, false);
-        screenObject.texture = screenTexture;
+
+        if (screenObject != null)
+        {
+            screenObject.texture = screenTexture;
+        }
     }
 
     private void Update()
     {
-        // 捕获屏幕并应用为材质纹理 / Capture the screen and apply it as texture
-        Texture2D capturedTexture = CaptureScreen();
+        CaptureScreen();
     }
 
-    void GetMonitors()
+    private void GetMonitors()
     {
-        // 获取所有屏幕的信息 / Retrieve information for all monitors
-        foreach (var screen in System.Windows.Forms.Screen.AllScreens)
+        foreach (Forms.Screen screen in Forms.Screen.AllScreens)
         {
-            Debug.Log($"[ScreenCapture] Display: {screen.DeviceName} ");
+            Debug.Log($"[ScreenCapture] Display: {screen.DeviceName}");
             Debug.Log($"[ScreenCapture] Bounds: {screen.Bounds}, Primary: {screen.Primary}, WorkingArea: {screen.WorkingArea}");
         }
     }
 
     public Texture2D CaptureScreen()
     {
-        // Debug.Log("[ScreenCapture] Starting screen capture.");
-
-        // 获取桌面窗口句柄和DC / Get the desktop window handle and device context
         IntPtr desktopHandle = GetDesktopWindow();
         IntPtr desktopDC = GetWindowDC(desktopHandle);
         IntPtr memoryDC = CreateCompatibleDC(desktopDC);
+        IntPtr hBitmap = IntPtr.Zero;
+        IntPtr oldBitmap = IntPtr.Zero;
 
-        // 使用 System.Windows.Forms.Screen 获取屏幕宽度和高度 / Get screen width and height using System.Windows.Forms.Screen
-        int width = System.Windows.Forms.Screen.PrimaryScreen.Bounds.Width;
-        int height = System.Windows.Forms.Screen.PrimaryScreen.Bounds.Height;
-
-        if (expand)
+        try
         {
-            width = 1920;
-            height = height * width / 1920;
-        }
+            int width = Forms.Screen.PrimaryScreen.Bounds.Width;
+            int height = Forms.Screen.PrimaryScreen.Bounds.Height;
 
-        // 创建位图对象 / Create a bitmap object
-        IntPtr hBitmap = CreateCompatibleBitmap(desktopDC, width, height);
-        IntPtr oldBitmap = SelectObject(memoryDC, hBitmap);
-
-        // 将桌面屏幕的内容复制到内存DC中 / Copy the desktop screen content into the memory DC
-        bool blitResult = BitBlt(memoryDC, 0, 0, width, height, desktopDC, 0, 0, 0x00CC0020); // SRCCOPY
-
-        // 获取并绘制鼠标光标 / Retrieve and draw the mouse cursor
-        CURSORINFO cursorInfo = new CURSORINFO();
-        cursorInfo.cbSize = (uint)Marshal.SizeOf(typeof(CURSORINFO));
-
-        if (GetCursorInfo(out cursorInfo) && (cursorInfo.flags & CURSOR_SHOWING) != 0)
-        {
-            // 绘制鼠标光标在内存DC中 / Draw the mouse cursor in the memory DC
-            DrawIcon(memoryDC, cursorInfo.ptScreenPos.x, cursorInfo.ptScreenPos.y, cursorInfo.hCursor);
-        }
-
-        // 准备BITMAPINFO结构体 / Prepare the BITMAPINFO structure
-        BITMAPINFO bmi = new BITMAPINFO();
-        bmi.bmiHeader.biSize = (uint)Marshal.SizeOf(typeof(BITMAPINFOHEADER));
-        bmi.bmiHeader.biWidth = width;
-        bmi.bmiHeader.biHeight = -height; // 翻转Y轴 / Flip the Y-axis
-        bmi.bmiHeader.biPlanes = 1;
-        bmi.bmiHeader.biBitCount = 32;
-        bmi.bmiHeader.biCompression = 0; // BI_RGB
-        bmi.bmiHeader.biSizeImage = (uint)(width * height * 4);
-
-        // 计算需要的字节大小 / Calculate the required byte size
-        int bytes = width * height * 4;
-
-        // 如果缓冲区未分配或大小发生变化，则重新分配 / Reallocate buffer if not assigned or size changes
-        if (buffer == IntPtr.Zero || bufferSize != bytes)
-        {
-            if (buffer != IntPtr.Zero)
+            if (expand)
             {
-                Marshal.FreeHGlobal(buffer); // 释放旧的缓冲区 / Free the old buffer
+                width = 1920;
+                height = height * width / 1920;
             }
-            buffer = Marshal.AllocHGlobal(bytes);
-            bufferSize = bytes;
+
+            hBitmap = CreateCompatibleBitmap(desktopDC, width, height);
+            oldBitmap = SelectObject(memoryDC, hBitmap);
+
+            if (!BitBlt(memoryDC, 0, 0, width, height, desktopDC, 0, 0, SRCCOPY))
+            {
+                Debug.LogWarning("[ScreenCapture] BitBlt failed.");
+            }
+
+            CURSORINFO cursorInfo = new CURSORINFO
+            {
+                cbSize = (uint)Marshal.SizeOf(typeof(CURSORINFO))
+            };
+
+            if (GetCursorInfo(out cursorInfo) && (cursorInfo.flags & CURSOR_SHOWING) != 0)
+            {
+                DrawIcon(memoryDC, cursorInfo.ptScreenPos.x, cursorInfo.ptScreenPos.y, cursorInfo.hCursor);
+            }
+
+            BITMAPINFO bitmapInfo = new BITMAPINFO();
+            bitmapInfo.bmiHeader.biSize = (uint)Marshal.SizeOf(typeof(BITMAPINFOHEADER));
+            bitmapInfo.bmiHeader.biWidth = width;
+            bitmapInfo.bmiHeader.biHeight = -height;
+            bitmapInfo.bmiHeader.biPlanes = 1;
+            bitmapInfo.bmiHeader.biBitCount = 32;
+            bitmapInfo.bmiHeader.biCompression = 0;
+            bitmapInfo.bmiHeader.biSizeImage = (uint)(width * height * 4);
+
+            int bytes = width * height * 4;
+            EnsureBuffer(bytes);
+
+            int result = GetDIBits(memoryDC, hBitmap, 0, (uint)height, buffer, ref bitmapInfo, 0);
+            if (result <= 0)
+            {
+                Debug.LogError("[ScreenCapture] GetDIBits failed.");
+                return null;
+            }
+
+            byte[] pixelData = new byte[bytes];
+            Marshal.Copy(buffer, pixelData, 0, bytes);
+
+            for (int i = 0; i < pixelData.Length; i += 4)
+            {
+                byte blue = pixelData[i];
+                pixelData[i] = pixelData[i + 2];
+                pixelData[i + 2] = blue;
+            }
+
+            screenTexture.LoadRawTextureData(pixelData);
+            screenTexture.Apply();
+            return screenTexture;
         }
-
-        // 获取像素数据 / Retrieve the pixel data
-        int result = GetDIBits(memoryDC, hBitmap, 0, (uint)height, buffer, ref bmi, 0);
-
-        // 检查是否成功（GetDIBits 返回值大于 0 表示成功） / Check for success (GetDIBits returns a value greater than 0 if successful)
-        if (result <= 0)
+        finally
         {
-            Debug.LogError("[ScreenCapture] GetDIBits failed.");
-            return null;
+            if (oldBitmap != IntPtr.Zero)
+            {
+                SelectObject(memoryDC, oldBitmap);
+            }
+
+            if (hBitmap != IntPtr.Zero)
+            {
+                DeleteObject(hBitmap);
+            }
+
+            if (memoryDC != IntPtr.Zero)
+            {
+                DeleteDC(memoryDC);
+            }
+
+            if (desktopDC != IntPtr.Zero)
+            {
+                ReleaseDC(desktopHandle, desktopDC);
+            }
         }
+    }
 
-        // 释放GDI资源 / Release GDI resources
-        SelectObject(memoryDC, oldBitmap);
-        DeleteObject(hBitmap);
-        DeleteDC(memoryDC);
-        ReleaseDC(desktopHandle, desktopDC);
-
-        // 复制像素数据到字节数组 / Copy pixel data to byte array
-        byte[] pixelData = new byte[bytes];
-        Marshal.Copy(buffer, pixelData, 0, bytes);
-
-        // 反转颜色通道，从 BGRA 转换为 RGBA / Reverse color channels from BGRA to RGBA
-        for (int i = 0; i < pixelData.Length; i += 4)
+    private void EnsureBuffer(int bytes)
+    {
+        if (buffer != IntPtr.Zero && bufferSize == bytes)
         {
-            // 交换 B 和 R 通道 / Swap B and R channels
-            byte temp = pixelData[i];     // B
-            pixelData[i] = pixelData[i + 2]; // R
-            pixelData[i + 2] = temp;       // B
+            return;
         }
 
-        // 创建或更新纹理 / Update the texture
-        screenTexture.LoadRawTextureData(pixelData);
-        screenTexture.Apply();
-        return screenTexture;
+        if (buffer != IntPtr.Zero)
+        {
+            Marshal.FreeHGlobal(buffer);
+        }
+
+        buffer = Marshal.AllocHGlobal(bytes);
+        bufferSize = bytes;
     }
 
     private void OnDestroy()
     {
-        // 销毁缓冲区 / Destroy buffer
         if (buffer != IntPtr.Zero)
         {
             Marshal.FreeHGlobal(buffer);
             buffer = IntPtr.Zero;
         }
     }
-
-    // 引入GetDIBits方法
-    [DllImport("gdi32.dll")]
-    public static extern int GetDIBits(IntPtr hdc, IntPtr hbmp, uint uStartScan, uint cScanLines, IntPtr lpvBits, ref BITMAPINFO lpbmi, uint uUsage);
 }
