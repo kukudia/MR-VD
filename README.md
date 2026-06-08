@@ -2,7 +2,7 @@
 
 ## Overview
 
-MR-VD is a Unity mixed-reality stage prototype for Meta Quest devices and Windows desktop playback. The project combines XR interaction, real-time audio capture, FFT analysis, beat detection, dynamic lighting, Visual Effect Graph assets, LED-style screen visuals, and optional desktop screen capture.
+MR-VD is a Unity mixed-reality screen capture and audio visualization prototype for Meta Quest devices and Windows desktop playback. The project combines XR interaction, real-time audio capture, FFT analysis, beat detection, dynamic lighting, Visual Effect Graph assets, LED-style screen visuals, and optional desktop screen capture.
 
 The main experience is an audio-reactive virtual stage. Music captured from a Windows input or loopback device drives stage lighting, generated screen textures, VFX parameters, and cue changes through a central stage director.
 
