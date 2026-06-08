@@ -90,7 +90,9 @@ See [Architecture](docs/architecture.md) for a deeper system map.
 
 ## Screenshots / Demo
 
-Screenshots and a demo video are not included yet. Suggested placeholders:
+![MR-VD demo placeholder](docs/images/demo-placeholder.svg)
+
+Replace `docs/images/demo-placeholder.svg` with a project screenshot or demo thumbnail when available.
 
 - Main mixed-reality stage view
 - Audio capture panel

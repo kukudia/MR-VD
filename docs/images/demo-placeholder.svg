@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" role="img" aria-labelledby="title desc">
+  <title id="title">MR-VD demo placeholder</title>
+  <desc id="desc">Blank placeholder image for the MR-VD project demo.</desc>
+  <rect width="1280" height="720" fill="#f4f6f8"/>
+  <rect x="0.5" y="0.5" width="1279" height="719" fill="none" stroke="#d5dbe3"/>
+</svg>
