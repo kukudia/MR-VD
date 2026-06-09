@@ -10,24 +10,6 @@ public sealed class AndroidBluetoothDevicePanel : MonoBehaviour
 {
     private const float MinimumRefreshIntervalSeconds = 1f;
 
-    private static readonly string[] AndroidDeviceKeywords =
-    {
-        "android", "pixel", "nexus", "galaxy", "xiaomi", "redmi", "poco",
-        "huawei", "honor", "oppo", "realme", "vivo", "oneplus", "motorola",
-        "moto ", "xperia", "nothing phone", "rog phone", "zenfone", "zte",
-        "nubia", "meizu", "sm-", "rmx", "cph", "v20", "v21", "v22", "v23",
-        "v24", "v25"
-    };
-
-    private static readonly string[] NonPhoneKeywords =
-    {
-        "airpods", "iphone", "ipad", "keyboard", "mouse", "headset", "headphone",
-        "earbuds", "buds", "speaker", "audio", "controller", "xbox", "pen",
-        "watch", "band", "tv", "printer", "intel", "realtek", "qualcomm",
-        "mediatek", "wireless bluetooth", "bluetooth adapter", "enumerator",
-        "rfcomm protocol tdi", "generic access", "generic attribute", "avrcp"
-    };
-
     private const string QueryBluetoothDevicesScript = @"
 $ErrorActionPreference = 'SilentlyContinue'
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
@@ -58,7 +40,7 @@ Get-PnpDevice -Class Bluetooth -ErrorAction SilentlyContinue | ForEach-Object {
 
     public bool showPanel = true;
     public bool autoRefresh = true;
-    public bool showSystemBluetoothDevices;
+    public float deviceListHeight = 220f;
     public float refreshIntervalSeconds = 5f;
     public float queryTimeoutSeconds = 8f;
     public Rect panelRect = new Rect(16f, 600f, 440f, 420f);
@@ -75,6 +57,8 @@ Get-PnpDevice -Class Bluetooth -ErrorAction SilentlyContinue | ForEach-Object {
     private bool queryInProgress;
     private DateTime lastRefreshUtc;
     private string lastError;
+    private string selectedDeviceInstanceId = string.Empty;
+    private string selectedDeviceName = string.Empty;
     private GUIStyle wrapLabelStyle;
     private GUIStyle strongLabelStyle;
 
@@ -91,23 +75,23 @@ Get-PnpDevice -Class Bluetooth -ErrorAction SilentlyContinue | ForEach-Object {
         }
     }
 
-    public int ConnectedAndroidDeviceCount
+    public BluetoothDeviceSnapshot SelectedDevice
     {
         get
         {
             lock (stateLock)
             {
-                int count = 0;
-                for (int i = 0; i < devices.Count; i++)
-                {
-                    if (devices[i].IsConnected && devices[i].IsLikelyAndroid)
-                    {
-                        count++;
-                    }
-                }
-
-                return count;
+                return FindSelectedDevice(devices.ToArray());
             }
+        }
+    }
+
+    public bool IsSelectedDeviceConnected
+    {
+        get
+        {
+            BluetoothDeviceSnapshot selectedDevice = SelectedDevice;
+            return selectedDevice != null && selectedDevice.IsConnected;
         }
     }
 
@@ -301,12 +285,11 @@ Get-PnpDevice -Class Bluetooth -ErrorAction SilentlyContinue | ForEach-Object {
             refreshedUtc = lastRefreshUtc;
         }
 
-        int connectedAndroidCount = CountConnectedAndroidDevices(snapshot);
-        int likelyAndroidCount = CountLikelyAndroidDevices(snapshot);
+        BluetoothDeviceSnapshot selectedDevice = FindSelectedDevice(snapshot);
         int connectedBluetoothCount = CountConnectedBluetoothDevices(snapshot);
 
-        GUILayout.Label($"Likely Android connected: {connectedAndroidCount}", strongLabelStyle);
-        GUILayout.Label($"Bluetooth connected/present: {connectedBluetoothCount} | Android candidates: {likelyAndroidCount}");
+        GUILayout.Label($"Selected device: {FormatSelectedDevice(selectedDevice)}", strongLabelStyle);
+        GUILayout.Label($"Selected connected: {FormatBool(selectedDevice != null && selectedDevice.IsConnected)} | Bluetooth connected/present: {connectedBluetoothCount}");
 
         GUILayout.BeginHorizontal();
         bool wasEnabled = GUI.enabled;
@@ -318,7 +301,6 @@ Get-PnpDevice -Class Bluetooth -ErrorAction SilentlyContinue | ForEach-Object {
 
         GUI.enabled = wasEnabled;
         autoRefresh = GUILayout.Toggle(autoRefresh, "Auto");
-        showSystemBluetoothDevices = GUILayout.Toggle(showSystemBluetoothDevices, "Show system devices");
         GUILayout.EndHorizontal();
 
         if (refreshedUtc != default)
@@ -342,42 +324,50 @@ Get-PnpDevice -Class Bluetooth -ErrorAction SilentlyContinue | ForEach-Object {
     private void DrawDeviceList(BluetoothDeviceSnapshot[] snapshot)
     {
         GUILayout.Label("Bluetooth Devices", strongLabelStyle);
-        deviceScrollPosition = GUILayout.BeginScrollView(deviceScrollPosition, GUILayout.Height(170f));
+        deviceScrollPosition = GUILayout.BeginScrollView(deviceScrollPosition, GUILayout.Height(deviceListHeight));
 
-        bool foundVisibleDevice = false;
         for (int i = 0; i < snapshot.Length; i++)
         {
             BluetoothDeviceSnapshot device = snapshot[i];
-            if (!showSystemBluetoothDevices && device.IsSystemBluetoothComponent)
+            string prefix = IsSelectedDevice(device) ? "* " : string.Empty;
+            string label = $"{prefix}{i}: {device.Name} [{device.ConnectionLabel}]";
+
+            if (GUILayout.Button(label))
             {
-                continue;
+                SelectDevice(device);
             }
-
-            foundVisibleDevice = true;
-            GUILayout.BeginVertical(GUI.skin.box);
-            GUILayout.Label(device.Name, strongLabelStyle);
-            GUILayout.Label($"{device.ConnectionLabel} | {device.AndroidConfidenceLabel}");
-
-            if (!string.IsNullOrWhiteSpace(device.Manufacturer))
-            {
-                GUILayout.Label($"Manufacturer: {device.Manufacturer}");
-            }
-
-            GUILayout.Label(device.InstanceId, wrapLabelStyle);
-            GUILayout.EndVertical();
         }
 
-        if (!foundVisibleDevice)
+        if (snapshot.Length == 0)
         {
-            GUILayout.Label("No visible Bluetooth devices. Pair or connect an Android phone, then refresh.", wrapLabelStyle);
+            GUILayout.Label("No Bluetooth devices. Pair or connect an Android phone, then refresh.", wrapLabelStyle);
         }
 
         GUILayout.EndScrollView();
+
+        BluetoothDeviceSnapshot selectedDevice = FindSelectedDevice(snapshot);
+        if (selectedDevice != null)
+        {
+            GUILayout.Space(4f);
+            GUILayout.Label("Selected Device", strongLabelStyle);
+            GUILayout.Label($"{selectedDevice.Name} | {selectedDevice.ConnectionLabel}", wrapLabelStyle);
+
+            if (!string.IsNullOrWhiteSpace(selectedDevice.Manufacturer))
+            {
+                GUILayout.Label($"Manufacturer: {selectedDevice.Manufacturer}", wrapLabelStyle);
+            }
+
+            GUILayout.Label(selectedDevice.InstanceId, wrapLabelStyle);
+        }
+        else if (!string.IsNullOrWhiteSpace(selectedDeviceName))
+        {
+            GUILayout.Label($"Selected device not found: {selectedDeviceName}", wrapLabelStyle);
+        }
     }
 
     private void DrawNotificationBridge(BluetoothDeviceSnapshot[] snapshot)
     {
-        BluetoothDeviceSnapshot targetDevice = FindFirstConnectedAndroidDevice(snapshot);
+        BluetoothDeviceSnapshot targetDevice = FindSelectedDevice(snapshot);
 
         GUILayout.Label("Phone Notifications", strongLabelStyle);
         GUILayout.Label(notificationBridge.StatusText, wrapLabelStyle);
@@ -394,7 +384,7 @@ Get-PnpDevice -Class Bluetooth -ErrorAction SilentlyContinue | ForEach-Object {
         }
         else
         {
-            GUI.enabled = wasEnabled && targetDevice != null;
+            GUI.enabled = wasEnabled && targetDevice != null && targetDevice.IsConnected;
             if (GUILayout.Button("Start Listener"))
             {
                 notificationBridge.StartListening(targetDevice);
@@ -594,10 +584,6 @@ Get-PnpDevice -Class Bluetooth -ErrorAction SilentlyContinue | ForEach-Object {
                 continue;
             }
 
-            bool remoteDevice = LooksLikeRemoteBluetoothDevice(instanceId);
-            bool systemComponent = LooksLikeSystemBluetoothComponent(name, instanceId, manufacturer, description);
-            int androidConfidence = EstimateAndroidConfidence(name, manufacturer, description, instanceId, remoteDevice, systemComponent);
-
             parsedDevices.Add(new BluetoothDeviceSnapshot(
                 name,
                 instanceId,
@@ -605,10 +591,7 @@ Get-PnpDevice -Class Bluetooth -ErrorAction SilentlyContinue | ForEach-Object {
                 status,
                 present,
                 deviceClass,
-                description,
-                remoteDevice,
-                systemComponent,
-                androidConfidence));
+                description));
         }
 
         parsedDevices.Sort(CompareDevices);
@@ -636,155 +619,7 @@ Get-PnpDevice -Class Bluetooth -ErrorAction SilentlyContinue | ForEach-Object {
             return connectionCompare;
         }
 
-        int androidCompare = right.AndroidConfidence.CompareTo(left.AndroidConfidence);
-        if (androidCompare != 0)
-        {
-            return androidCompare;
-        }
-
         return string.Compare(left.Name, right.Name, StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static int EstimateAndroidConfidence(
-        string name,
-        string manufacturer,
-        string description,
-        string instanceId,
-        bool remoteDevice,
-        bool systemComponent)
-    {
-        string searchable = JoinSearchableText(name, manufacturer, description, instanceId);
-
-        if (systemComponent || ContainsAny(searchable, NonPhoneKeywords))
-        {
-            return 0;
-        }
-
-        if (ContainsAny(searchable, AndroidDeviceKeywords))
-        {
-            return remoteDevice ? 90 : 75;
-        }
-
-        if (remoteDevice && ContainsAny(searchable, new[] { "phone", "mobile", "telephone" }))
-        {
-            return 65;
-        }
-
-        return remoteDevice ? 25 : 0;
-    }
-
-    private static bool LooksLikeRemoteBluetoothDevice(string instanceId)
-    {
-        if (string.IsNullOrWhiteSpace(instanceId))
-        {
-            return false;
-        }
-
-        return instanceId.StartsWith(@"BTHENUM\DEV_", StringComparison.OrdinalIgnoreCase)
-            || instanceId.StartsWith(@"BTHLEDEVICE\", StringComparison.OrdinalIgnoreCase)
-            || instanceId.StartsWith(@"BTHHFENUM\", StringComparison.OrdinalIgnoreCase)
-            || instanceId.IndexOf(@"\DEV_", StringComparison.OrdinalIgnoreCase) >= 0;
-    }
-
-    private static bool LooksLikeSystemBluetoothComponent(string name, string instanceId, string manufacturer, string description)
-    {
-        string searchable = JoinSearchableText(name, instanceId, manufacturer, description);
-
-        if (StartsWithAny(instanceId, new[] { @"USB\", @"ROOT\", @"SWD\MSRRAS\", @"SWD\PRINTENUM\" }))
-        {
-            return true;
-        }
-
-        return ContainsAny(searchable, new[]
-        {
-            "microsoft bluetooth enumerator",
-            "bluetooth device (rfcomm protocol tdi)",
-            "wireless bluetooth",
-            "bluetooth adapter",
-            "generic bluetooth",
-            "bluetooth radio",
-            "service discovery",
-            "device identification service"
-        });
-    }
-
-    private static string JoinSearchableText(params string[] values)
-    {
-        StringBuilder builder = new StringBuilder();
-        for (int i = 0; i < values.Length; i++)
-        {
-            if (!string.IsNullOrWhiteSpace(values[i]))
-            {
-                builder.Append(values[i]);
-                builder.Append(' ');
-            }
-        }
-
-        return builder.ToString();
-    }
-
-    private static bool ContainsAny(string value, string[] needles)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return false;
-        }
-
-        for (int i = 0; i < needles.Length; i++)
-        {
-            if (value.IndexOf(needles[i], StringComparison.OrdinalIgnoreCase) >= 0)
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private static bool StartsWithAny(string value, string[] prefixes)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return false;
-        }
-
-        for (int i = 0; i < prefixes.Length; i++)
-        {
-            if (value.StartsWith(prefixes[i], StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private static int CountConnectedAndroidDevices(BluetoothDeviceSnapshot[] snapshot)
-    {
-        int count = 0;
-        for (int i = 0; i < snapshot.Length; i++)
-        {
-            if (snapshot[i].IsConnected && snapshot[i].IsLikelyAndroid)
-            {
-                count++;
-            }
-        }
-
-        return count;
-    }
-
-    private static int CountLikelyAndroidDevices(BluetoothDeviceSnapshot[] snapshot)
-    {
-        int count = 0;
-        for (int i = 0; i < snapshot.Length; i++)
-        {
-            if (snapshot[i].IsLikelyAndroid)
-            {
-                count++;
-            }
-        }
-
-        return count;
     }
 
     private static int CountConnectedBluetoothDevices(BluetoothDeviceSnapshot[] snapshot)
@@ -792,7 +627,7 @@ Get-PnpDevice -Class Bluetooth -ErrorAction SilentlyContinue | ForEach-Object {
         int count = 0;
         for (int i = 0; i < snapshot.Length; i++)
         {
-            if (snapshot[i].IsConnected && !snapshot[i].IsSystemBluetoothComponent)
+            if (snapshot[i].IsConnected)
             {
                 count++;
             }
@@ -801,17 +636,68 @@ Get-PnpDevice -Class Bluetooth -ErrorAction SilentlyContinue | ForEach-Object {
         return count;
     }
 
-    private static BluetoothDeviceSnapshot FindFirstConnectedAndroidDevice(BluetoothDeviceSnapshot[] snapshot)
+    private void SelectDevice(BluetoothDeviceSnapshot device)
     {
+        if (device == null)
+        {
+            selectedDeviceInstanceId = string.Empty;
+            selectedDeviceName = string.Empty;
+            return;
+        }
+
+        selectedDeviceInstanceId = device.InstanceId;
+        selectedDeviceName = device.Name;
+
+        if (notificationBridge.IsListening)
+        {
+            notificationBridge.StopListening();
+        }
+    }
+
+    private bool IsSelectedDevice(BluetoothDeviceSnapshot device)
+    {
+        if (device == null)
+        {
+            return false;
+        }
+
+        if (!string.IsNullOrWhiteSpace(selectedDeviceInstanceId)
+            && string.Equals(device.InstanceId, selectedDeviceInstanceId, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return string.IsNullOrWhiteSpace(selectedDeviceInstanceId)
+            && !string.IsNullOrWhiteSpace(selectedDeviceName)
+            && string.Equals(device.Name, selectedDeviceName, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private BluetoothDeviceSnapshot FindSelectedDevice(BluetoothDeviceSnapshot[] snapshot)
+    {
+        if (snapshot == null || snapshot.Length == 0)
+        {
+            return null;
+        }
+
         for (int i = 0; i < snapshot.Length; i++)
         {
-            if (snapshot[i].IsConnected && snapshot[i].IsLikelyAndroid)
+            if (IsSelectedDevice(snapshot[i]))
             {
                 return snapshot[i];
             }
         }
 
         return null;
+    }
+
+    private static string FormatSelectedDevice(BluetoothDeviceSnapshot selectedDevice)
+    {
+        return selectedDevice == null ? "None" : selectedDevice.Name;
+    }
+
+    private static string FormatBool(bool value)
+    {
+        return value ? "Yes" : "No";
     }
 
     private static bool IsWindowsRuntime()
@@ -894,9 +780,6 @@ public sealed class BluetoothDeviceSnapshot
     public readonly bool Present;
     public readonly string DeviceClass;
     public readonly string Description;
-    public readonly bool IsRemoteBluetoothDevice;
-    public readonly bool IsSystemBluetoothComponent;
-    public readonly int AndroidConfidence;
 
     public BluetoothDeviceSnapshot(
         string name,
@@ -905,10 +788,7 @@ public sealed class BluetoothDeviceSnapshot
         string status,
         bool present,
         string deviceClass,
-        string description,
-        bool isRemoteBluetoothDevice,
-        bool isSystemBluetoothComponent,
-        int androidConfidence)
+        string description)
     {
         Name = string.IsNullOrWhiteSpace(name) ? "Unknown Bluetooth Device" : name;
         InstanceId = instanceId ?? string.Empty;
@@ -917,9 +797,6 @@ public sealed class BluetoothDeviceSnapshot
         Present = present;
         DeviceClass = deviceClass ?? string.Empty;
         Description = description ?? string.Empty;
-        IsRemoteBluetoothDevice = isRemoteBluetoothDevice;
-        IsSystemBluetoothComponent = isSystemBluetoothComponent;
-        AndroidConfidence = Clamp(androidConfidence, 0, 100);
     }
 
     public bool IsConnected
@@ -928,11 +805,6 @@ public sealed class BluetoothDeviceSnapshot
         {
             return Present && (string.IsNullOrWhiteSpace(Status) || string.Equals(Status, "OK", StringComparison.OrdinalIgnoreCase));
         }
-    }
-
-    public bool IsLikelyAndroid
-    {
-        get { return AndroidConfidence >= 60; }
     }
 
     public string ConnectionLabel
@@ -946,44 +818,6 @@ public sealed class BluetoothDeviceSnapshot
 
             return string.IsNullOrWhiteSpace(Status) ? "Not connected" : Status;
         }
-    }
-
-    public string AndroidConfidenceLabel
-    {
-        get
-        {
-            if (AndroidConfidence >= 80)
-            {
-                return $"Likely Android ({AndroidConfidence}%)";
-            }
-
-            if (AndroidConfidence >= 60)
-            {
-                return $"Possible Android ({AndroidConfidence}%)";
-            }
-
-            if (AndroidConfidence > 0)
-            {
-                return $"Remote Bluetooth ({AndroidConfidence}%)";
-            }
-
-            return "Not Android";
-        }
-    }
-
-    private static int Clamp(int value, int minimum, int maximum)
-    {
-        if (value < minimum)
-        {
-            return minimum;
-        }
-
-        if (value > maximum)
-        {
-            return maximum;
-        }
-
-        return value;
     }
 }
 
