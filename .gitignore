@@ -119,3 +119,5 @@ htmlcov/
 *.tar.bz2
 *.tar.xz
 *.tar.zst
+Assets/Resources/DevAgentSettings.asset
+Assets/Resources/DevAgentSettings.asset.meta
