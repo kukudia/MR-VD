@@ -121,3 +121,7 @@ htmlcov/
 *.tar.zst
 Assets/Resources/DevAgentSettings.asset
 Assets/Resources/DevAgentSettings.asset.meta
+
+# Meta XR local simulator/session state
+Assets/#Meta.meta
+Assets/#Meta/

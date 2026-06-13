@@ -1838,7 +1838,6 @@ MonoBehaviour:
   _gripCollider: {fileID: 1750499726}
   _pinchPoint: {fileID: 1073289458}
   _pinchCollider: {fileID: 100081038}
-  _velocityCalculator: {fileID: 0}
 --- !u!114 &139172750
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -5956,7 +5955,6 @@ MonoBehaviour:
   _useClosestPointAsGrabSource: 0
   _releaseDistance: 0
   _resetGrabOnGrabsUpdated: 1
-  _physicsGrabbable: {fileID: 0}
 --- !u!114 &425518872
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -5975,7 +5973,6 @@ MonoBehaviour:
   _data: {fileID: 0}
   _pointableElement: {fileID: 425518873}
   _rigidbody: {fileID: 1135648481}
-  _physicsGrabbable: {fileID: 0}
   _resetGrabOnGrabsUpdated: 1
   _scoringModifier:
     _positionRotationWeight: 0.5
@@ -6020,6 +6017,7 @@ MonoBehaviour:
   _rigidbody: {fileID: 1135648481}
   _kinematicWhileSelected: 1
   _throwWhenUnselected: 1
+  _forceKinematicDisabled: 0
 --- !u!114 &425518874
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -10826,7 +10824,6 @@ MonoBehaviour:
   _gripCollider: {fileID: 2115259991}
   _pinchPoint: {fileID: 863612544}
   _pinchCollider: {fileID: 1430694258}
-  _velocityCalculator: {fileID: 0}
 --- !u!114 &776038905
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -11164,9 +11161,7 @@ MonoBehaviour:
   _data: {fileID: 0}
   _selector: {fileID: 322276492}
   _rigidbody: {fileID: 1098484408}
-  _grabCenter: {fileID: 1098484411}
   _grabTarget: {fileID: 0}
-  _velocityCalculator: {fileID: 0}
 --- !u!114 &796351259
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -12966,9 +12961,7 @@ MonoBehaviour:
   _data: {fileID: 0}
   _selector: {fileID: 1419445676}
   _rigidbody: {fileID: 1828847472}
-  _grabCenter: {fileID: 1828847475}
   _grabTarget: {fileID: 0}
-  _velocityCalculator: {fileID: 0}
 --- !u!114 &898913288
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -17626,7 +17619,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   _monoscopic: 0
   _sharpenType: 0
-  _enableDynamicResolution: 0
+  _disableRecording: 0
+  _enableDynamicResolution: 1
   minDynamicResolutionScale: 1
   maxDynamicResolutionScale: 1
   quest2MinDynamicResolutionScale: 0.7
@@ -17637,8 +17631,13 @@ MonoBehaviour:
   maxRenderScale: 1
   _headPoseRelativeOffsetRotation: {x: 0, y: 0, z: 0}
   _headPoseRelativeOffsetTranslation: {x: 0, y: 0, z: 0}
-  profilerTcpPort: 32419
-  expandMixedRealityCapturePropertySheet: 0
+  enableCoreMetricsRelease: 0
+  enableCoreMetricsDevelopment: 1
+  coreMetricVisibility:
+    visibleMemoryMetricStats: 0
+    visibleMemoryMetricGraphs: 0
+    visibleRenderMetricStats: 0
+    visibleRenderMetricGraphs: 0
   enableMixedReality: 0
   compositionMethod: 0
   extraHiddenLayers:
@@ -17678,6 +17677,7 @@ MonoBehaviour:
   requestEyeTrackingPermissionOnStartup: 0
   requestScenePermissionOnStartup: 1
   requestRecordAudioPermissionOnStartup: 0
+  requestPassthroughCameraAccessPermissionOnStartup: 0
   _localDimming: 1
   _trackingOriginType: 1
   usePositionTracking: 1
@@ -17691,6 +17691,8 @@ MonoBehaviour:
   SimultaneousHandsAndControllersEnabled: 0
   _readOnlyWideMotionModeHandPosesEnabled: 0
   wideMotionModeHandPosesEnabled: 0
+  _readOnlyFastMotionModeHandPosesEnabled: 0
+  fastMotionModeHandPosesEnabled: 0
   dynamicResolutionVersion: 1
 --- !u!114 &1201667816
 MonoBehaviour:
