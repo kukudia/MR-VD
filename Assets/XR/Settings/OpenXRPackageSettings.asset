@@ -636,7 +636,7 @@ MonoBehaviour:
     XR_META_hand_tracking_wide_motion_mode2
   company: Meta
   priority: 0
-  targetOpenXRApiVersion: 1.1.45
+  targetOpenXRApiVersion: 1.1.53
   required: 0
   customRuntimeLoaderName: 
 --- !u!114 &-1417467440814331824
@@ -1255,7 +1255,7 @@ MonoBehaviour:
     XR_META_hand_tracking_wide_motion_mode2
   company: Meta
   priority: 0
-  targetOpenXRApiVersion: 1.1.45
+  targetOpenXRApiVersion: 1.1.53
   required: 0
   customRuntimeLoaderName: 
 --- !u!114 &5783569640165221756
