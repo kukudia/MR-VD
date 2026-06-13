@@ -17638,7 +17638,7 @@ MonoBehaviour:
     visibleMemoryMetricGraphs: 0
     visibleRenderMetricStats: 0
     visibleRenderMetricGraphs: 0
-  enableMixedReality: 0
+  enableMixedReality: 1
   compositionMethod: 0
   extraHiddenLayers:
     serializedVersion: 2
