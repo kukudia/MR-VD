@@ -192,7 +192,7 @@ public class AudioVisualizer : MonoBehaviour
     public float silenceEnterThreshold = 0.001f;
 
     [Tooltip("Broadband energy must stay above this threshold before playback resumes. Keep above the enter threshold.")]
-    public float silenceExitThreshold = 0.003f;
+    public float silenceExitThreshold = 0.001f;
 
     [Tooltip("Continuous low-energy duration required before entering silence, in seconds.")]
     public float silenceEnterDelay = 0.25f;
