@@ -32619,6 +32619,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 1972249493}
+  - component: {fileID: 1972249494}
   m_Layer: 0
   m_Name: Screen
   m_TagString: Untagged
@@ -32650,6 +32651,33 @@ Transform:
   - {fileID: 1198936567}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1972249494
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1972249492}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 05777370a0b1ea340af8055d680d3ced, type: 3}
+  m_Name: ""
+  m_EditorClassIdentifier: ""
+  isFollowedCamera: 0
+  positionOffset: {x: 0, y: -0.25, z: 0.5}
+  followSmoothing: 8
+  cameraOverride: {fileID: 0}
+  recenterOnStart: 0
+  enableKeyboardRecenter: 1
+  keyboardRecenterKey: 114
+  enableQuestRecenter: 1
+  questRecenterButton: 1
+  questRecenterController: 2
+  recenterDistance: 1
+  recenterHeightOffset: -0.25
+  minPitchAngle: -15
+  maxPitchAngle: 15
+  rotateToCameraForward: 1
 --- !u!1 &1973676869
 GameObject:
   m_ObjectHideFlags: 0
