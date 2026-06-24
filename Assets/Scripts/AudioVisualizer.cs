@@ -36,17 +36,17 @@ public class AudioVisualizer : MonoBehaviour
     [Header("Bar Frequency Sampling")]
     [Tooltip("Lowest frequency sampled by the first and last bars.")]
     [Min(1f)]
-    public float barMinFrequencyHz = 20f;
+    public float barMinFrequencyHz = 40f;
 
-    [Tooltip("Highest frequency sampled near the visualizer center. Frequencies above this are skipped to avoid the inactive Nyquist band.")]
+    [Tooltip("Highest frequency sampled near the visualizer center. Frequencies above this are skipped to avoid inactive high-frequency bands.")]
     [Min(100f)]
-    public float barMaxFrequencyHz = 14000f;
+    public float barMaxFrequencyHz = 8000f;
 
     [Tooltip("Curves the side-to-center frequency sweep. Values above 1 give more bars to bass and low mids.")]
     [Range(0.25f, 4f)]
-    public float barFrequencyCurve = 1.35f;
+    public float barFrequencyCurve = 1f;
 
-    [Tooltip("Neighboring FFT bins averaged around each sampled bin. Larger values reduce single-bin jitter.")]
+    [Tooltip("Extra FFT bins included around each bar frequency band. Larger values reduce single-bin jitter.")]
     [Range(0, 4)]
     public int barBinSampleRadius = 1;
 
@@ -513,25 +513,21 @@ public class AudioVisualizer : MonoBehaviour
 
     private float GetBarSpectrumAmplitude(float[] fallbackSpectrumData, float[] leftSpectrumData, float[] rightSpectrumData, int barIndex)
     {
-        bool useRightChannel;
-        float[] spectrumData = GetBarSpectrumData(fallbackSpectrumData, leftSpectrumData, rightSpectrumData, barIndex, out useRightChannel);
-        int positiveBin = GetBarPositiveFrequencyBin(barIndex, spectrumData.Length);
-        int fftIndex = useRightChannel
-            ? MirrorPositiveBinToNegativeFftIndex(positiveBin, spectrumData.Length)
-            : positiveBin;
+        float[] spectrumData = GetBarSpectrumData(fallbackSpectrumData, leftSpectrumData, rightSpectrumData, barIndex);
+        int startBin;
+        int endBin;
+        GetBarPositiveFrequencyBinRange(barIndex, spectrumData.Length, out startBin, out endBin);
 
-        return AverageSpectrumBins(spectrumData, fftIndex, barBinSampleRadius);
+        return AverageSpectrumBins(spectrumData, startBin, endBin, barBinSampleRadius);
     }
 
     private float[] GetBarSpectrumData(
         float[] fallbackSpectrumData,
         float[] leftSpectrumData,
         float[] rightSpectrumData,
-        int barIndex,
-        out bool useRightChannel)
+        int barIndex)
     {
-        useRightChannel = barIndex >= Mathf.Max(1, barCount / 2);
-
+        bool useRightChannel = barIndex >= Mathf.Max(1, barCount / 2);
         float[] channelSpectrumData = useRightChannel ? rightSpectrumData : leftSpectrumData;
         if (channelSpectrumData != null && channelSpectrumData.Length > 0)
         {
@@ -541,16 +537,13 @@ public class AudioVisualizer : MonoBehaviour
         return fallbackSpectrumData;
     }
 
-    private int GetBarPositiveFrequencyBin(int barIndex, int spectrumLength)
+    private void GetBarPositiveFrequencyBinRange(int barIndex, int spectrumLength, out int startBin, out int endBin)
     {
         int leftBarCount = Mathf.Max(1, barCount / 2);
         int rightBarCount = Mathf.Max(1, barCount - leftBarCount);
         bool isLeftSide = barIndex < leftBarCount;
         int sideIndex = isLeftSide ? barIndex : barCount - 1 - barIndex;
         int sideBarCount = isLeftSide ? leftBarCount : rightBarCount;
-
-        float sideT = sideBarCount > 1 ? (float)sideIndex / (sideBarCount - 1) : 0f;
-        sideT = Mathf.Pow(Mathf.Clamp01(sideT), Mathf.Max(0.01f, barFrequencyCurve));
 
         int sampleRate = GetCurrentSampleRate();
         float nyquistFrequency = Mathf.Max(1f, sampleRate * 0.5f);
@@ -560,27 +553,28 @@ public class AudioVisualizer : MonoBehaviour
             minFrequency + 1f,
             nyquistFrequency * 0.96f);
 
-        float frequency = minFrequency * Mathf.Pow(maxFrequency / minFrequency, sideT);
-        return FrequencyToPositiveFftBin(frequency, spectrumLength, sampleRate);
-    }
-
-    private int FrequencyToPositiveFftBin(float frequency, int spectrumLength, int sampleRate)
-    {
         int highestPositiveBin = Mathf.Max(1, (spectrumLength / 2) - 1);
-        int bin = Mathf.RoundToInt(frequency * spectrumLength / Mathf.Max(1, sampleRate));
-        return Mathf.Clamp(bin, 1, highestPositiveBin);
+        int minBin = Mathf.Clamp(Mathf.CeilToInt(minFrequency * spectrumLength / Mathf.Max(1, sampleRate)), 1, highestPositiveBin);
+        int maxBin = Mathf.Clamp(Mathf.FloorToInt(maxFrequency * spectrumLength / Mathf.Max(1, sampleRate)), minBin, highestPositiveBin);
+
+        float startT = GetCurvedBarEdge((float)sideIndex / sideBarCount);
+        float endT = GetCurvedBarEdge((float)(sideIndex + 1) / sideBarCount);
+        int binAfterMax = maxBin + 1;
+
+        startBin = Mathf.Clamp(Mathf.FloorToInt(Mathf.Lerp(minBin, binAfterMax, startT)), minBin, maxBin);
+        endBin = Mathf.Clamp(Mathf.CeilToInt(Mathf.Lerp(minBin, binAfterMax, endT)) - 1, startBin, maxBin);
     }
 
-    private int MirrorPositiveBinToNegativeFftIndex(int positiveBin, int spectrumLength)
+    private float GetCurvedBarEdge(float edgeT)
     {
-        return Mathf.Clamp(spectrumLength - positiveBin, 0, spectrumLength - 1);
+        return Mathf.Pow(Mathf.Clamp01(edgeT), Mathf.Max(0.01f, barFrequencyCurve));
     }
 
-    private float AverageSpectrumBins(float[] spectrumData, int centerIndex, int radius)
+    private float AverageSpectrumBins(float[] spectrumData, int startIndex, int endIndex, int padding)
     {
-        int clampedRadius = Mathf.Max(0, radius);
-        int startIndex = Mathf.Max(0, centerIndex - clampedRadius);
-        int endIndex = Mathf.Min(spectrumData.Length - 1, centerIndex + clampedRadius);
+        int clampedPadding = Mathf.Max(0, padding);
+        startIndex = Mathf.Max(1, startIndex - clampedPadding);
+        endIndex = Mathf.Min((spectrumData.Length / 2) - 1, endIndex + clampedPadding);
         float sum = 0f;
         int count = 0;
 
