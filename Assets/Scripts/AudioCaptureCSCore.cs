@@ -35,9 +35,17 @@ public class AudioCaptureCSCore : MonoBehaviour
     public IWaveSource waveSource;
     private SingleBlockNotificationStream notificationStream;
     public FftProvider fftProvider;
+    private FftProvider leftFftProvider;
+    private FftProvider rightFftProvider;
     public float[] frequencyData;
     public float[] smoothedFftData;
     public float[] rawFftData;
+    public float[] leftFrequencyData;
+    public float[] rightFrequencyData;
+    public float[] smoothedLeftFftData;
+    public float[] smoothedRightFftData;
+    public float[] rawLeftFftData;
+    public float[] rawRightFftData;
     public bool linearFftData = true;
 
     [Header("FFT Data Output")]
@@ -295,12 +303,16 @@ public class AudioCaptureCSCore : MonoBehaviour
             Debug.Log("[AudioCaptureCSCore] Audio stream and notification stream initialized.");
 
             fftProvider = new FftProvider(waveSource.WaveFormat.Channels, FftSize.Fft2048);
+            leftFftProvider = new FftProvider(1, FftSize.Fft2048);
+            rightFftProvider = new FftProvider(1, FftSize.Fft2048);
             Debug.Log("[AudioCaptureCSCore] FFT Provider created with channels: " + waveSource.WaveFormat.Channels);
 
             int channels = waveSource.WaveFormat.Channels;
             _sampleReadBuffer = new float[Mathf.Max(1024, waveSource.WaveFormat.SampleRate * channels / 10)];
             var activeNotificationStream = notificationStream;
             var activeFftProvider = fftProvider;
+            var activeLeftFftProvider = leftFftProvider;
+            var activeRightFftProvider = rightFftProvider;
             var activeSampleReadBuffer = _sampleReadBuffer;
 
             _singleBlockReadHandler = (s, args) =>
@@ -308,10 +320,14 @@ public class AudioCaptureCSCore : MonoBehaviour
                 if (channels == 1)
                 {
                     activeFftProvider.Add(args.Left, args.Left);
+                    activeLeftFftProvider.Add(args.Left, args.Left);
+                    activeRightFftProvider.Add(args.Left, args.Left);
                 }
                 else
                 {
                     activeFftProvider.Add(args.Left, args.Right);
+                    activeLeftFftProvider.Add(args.Left, args.Left);
+                    activeRightFftProvider.Add(args.Right, args.Right);
                 }
             };
             activeNotificationStream.SingleBlockRead += _singleBlockReadHandler;
@@ -385,6 +401,8 @@ public class AudioCaptureCSCore : MonoBehaviour
         notificationStream = null;
         waveSource = null;
         fftProvider = null;
+        leftFftProvider = null;
+        rightFftProvider = null;
         HasFftData = false;
         _sampleReadBuffer = Array.Empty<float>();
     }
@@ -406,7 +424,20 @@ public class AudioCaptureCSCore : MonoBehaviour
             return false;
         }
 
-        UpdateFftDataFromBuffer(rawFftData, outputScale, smoothingWeight);
+        UpdateFftDataArrayFromBuffer(rawFftData, frequencyData, smoothedFftData, outputScale, smoothingWeight);
+
+        bool hasLeftFftData = leftFftProvider != null && leftFftProvider.GetFftData(rawLeftFftData);
+        bool hasRightFftData = rightFftProvider != null && rightFftProvider.GetFftData(rawRightFftData);
+        if (hasLeftFftData)
+        {
+            UpdateFftDataArrayFromBuffer(rawLeftFftData, leftFrequencyData, smoothedLeftFftData, outputScale, smoothingWeight);
+        }
+
+        if (hasRightFftData)
+        {
+            UpdateFftDataArrayFromBuffer(rawRightFftData, rightFrequencyData, smoothedRightFftData, outputScale, smoothingWeight);
+        }
+
         _lastManualFftUpdateFrame = Time.frameCount;
         HasFftData = true;
         return true;
@@ -423,20 +454,38 @@ public class AudioCaptureCSCore : MonoBehaviour
         EnsureFftDataArrays(fftBuffer.Length);
         smoothingWeight = Mathf.Clamp01(smoothingWeight);
 
-        for (int i = 0; i < fftBuffer.Length; i++)
+        UpdateFftDataArrayFromBuffer(fftBuffer, frequencyData, smoothedFftData, outputScale, smoothingWeight);
+        UpdateFftDataArrayFromBuffer(fftBuffer, leftFrequencyData, smoothedLeftFftData, outputScale, smoothingWeight);
+        UpdateFftDataArrayFromBuffer(fftBuffer, rightFrequencyData, smoothedRightFftData, outputScale, smoothingWeight);
+
+        HasFftData = true;
+    }
+
+    private void UpdateFftDataArrayFromBuffer(
+        float[] fftBuffer,
+        float[] targetFrequencyData,
+        float[] targetSmoothedFftData,
+        float outputScale,
+        float smoothingWeight)
+    {
+        if (fftBuffer == null || targetFrequencyData == null || targetSmoothedFftData == null)
+        {
+            return;
+        }
+
+        int count = Mathf.Min(fftBuffer.Length, targetFrequencyData.Length, targetSmoothedFftData.Length);
+        for (int i = 0; i < count; i++)
         {
             float magnitude = Mathf.Max(fftBuffer[i], 1e-6f);
-            frequencyData[i] = linearFftData
+            targetFrequencyData[i] = linearFftData
                 ? magnitude * outputScale
                 : Mathf.Log10(magnitude) * outputScale * 20f;
         }
 
-        for (int i = 0; i < frequencyData.Length; i++)
+        for (int i = 0; i < count; i++)
         {
-            smoothedFftData[i] = (smoothedFftData[i] * smoothingWeight) + (frequencyData[i] * (1f - smoothingWeight));
+            targetSmoothedFftData[i] = (targetSmoothedFftData[i] * smoothingWeight) + (targetFrequencyData[i] * (1f - smoothingWeight));
         }
-
-        HasFftData = true;
     }
 
     private void EnsureFftDataArrays(int dataSize)
@@ -460,6 +509,38 @@ public class AudioCaptureCSCore : MonoBehaviour
         {
             smoothedFftData = new float[dataSize];
             Array.Copy(frequencyData, smoothedFftData, Mathf.Min(frequencyData.Length, smoothedFftData.Length));
+        }
+
+        if (rawLeftFftData == null || rawLeftFftData.Length != dataSize)
+        {
+            rawLeftFftData = new float[dataSize];
+        }
+
+        if (rawRightFftData == null || rawRightFftData.Length != dataSize)
+        {
+            rawRightFftData = new float[dataSize];
+        }
+
+        if (leftFrequencyData == null || leftFrequencyData.Length != dataSize)
+        {
+            leftFrequencyData = new float[dataSize];
+        }
+
+        if (rightFrequencyData == null || rightFrequencyData.Length != dataSize)
+        {
+            rightFrequencyData = new float[dataSize];
+        }
+
+        if (smoothedLeftFftData == null || smoothedLeftFftData.Length != dataSize)
+        {
+            smoothedLeftFftData = new float[dataSize];
+            Array.Copy(leftFrequencyData, smoothedLeftFftData, Mathf.Min(leftFrequencyData.Length, smoothedLeftFftData.Length));
+        }
+
+        if (smoothedRightFftData == null || smoothedRightFftData.Length != dataSize)
+        {
+            smoothedRightFftData = new float[dataSize];
+            Array.Copy(rightFrequencyData, smoothedRightFftData, Mathf.Min(rightFrequencyData.Length, smoothedRightFftData.Length));
         }
     }
 

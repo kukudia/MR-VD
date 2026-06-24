@@ -33,6 +33,23 @@ public class AudioVisualizer : MonoBehaviour
     [Tooltip("Semi-minor axis of the bar placement ellipse. Controls depth.")]
     public float b = 1;
 
+    [Header("Bar Frequency Sampling")]
+    [Tooltip("Lowest frequency sampled by the first and last bars.")]
+    [Min(1f)]
+    public float barMinFrequencyHz = 20f;
+
+    [Tooltip("Highest frequency sampled near the visualizer center. Frequencies above this are skipped to avoid the inactive Nyquist band.")]
+    [Min(100f)]
+    public float barMaxFrequencyHz = 14000f;
+
+    [Tooltip("Curves the side-to-center frequency sweep. Values above 1 give more bars to bass and low mids.")]
+    [Range(0.25f, 4f)]
+    public float barFrequencyCurve = 1.35f;
+
+    [Tooltip("Neighboring FFT bins averaged around each sampled bin. Larger values reduce single-bin jitter.")]
+    [Range(0, 4)]
+    public int barBinSampleRadius = 1;
+
     [Header("Log Compression")]
     [Tooltip("Log compression strength. Higher values increase compression; 1.0 to 3.0 is recommended.")]
     [Range(0.1f, 100f)]
@@ -59,6 +76,7 @@ public class AudioVisualizer : MonoBehaviour
 
     private float dynamicScaleFactor = 1f;
     private float maxRecentAmplitude = 1f;
+    private const int fallbackSampleRate = 48000;
 
     private GameObject[] bars;
     private Renderer[] barRenderers;
@@ -340,6 +358,8 @@ public class AudioVisualizer : MonoBehaviour
     {
         float[] frequencyData = AudioCaptureCSCore.instance.frequencyData;
         float[] smoothedFftData = AudioCaptureCSCore.instance.smoothedFftData;
+        float[] smoothedLeftFftData = AudioCaptureCSCore.instance.smoothedLeftFftData;
+        float[] smoothedRightFftData = AudioCaptureCSCore.instance.smoothedRightFftData;
 
         if (frequencyData == null || smoothedFftData == null ||
             frequencyData.Length == 0 || smoothedFftData.Length == 0)
@@ -379,7 +399,7 @@ public class AudioVisualizer : MonoBehaviour
         CheckAndHandleSilence(frequencyData, Time.time);
 
         // Update visualizer bars.
-        UpdateBars(smoothedFftData);
+        UpdateBars(smoothedFftData, smoothedLeftFftData, smoothedRightFftData);
 
         // Run the unified beat detection pipeline.
         DetectBeatImproved(frequencyData);
@@ -388,7 +408,7 @@ public class AudioVisualizer : MonoBehaviour
     /// <summary>
     /// Updates the bar visualization using log compression, dynamic range adjustment, height limits, and smoothing.
     /// </summary>
-    private void UpdateBars(float[] spectrumData)
+    private void UpdateBars(float[] spectrumData, float[] leftSpectrumData = null, float[] rightSpectrumData = null)
     {
         if (movingBars)
         {
@@ -427,7 +447,8 @@ public class AudioVisualizer : MonoBehaviour
             }
         }
 
-        if (bars == null || bars.Length != barCount)
+        if (spectrumData == null || spectrumData.Length == 0 ||
+            bars == null || bars.Length != barCount)
         {
             return;
         }
@@ -439,9 +460,7 @@ public class AudioVisualizer : MonoBehaviour
             float currentMaxAmplitude = 0f;
             for (int i = 0; i < barCount; i++)
             {
-                float logIndex = Mathf.Pow((float)(i + 1) / barCount, 1);
-                int fftIndex = Mathf.Clamp((int)(logIndex * (spectrumData.Length - 1)), 0, spectrumData.Length - 1);
-                currentMaxAmplitude = Mathf.Max(currentMaxAmplitude, spectrumData[fftIndex]);
+                currentMaxAmplitude = Mathf.Max(currentMaxAmplitude, GetBarSpectrumAmplitude(spectrumData, leftSpectrumData, rightSpectrumData, i));
             }
 
             // Smoothly update the recent maximum amplitude.
@@ -468,11 +487,7 @@ public class AudioVisualizer : MonoBehaviour
 
             if (!wasSilent)
             {
-                // Logarithmic frequency mapping gives the low-frequency range more space.
-                float logIndex = Mathf.Pow((float)(i + 1) / barCount, 1);
-                int fftIndex = Mathf.Clamp((int)(logIndex * (spectrumData.Length - 1)), 0, spectrumData.Length - 1);
-
-                rawAmplitude = spectrumData[fftIndex];
+                rawAmplitude = GetBarSpectrumAmplitude(spectrumData, leftSpectrumData, rightSpectrumData, i);
 
                 // Compress dynamic range with log(rawAmplitude + offset).
                 float compressedHeight = Mathf.Log(rawAmplitude + logCompressionOffset, 10f + logCompressionStrength);
@@ -494,6 +509,99 @@ public class AudioVisualizer : MonoBehaviour
                 UpdateBarGlow(i, rawAmplitude, finalHeight);
             }
         }
+    }
+
+    private float GetBarSpectrumAmplitude(float[] fallbackSpectrumData, float[] leftSpectrumData, float[] rightSpectrumData, int barIndex)
+    {
+        bool useRightChannel;
+        float[] spectrumData = GetBarSpectrumData(fallbackSpectrumData, leftSpectrumData, rightSpectrumData, barIndex, out useRightChannel);
+        int positiveBin = GetBarPositiveFrequencyBin(barIndex, spectrumData.Length);
+        int fftIndex = useRightChannel
+            ? MirrorPositiveBinToNegativeFftIndex(positiveBin, spectrumData.Length)
+            : positiveBin;
+
+        return AverageSpectrumBins(spectrumData, fftIndex, barBinSampleRadius);
+    }
+
+    private float[] GetBarSpectrumData(
+        float[] fallbackSpectrumData,
+        float[] leftSpectrumData,
+        float[] rightSpectrumData,
+        int barIndex,
+        out bool useRightChannel)
+    {
+        useRightChannel = barIndex >= Mathf.Max(1, barCount / 2);
+
+        float[] channelSpectrumData = useRightChannel ? rightSpectrumData : leftSpectrumData;
+        if (channelSpectrumData != null && channelSpectrumData.Length > 0)
+        {
+            return channelSpectrumData;
+        }
+
+        return fallbackSpectrumData;
+    }
+
+    private int GetBarPositiveFrequencyBin(int barIndex, int spectrumLength)
+    {
+        int leftBarCount = Mathf.Max(1, barCount / 2);
+        int rightBarCount = Mathf.Max(1, barCount - leftBarCount);
+        bool isLeftSide = barIndex < leftBarCount;
+        int sideIndex = isLeftSide ? barIndex : barCount - 1 - barIndex;
+        int sideBarCount = isLeftSide ? leftBarCount : rightBarCount;
+
+        float sideT = sideBarCount > 1 ? (float)sideIndex / (sideBarCount - 1) : 0f;
+        sideT = Mathf.Pow(Mathf.Clamp01(sideT), Mathf.Max(0.01f, barFrequencyCurve));
+
+        int sampleRate = GetCurrentSampleRate();
+        float nyquistFrequency = Mathf.Max(1f, sampleRate * 0.5f);
+        float minFrequency = Mathf.Clamp(barMinFrequencyHz, 1f, nyquistFrequency - 1f);
+        float maxFrequency = Mathf.Clamp(
+            Mathf.Max(barMaxFrequencyHz, minFrequency + 1f),
+            minFrequency + 1f,
+            nyquistFrequency * 0.96f);
+
+        float frequency = minFrequency * Mathf.Pow(maxFrequency / minFrequency, sideT);
+        return FrequencyToPositiveFftBin(frequency, spectrumLength, sampleRate);
+    }
+
+    private int FrequencyToPositiveFftBin(float frequency, int spectrumLength, int sampleRate)
+    {
+        int highestPositiveBin = Mathf.Max(1, (spectrumLength / 2) - 1);
+        int bin = Mathf.RoundToInt(frequency * spectrumLength / Mathf.Max(1, sampleRate));
+        return Mathf.Clamp(bin, 1, highestPositiveBin);
+    }
+
+    private int MirrorPositiveBinToNegativeFftIndex(int positiveBin, int spectrumLength)
+    {
+        return Mathf.Clamp(spectrumLength - positiveBin, 0, spectrumLength - 1);
+    }
+
+    private float AverageSpectrumBins(float[] spectrumData, int centerIndex, int radius)
+    {
+        int clampedRadius = Mathf.Max(0, radius);
+        int startIndex = Mathf.Max(0, centerIndex - clampedRadius);
+        int endIndex = Mathf.Min(spectrumData.Length - 1, centerIndex + clampedRadius);
+        float sum = 0f;
+        int count = 0;
+
+        for (int i = startIndex; i <= endIndex; i++)
+        {
+            sum += spectrumData[i];
+            count++;
+        }
+
+        return count > 0 ? sum / count : 0f;
+    }
+
+    private int GetCurrentSampleRate()
+    {
+        AudioCaptureCSCore capture = AudioCaptureCSCore.instance;
+        if (capture != null && capture.waveSource != null)
+        {
+            return capture.waveSource.WaveFormat.SampleRate;
+        }
+
+        return fallbackSampleRate;
     }
 
     private void EnsureBarVisualArrays()
