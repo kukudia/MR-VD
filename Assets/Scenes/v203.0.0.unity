@@ -18519,7 +18519,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!54 &1135648481
 Rigidbody:
   m_ObjectHideFlags: 0
@@ -18575,7 +18575,7 @@ MeshRenderer:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1135648480}
-  m_Enabled: 0
+  m_Enabled: 1
   m_CastShadows: 1
   m_ReceiveShadows: 1
   m_DynamicOccludee: 1
@@ -18652,7 +18652,7 @@ Transform:
   m_GameObject: {fileID: 1135648480}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0.0015879, y: 0, z: 1}
+  m_LocalPosition: {x: 0.0015879, y: -0.339, z: 1}
   m_LocalScale: {x: 0.4, y: 0.02, z: 0.01}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -18673,6 +18673,19 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   isFollowedCamera: 0
   positionOffset: {x: 0, y: -0.25, z: 0.5}
+  followSmoothing: 8
+  cameraOverride: {fileID: 0}
+  recenterOnStart: 0
+  enableKeyboardRecenter: 1
+  keyboardRecenterKey: 114
+  enableQuestRecenter: 1
+  questRecenterButton: 1
+  questRecenterController: 2
+  recenterDistance: 1
+  recenterHeightOffset: -0.25
+  minPitchAngle: -15
+  maxPitchAngle: 15
+  rotateToCameraForward: 1
 --- !u!1 &1136270399
 GameObject:
   m_ObjectHideFlags: 0
@@ -32661,10 +32674,10 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 05777370a0b1ea340af8055d680d3ced, type: 3}
-  m_Name: ""
-  m_EditorClassIdentifier: ""
+  m_Name: 
+  m_EditorClassIdentifier: 
   isFollowedCamera: 0
-  positionOffset: {x: 0, y: -0.25, z: 0.5}
+  positionOffset: {x: 0, y: 0, z: 0.5}
   followSmoothing: 8
   cameraOverride: {fileID: 0}
   recenterOnStart: 0
@@ -32673,10 +32686,10 @@ MonoBehaviour:
   enableQuestRecenter: 1
   questRecenterButton: 1
   questRecenterController: 2
-  recenterDistance: 1
-  recenterHeightOffset: -0.25
+  recenterDistance: 0.5
+  recenterHeightOffset: 0
   minPitchAngle: -15
-  maxPitchAngle: 15
+  maxPitchAngle: 30
   rotateToCameraForward: 1
 --- !u!1 &1973676869
 GameObject:
