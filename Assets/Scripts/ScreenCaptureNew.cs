@@ -47,7 +47,7 @@ public class ScreenCaptureNew : MonoBehaviour
             screenWidth,
             screenHeight,
             TextureFormat.BGRA32,
-            mipChain: false,
+            mipChain: true,
             linear: false
         );
 
@@ -57,7 +57,7 @@ public class ScreenCaptureNew : MonoBehaviour
             return;
         }
 
-        screenTexture.filterMode = FilterMode.Bilinear;
+        ConfigureScreenTexture(screenTexture);
 
         if (screenObject != null)
             screenObject.texture = screenTexture;
@@ -112,7 +112,7 @@ public class ScreenCaptureNew : MonoBehaviour
 
         if (newDataReady)
         {
-            screenTexture.Apply(updateMipmaps: false, makeNoLongerReadable: false);
+            screenTexture.Apply(updateMipmaps: true, makeNoLongerReadable: false);
             newDataReady = false;
         }
 
@@ -153,6 +153,13 @@ public class ScreenCaptureNew : MonoBehaviour
             shouldStop = false;
             StartCaptureThread();
         }
+    }
+
+    private static void ConfigureScreenTexture(Texture2D texture)
+    {
+        texture.filterMode = FilterMode.Trilinear;
+        texture.wrapMode = TextureWrapMode.Clamp;
+        texture.anisoLevel = 2;
     }
 
     private void OnApplicationQuit()

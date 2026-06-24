@@ -58,7 +58,8 @@ public class ScreenCaptureNative : MonoBehaviour
             return;
         }
 
-        unityTexture = new Texture2D(width, height, TextureFormat.BGRA32, false);
+        unityTexture = new Texture2D(width, height, TextureFormat.BGRA32, true);
+        ConfigureScreenTexture(unityTexture);
         pixelBuffer = new Color32[width * height];
         bufferHandle = GCHandle.Alloc(pixelBuffer, GCHandleType.Pinned);
 
@@ -80,8 +81,15 @@ public class ScreenCaptureNative : MonoBehaviour
         if (CopyFrameToBuffer(bufferHandle.AddrOfPinnedObject(), unityTexture.width, unityTexture.height))
         {
             unityTexture.SetPixels32(pixelBuffer);
-            unityTexture.Apply();
+            unityTexture.Apply(updateMipmaps: true);
         }
+    }
+
+    private static void ConfigureScreenTexture(Texture2D texture)
+    {
+        texture.filterMode = FilterMode.Trilinear;
+        texture.wrapMode = TextureWrapMode.Clamp;
+        texture.anisoLevel = 2;
     }
 
     private void OnDestroy()

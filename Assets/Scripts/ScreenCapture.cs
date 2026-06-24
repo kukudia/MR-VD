@@ -103,7 +103,8 @@ public class ScreenCapture : MonoBehaviour
 
         int width = Forms.Screen.PrimaryScreen.Bounds.Width;
         int height = Forms.Screen.PrimaryScreen.Bounds.Height;
-        screenTexture = new Texture2D(width, height, TextureFormat.RGBA32, false);
+        screenTexture = new Texture2D(width, height, TextureFormat.RGBA32, true);
+        ConfigureScreenTexture(screenTexture);
 
         if (screenObject != null)
         {
@@ -191,8 +192,8 @@ public class ScreenCapture : MonoBehaviour
                 pixelData[i + 2] = blue;
             }
 
-            screenTexture.LoadRawTextureData(pixelData);
-            screenTexture.Apply();
+            screenTexture.SetPixelData(pixelData, 0);
+            screenTexture.Apply(updateMipmaps: true);
             return screenTexture;
         }
         finally
@@ -233,6 +234,13 @@ public class ScreenCapture : MonoBehaviour
 
         buffer = Marshal.AllocHGlobal(bytes);
         bufferSize = bytes;
+    }
+
+    private static void ConfigureScreenTexture(Texture2D texture)
+    {
+        texture.filterMode = FilterMode.Trilinear;
+        texture.wrapMode = TextureWrapMode.Clamp;
+        texture.anisoLevel = 2;
     }
 
     private void OnDestroy()
