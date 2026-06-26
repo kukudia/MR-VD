@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "com.coplaydev.unity-mcp": "https://github.com/CoplayDev/unity-mcp.git?path=/MCPForUnity#main",
     "com.meta.xr.sdk.all": "203.0.0",
     "com.unity.collab-proxy": "2.10.2",
     "com.unity.feature.development": "1.0.2",
