@@ -17863,6 +17863,7 @@ GameObject:
   - component: {fileID: 1074582609}
   - component: {fileID: 1074582611}
   - component: {fileID: 1074582610}
+  - component: {fileID: 1074582612}
   m_Layer: 5
   m_Name: InfoPanel
   m_TagString: Untagged
@@ -17929,6 +17930,40 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1074582608}
   m_CullTransparentMesh: 1
+--- !u!114 &1074582612
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1074582608}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7112a0d57e7d4c9f9a8dfbdbf1c2f642, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::RuntimeInformationPanel
+  showPanel: 1
+  togglePanelKey: 290
+  panelRect:
+    serializedVersion: 2
+    x: 460
+    y: 16
+    width: 440
+    height: 520
+  mailListHeight: 150
+  useScreenCanvasPanel: 1
+  screenCanvasPanelRoot: {fileID: 1074582609}
+  screenCanvasRefreshInterval: 0.2
+  autoRefreshWeather: 1
+  useIpLocationForWeather: 1
+  useManualWeatherLocation: 0
+  manualLatitude: 0
+  manualLongitude: 0
+  manualWeatherLocationLabel: Manual Location
+  weatherRefreshIntervalSeconds: 900
+  autoRefreshMail: 1
+  mailRefreshIntervalSeconds: 300
+  mailQueryTimeoutSeconds: 8
 --- !u!1 &1085659947
 GameObject:
   m_ObjectHideFlags: 0

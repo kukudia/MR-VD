@@ -9,6 +9,7 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 using UnityEngine.Events;
+using UnityEngine.UI;
 
 /// <summary>
 /// Captures Windows audio through CSCore and exposes FFT buffers for visualization systems.
@@ -122,6 +123,26 @@ public class AudioCaptureCSCore : MonoBehaviour
 
     private Vector2 _manualDeviceListScrollPosition;
 
+    [Header("Screen Canvas Panel")]
+    [Tooltip("Renders the manual audio panel inside Screen/Canvas/AudioPanel instead of the legacy IMGUI overlay.")]
+    public bool useScreenCanvasPanel = true;
+
+    [Tooltip("Optional target panel under Screen/Canvas. When empty, Screen/Canvas/AudioPanel is used.")]
+    public RectTransform screenCanvasPanelRoot;
+
+    [Tooltip("How often the Screen/Canvas panel text is refreshed.")]
+    [Range(0.05f, 1f)]
+    public float screenCanvasRefreshInterval = 0.2f;
+
+    private RectTransform _screenCanvasContent;
+    private Text _screenModeText;
+    private Text _screenDeviceText;
+    private Text _screenDeviceHeaderText;
+    private Text _screenVisualizerText;
+    private string _screenDeviceListSignature = string.Empty;
+    private float _nextScreenCanvasRefreshTime;
+    private Font _screenCanvasFont;
+
     private void Awake()
     {
         instance = this;
@@ -150,10 +171,12 @@ public class AudioCaptureCSCore : MonoBehaviour
     {
         if (!updateFftDataAutomatically || Time.frameCount == _lastManualFftUpdateFrame)
         {
+            UpdateScreenCanvasPanel(false);
             return;
         }
 
         TryUpdateFftData(fftDataSize, fftDataOutputScale, fftDataSmoothingWeight);
+        UpdateScreenCanvasPanel(false);
     }
 
     /// <summary>
@@ -745,6 +768,11 @@ public class AudioCaptureCSCore : MonoBehaviour
 
     private void OnGUI()
     {
+        if (useScreenCanvasPanel && EnsureScreenCanvasPanel(false))
+        {
+            return;
+        }
+
         if (!showManualControlPanel)
         {
             return;
@@ -852,5 +880,251 @@ public class AudioCaptureCSCore : MonoBehaviour
         }
 
         GUI.enabled = wasEnabled;
+    }
+
+    private void UpdateScreenCanvasPanel(bool force)
+    {
+        if (!useScreenCanvasPanel || !EnsureScreenCanvasPanel(false))
+        {
+            return;
+        }
+
+        _screenCanvasContent.gameObject.SetActive(showManualControlPanel);
+        if (!showManualControlPanel)
+        {
+            return;
+        }
+
+        if (!force && Time.unscaledTime < _nextScreenCanvasRefreshTime)
+        {
+            return;
+        }
+
+        _nextScreenCanvasRefreshTime = Time.unscaledTime + Mathf.Max(0.05f, screenCanvasRefreshInterval);
+        _screenModeText.text = $"Mode: {captureMode}";
+        _screenDeviceText.text = $"Device: {currentDeviceName}";
+        _screenDeviceHeaderText.text = $"{captureMode} Devices";
+
+        string signature = captureMode + "|" + selectedDeviceIndex + "|" + string.Join("|", deviceNames);
+        if (force || signature != _screenDeviceListSignature)
+        {
+            _screenDeviceListSignature = signature;
+            RebuildScreenDeviceButtons();
+        }
+
+        UpdateScreenVisualizerStatus();
+    }
+
+    private bool EnsureScreenCanvasPanel(bool forceRebuild)
+    {
+        if (!useScreenCanvasPanel)
+        {
+            return false;
+        }
+
+        if (screenCanvasPanelRoot == null)
+        {
+            GameObject panelObject = GameObject.Find("Screen/Canvas/AudioPanel");
+            if (panelObject != null)
+            {
+                screenCanvasPanelRoot = panelObject.GetComponent<RectTransform>();
+            }
+        }
+
+        if (screenCanvasPanelRoot == null)
+        {
+            return false;
+        }
+
+        if (_screenCanvasContent != null && !forceRebuild)
+        {
+            return true;
+        }
+
+        for (int i = screenCanvasPanelRoot.childCount - 1; i >= 0; i--)
+        {
+            Destroy(screenCanvasPanelRoot.GetChild(i).gameObject);
+        }
+
+        _screenCanvasFont = Resources.GetBuiltinResource<Font>("Arial.ttf");
+        if (_screenCanvasFont == null)
+        {
+            _screenCanvasFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        }
+
+        _screenCanvasContent = CreateRect("AudioCaptureCanvasContent", screenCanvasPanelRoot, new Vector2(270f, 480f));
+        _screenCanvasContent.localScale = Vector3.one * 0.1f;
+
+        VerticalLayoutGroup layout = _screenCanvasContent.gameObject.AddComponent<VerticalLayoutGroup>();
+        layout.padding = new RectOffset(10, 10, 10, 10);
+        layout.spacing = 5f;
+        layout.childAlignment = TextAnchor.UpperLeft;
+        layout.childControlWidth = true;
+        layout.childControlHeight = true;
+        layout.childForceExpandWidth = true;
+        layout.childForceExpandHeight = false;
+
+        _screenModeText = CreateText("ModeText", _screenCanvasContent, string.Empty, 13, FontStyle.Bold, TextAnchor.MiddleLeft, 24f);
+        _screenDeviceText = CreateText("DeviceText", _screenCanvasContent, string.Empty, 11, FontStyle.Normal, TextAnchor.UpperLeft, 42f);
+
+        RectTransform modeRow = CreateRow("ModeButtons", _screenCanvasContent, 30f);
+        CreateButton("InputButton", modeRow, "Input", () => SwitchCaptureMode(CaptureMode.Input));
+        CreateButton("LoopbackButton", modeRow, "Loopback", () => SwitchCaptureMode(CaptureMode.Loopback));
+
+        RectTransform actionRow = CreateRow("ActionButtons", _screenCanvasContent, 30f);
+        CreateButton("RefreshButton", actionRow, "Refresh", RefreshDeviceList);
+        CreateButton("PreviousButton", actionRow, "Prev", SwitchToPreviousDevice);
+        CreateButton("NextButton", actionRow, "Next", SwitchToNextDevice);
+
+        _screenDeviceHeaderText = CreateText("DeviceHeaderText", _screenCanvasContent, string.Empty, 12, FontStyle.Bold, TextAnchor.MiddleLeft, 22f);
+        CreateRect("DeviceList", _screenCanvasContent, new Vector2(250f, 150f));
+        _screenVisualizerText = CreateText("VisualizerText", _screenCanvasContent, string.Empty, 10, FontStyle.Normal, TextAnchor.UpperLeft, 185f);
+
+        UpdateScreenCanvasPanel(true);
+        return true;
+    }
+
+    private void RebuildScreenDeviceButtons()
+    {
+        if (_screenCanvasContent == null)
+        {
+            return;
+        }
+
+        Transform deviceList = _screenCanvasContent.Find("DeviceList");
+        if (deviceList == null)
+        {
+            return;
+        }
+
+        for (int i = deviceList.childCount - 1; i >= 0; i--)
+        {
+            Destroy(deviceList.GetChild(i).gameObject);
+        }
+
+        VerticalLayoutGroup layout = deviceList.GetComponent<VerticalLayoutGroup>();
+        if (layout == null)
+        {
+            layout = deviceList.gameObject.AddComponent<VerticalLayoutGroup>();
+            layout.spacing = 3f;
+            layout.childAlignment = TextAnchor.UpperLeft;
+            layout.childControlWidth = true;
+            layout.childControlHeight = true;
+            layout.childForceExpandWidth = true;
+            layout.childForceExpandHeight = false;
+        }
+
+        if (deviceNames.Count == 0)
+        {
+            CreateText("NoDevicesText", (RectTransform)deviceList, "No active devices", 10, FontStyle.Italic, TextAnchor.MiddleLeft, 24f);
+            return;
+        }
+
+        int maxVisibleDevices = Mathf.Min(deviceNames.Count, 5);
+        for (int i = 0; i < maxVisibleDevices; i++)
+        {
+            int deviceIndex = i;
+            string prefix = deviceIndex == selectedDeviceIndex ? "* " : string.Empty;
+            CreateButton("DeviceButton" + i, (RectTransform)deviceList, $"{prefix}{deviceIndex}: {deviceNames[i]}", () => SwitchDevice(deviceIndex), 24f, 9);
+        }
+
+        if (deviceNames.Count > maxVisibleDevices)
+        {
+            CreateText("MoreDevicesText", (RectTransform)deviceList, $"+ {deviceNames.Count - maxVisibleDevices} more devices", 9, FontStyle.Italic, TextAnchor.MiddleLeft, 18f);
+        }
+    }
+
+    private void UpdateScreenVisualizerStatus()
+    {
+        if (_screenVisualizerText == null)
+        {
+            return;
+        }
+
+        if (audioVisualizer == null)
+        {
+            audioVisualizer = FindFirstObjectByType<AudioVisualizer>();
+        }
+
+        if (audioVisualizer == null)
+        {
+            _screenVisualizerText.text = "Audio Visualizer\nAudioVisualizer not found";
+            return;
+        }
+
+        List<string> lines = new List<string> { "Audio Visualizer" };
+        audioVisualizer.BuildStatusLines(lines);
+        _screenVisualizerText.text = string.Join("\n", lines);
+    }
+
+    private RectTransform CreateRow(string name, RectTransform parent, float height)
+    {
+        RectTransform row = CreateRect(name, parent, new Vector2(250f, height));
+        HorizontalLayoutGroup layout = row.gameObject.AddComponent<HorizontalLayoutGroup>();
+        layout.spacing = 4f;
+        layout.childControlWidth = true;
+        layout.childControlHeight = true;
+        layout.childForceExpandWidth = true;
+        layout.childForceExpandHeight = true;
+        return row;
+    }
+
+    private RectTransform CreateRect(string name, RectTransform parent, Vector2 size)
+    {
+        GameObject obj = new GameObject(name, typeof(RectTransform));
+        obj.layer = parent.gameObject.layer;
+        RectTransform rectTransform = obj.GetComponent<RectTransform>();
+        rectTransform.SetParent(parent, false);
+        rectTransform.anchorMin = new Vector2(0.5f, 0.5f);
+        rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
+        rectTransform.pivot = new Vector2(0.5f, 0.5f);
+        rectTransform.sizeDelta = size;
+        rectTransform.localScale = Vector3.one;
+        return rectTransform;
+    }
+
+    private Text CreateText(string name, RectTransform parent, string text, int fontSize, FontStyle fontStyle, TextAnchor alignment, float height)
+    {
+        GameObject obj = new GameObject(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(Text));
+        obj.layer = parent.gameObject.layer;
+        RectTransform rectTransform = obj.GetComponent<RectTransform>();
+        rectTransform.SetParent(parent, false);
+        rectTransform.sizeDelta = new Vector2(250f, height);
+
+        Text label = obj.GetComponent<Text>();
+        label.font = _screenCanvasFont;
+        label.fontSize = fontSize;
+        label.fontStyle = fontStyle;
+        label.alignment = alignment;
+        label.horizontalOverflow = HorizontalWrapMode.Wrap;
+        label.verticalOverflow = VerticalWrapMode.Truncate;
+        label.color = Color.white;
+        label.text = text;
+        return label;
+    }
+
+    private Button CreateButton(string name, RectTransform parent, string label, UnityAction onClick, float height = 28f, int fontSize = 10)
+    {
+        GameObject obj = new GameObject(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button));
+        obj.layer = parent.gameObject.layer;
+        RectTransform rectTransform = obj.GetComponent<RectTransform>();
+        rectTransform.SetParent(parent, false);
+        rectTransform.sizeDelta = new Vector2(80f, height);
+
+        Image image = obj.GetComponent<Image>();
+        image.color = new Color(0.18f, 0.24f, 0.28f, 0.88f);
+
+        Button button = obj.GetComponent<Button>();
+        button.targetGraphic = image;
+        button.onClick.AddListener(onClick);
+
+        Text text = CreateText("Label", rectTransform, label, fontSize, FontStyle.Normal, TextAnchor.MiddleCenter, height);
+        text.color = Color.white;
+        RectTransform textRect = text.GetComponent<RectTransform>();
+        textRect.anchorMin = Vector2.zero;
+        textRect.anchorMax = Vector2.one;
+        textRect.offsetMin = new Vector2(4f, 2f);
+        textRect.offsetMax = new Vector2(-4f, -2f);
+        return button;
     }
 }

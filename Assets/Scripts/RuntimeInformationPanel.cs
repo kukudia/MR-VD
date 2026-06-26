@@ -8,6 +8,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.Networking;
+using UnityEngine.Events;
+using UnityEngine.UI;
 
 /// <summary>
 /// Shows local runtime information such as date, time, weather, and local mail status.
@@ -90,6 +92,17 @@ catch {
     public Rect panelRect = new Rect(460f, 16f, 440f, 520f);
     public float mailListHeight = 150f;
 
+    [Header("Screen Canvas Panel")]
+    [Tooltip("Renders this panel inside Screen/Canvas/InfoPanel instead of the legacy IMGUI overlay.")]
+    public bool useScreenCanvasPanel = true;
+
+    [Tooltip("Optional target panel under Screen/Canvas. When empty, Screen/Canvas/InfoPanel is used.")]
+    public RectTransform screenCanvasPanelRoot;
+
+    [Tooltip("How often the Screen/Canvas panel text is refreshed.")]
+    [Range(0.05f, 1f)]
+    public float screenCanvasRefreshInterval = 0.2f;
+
     [Header("Weather")]
     public bool autoRefreshWeather = true;
     public bool useIpLocationForWeather = true;
@@ -114,6 +127,13 @@ catch {
     private GUIStyle wrapLabelStyle;
     private GUIStyle strongLabelStyle;
     private GUIStyle mutedLabelStyle;
+    private RectTransform screenCanvasContent;
+    private Text localTimeText;
+    private Text weatherText;
+    private Text mailText;
+    private Text systemText;
+    private Font screenCanvasFont;
+    private float nextScreenCanvasRefreshTime;
 
     private bool weatherRefreshInProgress;
     private bool mailRefreshInProgress;
@@ -137,8 +157,13 @@ catch {
             return;
         }
 
-        GameObject panelObject = new GameObject("Runtime Information Panel");
-        DontDestroyOnLoad(panelObject);
+        GameObject panelObject = GameObject.Find("Screen/Canvas/InfoPanel");
+        if (panelObject == null)
+        {
+            panelObject = new GameObject("Runtime Information Panel");
+            DontDestroyOnLoad(panelObject);
+        }
+
         panelObject.AddComponent<RuntimeInformationPanel>();
     }
 
@@ -151,7 +176,11 @@ catch {
         }
 
         instance = this;
-        DontDestroyOnLoad(gameObject);
+        if (!IsUnderScreenCanvas())
+        {
+            DontDestroyOnLoad(gameObject);
+        }
+
         mailCancellation = new CancellationTokenSource();
     }
 
@@ -166,6 +195,7 @@ catch {
         if (togglePanelKey != KeyCode.None && Input.GetKeyDown(togglePanelKey))
         {
             showPanel = !showPanel;
+            UpdateScreenCanvasPanel(true);
         }
 
         if (autoRefreshWeather
@@ -179,6 +209,8 @@ catch {
         {
             RequestMailRefresh(false);
         }
+
+        UpdateScreenCanvasPanel(false);
     }
 
     private void OnDestroy()
@@ -366,6 +398,11 @@ catch {
 
     private void OnGUI()
     {
+        if (useScreenCanvasPanel && EnsureScreenCanvasPanel(false))
+        {
+            return;
+        }
+
         if (!showPanel)
         {
             return;
@@ -548,6 +585,352 @@ catch {
             wordWrap = true
         };
         mutedLabelStyle.normal.textColor = new Color(0.72f, 0.72f, 0.72f, 1f);
+    }
+
+    private void UpdateScreenCanvasPanel(bool force)
+    {
+        if (!useScreenCanvasPanel || !EnsureScreenCanvasPanel(false))
+        {
+            return;
+        }
+
+        screenCanvasContent.gameObject.SetActive(showPanel);
+        if (!showPanel)
+        {
+            return;
+        }
+
+        if (!force && Time.unscaledTime < nextScreenCanvasRefreshTime)
+        {
+            return;
+        }
+
+        nextScreenCanvasRefreshTime = Time.unscaledTime + Mathf.Max(0.05f, screenCanvasRefreshInterval);
+        UpdateLocalTimeText();
+        UpdateWeatherText();
+        UpdateMailText();
+        UpdateSystemText();
+    }
+
+    private bool EnsureScreenCanvasPanel(bool forceRebuild)
+    {
+        if (!useScreenCanvasPanel)
+        {
+            return false;
+        }
+
+        if (screenCanvasPanelRoot == null)
+        {
+            GameObject panelObject = GameObject.Find("Screen/Canvas/InfoPanel");
+            if (panelObject != null)
+            {
+                screenCanvasPanelRoot = panelObject.GetComponent<RectTransform>();
+            }
+        }
+
+        if (screenCanvasPanelRoot == null)
+        {
+            return false;
+        }
+
+        if (screenCanvasContent != null && !forceRebuild)
+        {
+            return true;
+        }
+
+        for (int i = screenCanvasPanelRoot.childCount - 1; i >= 0; i--)
+        {
+            Destroy(screenCanvasPanelRoot.GetChild(i).gameObject);
+        }
+
+        screenCanvasFont = Resources.GetBuiltinResource<Font>("Arial.ttf");
+        if (screenCanvasFont == null)
+        {
+            screenCanvasFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        }
+
+        screenCanvasContent = CreateRect("RuntimeInfoCanvasContent", screenCanvasPanelRoot, new Vector2(270f, 480f));
+        screenCanvasContent.localScale = Vector3.one * 0.1f;
+
+        VerticalLayoutGroup layout = screenCanvasContent.gameObject.AddComponent<VerticalLayoutGroup>();
+        layout.padding = new RectOffset(10, 10, 10, 10);
+        layout.spacing = 6f;
+        layout.childAlignment = TextAnchor.UpperLeft;
+        layout.childControlWidth = true;
+        layout.childControlHeight = true;
+        layout.childForceExpandWidth = true;
+        layout.childForceExpandHeight = false;
+
+        localTimeText = CreateText("LocalTimeText", screenCanvasContent, string.Empty, 15, FontStyle.Bold, TextAnchor.UpperLeft, 70f);
+
+        RectTransform weatherHeader = CreateHeaderRow("WeatherHeader", screenCanvasContent, "Weather");
+        CreateButton("WeatherRefreshButton", weatherHeader, "Refresh", () => RequestWeatherRefresh(true));
+        CreateToggle("WeatherAutoToggle", weatherHeader, "Auto", autoRefreshWeather, value => autoRefreshWeather = value);
+        weatherText = CreateText("WeatherText", screenCanvasContent, string.Empty, 10, FontStyle.Normal, TextAnchor.UpperLeft, 110f);
+
+        RectTransform mailHeader = CreateHeaderRow("MailHeader", screenCanvasContent, "Mail");
+        CreateButton("MailRefreshButton", mailHeader, "Refresh", () => RequestMailRefresh(true));
+        CreateToggle("MailAutoToggle", mailHeader, "Auto", autoRefreshMail, value => autoRefreshMail = value);
+        mailText = CreateText("MailText", screenCanvasContent, string.Empty, 9, FontStyle.Normal, TextAnchor.UpperLeft, 150f);
+
+        systemText = CreateText("SystemText", screenCanvasContent, string.Empty, 9, FontStyle.Normal, TextAnchor.UpperLeft, 60f);
+
+        UpdateScreenCanvasPanel(true);
+        return true;
+    }
+
+    private void UpdateLocalTimeText()
+    {
+        DateTime now = DateTime.Now;
+        localTimeText.text = "Local Time\n"
+            + now.ToString("HH:mm:ss", CultureInfo.CurrentCulture)
+            + "\n"
+            + now.ToString("yyyy-MM-dd dddd", CultureInfo.CurrentCulture)
+            + "\n"
+            + TimeZoneInfo.Local.DisplayName;
+    }
+
+    private void UpdateWeatherText()
+    {
+        StringBuilder builder = new StringBuilder();
+        if (weatherSnapshot != null)
+        {
+            builder.AppendLine(weatherSnapshot.LocationLabel);
+            builder.AppendLine(string.Format(
+                CultureInfo.CurrentCulture,
+                "{0:0.#} C | feels {1:0.#} C | {2}",
+                weatherSnapshot.TemperatureCelsius,
+                weatherSnapshot.ApparentTemperatureCelsius,
+                weatherSnapshot.Condition));
+            builder.AppendLine(string.Format(
+                CultureInfo.CurrentCulture,
+                "Humidity {0:0}% | Wind {1:0.#} km/h {2:0} deg",
+                weatherSnapshot.RelativeHumidity,
+                weatherSnapshot.WindSpeedKmh,
+                weatherSnapshot.WindDirectionDegrees));
+            builder.AppendLine(string.Format(CultureInfo.CurrentCulture, "Rain {0:0.#} mm", weatherSnapshot.PrecipitationMm));
+        }
+        else
+        {
+            builder.AppendLine("No weather data yet.");
+        }
+
+        if (weatherRefreshInProgress)
+        {
+            builder.AppendLine("Refreshing...");
+        }
+
+        if (lastWeatherRefreshUtc != default(DateTime))
+        {
+            builder.AppendLine("Last refresh: " + lastWeatherRefreshUtc.ToLocalTime().ToString("HH:mm:ss", CultureInfo.CurrentCulture));
+        }
+
+        if (!string.IsNullOrWhiteSpace(weatherError))
+        {
+            builder.AppendLine(weatherError);
+        }
+
+        weatherText.text = builder.ToString().TrimEnd();
+    }
+
+    private void UpdateMailText()
+    {
+        List<MailPreview> previews;
+        int unreadCount;
+        string accountName;
+        string error;
+        bool refreshing;
+        DateTime refreshedUtc;
+
+        lock (mailLock)
+        {
+            previews = new List<MailPreview>(mailPreviews);
+            unreadCount = unreadMailCount;
+            accountName = mailAccountName;
+            error = mailError;
+            refreshing = mailRefreshInProgress;
+            refreshedUtc = lastMailRefreshUtc;
+        }
+
+        StringBuilder builder = new StringBuilder();
+        builder.AppendLine("Unread: " + unreadCount);
+        if (!string.IsNullOrWhiteSpace(accountName))
+        {
+            builder.AppendLine("Account: " + accountName);
+        }
+
+        if (refreshing)
+        {
+            builder.AppendLine("Refreshing...");
+        }
+
+        if (refreshedUtc != default(DateTime))
+        {
+            builder.AppendLine("Last refresh: " + refreshedUtc.ToLocalTime().ToString("HH:mm:ss", CultureInfo.CurrentCulture));
+        }
+
+        if (!string.IsNullOrWhiteSpace(error))
+        {
+            builder.AppendLine(error);
+        }
+
+        if (previews.Count == 0)
+        {
+            builder.AppendLine("No unread mail previews from the local Outlook inbox.");
+        }
+        else
+        {
+            for (int i = 0; i < previews.Count; i++)
+            {
+                MailPreview preview = previews[i];
+                builder.AppendLine(preview.ReceivedAtLabel + " | " + preview.Sender);
+                builder.AppendLine(preview.Subject);
+            }
+        }
+
+        mailText.text = builder.ToString().TrimEnd();
+    }
+
+    private void UpdateSystemText()
+    {
+        systemText.text = "System\n"
+            + "Machine: " + Environment.MachineName + " | User: " + Environment.UserName
+            + "\nPlatform: " + Application.platform + " | Network: " + Application.internetReachability;
+    }
+
+    private bool IsUnderScreenCanvas()
+    {
+        Transform current = transform;
+        while (current != null)
+        {
+            if (current.name == "Screen")
+            {
+                return true;
+            }
+
+            current = current.parent;
+        }
+
+        return false;
+    }
+
+    private RectTransform CreateHeaderRow(string name, RectTransform parent, string title)
+    {
+        RectTransform row = CreateRect(name, parent, new Vector2(250f, 30f));
+        HorizontalLayoutGroup layout = row.gameObject.AddComponent<HorizontalLayoutGroup>();
+        layout.spacing = 4f;
+        layout.childAlignment = TextAnchor.MiddleLeft;
+        layout.childControlWidth = true;
+        layout.childControlHeight = true;
+        layout.childForceExpandWidth = false;
+        layout.childForceExpandHeight = true;
+
+        Text label = CreateText(title + "Label", row, title, 12, FontStyle.Bold, TextAnchor.MiddleLeft, 28f);
+        LayoutElement labelLayout = label.gameObject.AddComponent<LayoutElement>();
+        labelLayout.flexibleWidth = 1f;
+        labelLayout.preferredWidth = 90f;
+        return row;
+    }
+
+    private RectTransform CreateRect(string name, RectTransform parent, Vector2 size)
+    {
+        GameObject obj = new GameObject(name, typeof(RectTransform));
+        obj.layer = parent.gameObject.layer;
+        RectTransform rectTransform = obj.GetComponent<RectTransform>();
+        rectTransform.SetParent(parent, false);
+        rectTransform.anchorMin = new Vector2(0.5f, 0.5f);
+        rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
+        rectTransform.pivot = new Vector2(0.5f, 0.5f);
+        rectTransform.sizeDelta = size;
+        rectTransform.localScale = Vector3.one;
+        return rectTransform;
+    }
+
+    private Text CreateText(string name, RectTransform parent, string text, int fontSize, FontStyle fontStyle, TextAnchor alignment, float height)
+    {
+        GameObject obj = new GameObject(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(Text));
+        obj.layer = parent.gameObject.layer;
+        RectTransform rectTransform = obj.GetComponent<RectTransform>();
+        rectTransform.SetParent(parent, false);
+        rectTransform.sizeDelta = new Vector2(250f, height);
+
+        Text label = obj.GetComponent<Text>();
+        label.font = screenCanvasFont;
+        label.fontSize = fontSize;
+        label.fontStyle = fontStyle;
+        label.alignment = alignment;
+        label.horizontalOverflow = HorizontalWrapMode.Wrap;
+        label.verticalOverflow = VerticalWrapMode.Truncate;
+        label.color = Color.white;
+        label.text = text;
+        return label;
+    }
+
+    private Button CreateButton(string name, RectTransform parent, string label, UnityAction onClick)
+    {
+        GameObject obj = new GameObject(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button));
+        obj.layer = parent.gameObject.layer;
+        RectTransform rectTransform = obj.GetComponent<RectTransform>();
+        rectTransform.SetParent(parent, false);
+        rectTransform.sizeDelta = new Vector2(62f, 28f);
+
+        Image image = obj.GetComponent<Image>();
+        image.color = new Color(0.18f, 0.24f, 0.28f, 0.88f);
+
+        Button button = obj.GetComponent<Button>();
+        button.targetGraphic = image;
+        button.onClick.AddListener(onClick);
+
+        Text text = CreateText("Label", rectTransform, label, 9, FontStyle.Normal, TextAnchor.MiddleCenter, 28f);
+        RectTransform textRect = text.GetComponent<RectTransform>();
+        textRect.anchorMin = Vector2.zero;
+        textRect.anchorMax = Vector2.one;
+        textRect.offsetMin = new Vector2(3f, 2f);
+        textRect.offsetMax = new Vector2(-3f, -2f);
+        return button;
+    }
+
+    private Toggle CreateToggle(string name, RectTransform parent, string label, bool initialValue, UnityAction<bool> onValueChanged)
+    {
+        GameObject obj = new GameObject(name, typeof(RectTransform), typeof(Toggle));
+        obj.layer = parent.gameObject.layer;
+        RectTransform rectTransform = obj.GetComponent<RectTransform>();
+        rectTransform.SetParent(parent, false);
+        rectTransform.sizeDelta = new Vector2(68f, 28f);
+
+        GameObject backgroundObject = new GameObject("Background", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        backgroundObject.layer = obj.layer;
+        RectTransform backgroundRect = backgroundObject.GetComponent<RectTransform>();
+        backgroundRect.SetParent(rectTransform, false);
+        backgroundRect.anchorMin = new Vector2(0f, 0.5f);
+        backgroundRect.anchorMax = new Vector2(0f, 0.5f);
+        backgroundRect.sizeDelta = new Vector2(12f, 12f);
+        backgroundRect.anchoredPosition = new Vector2(8f, 0f);
+        backgroundObject.GetComponent<Image>().color = new Color(0.18f, 0.24f, 0.28f, 0.88f);
+
+        GameObject checkObject = new GameObject("Checkmark", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        checkObject.layer = obj.layer;
+        RectTransform checkRect = checkObject.GetComponent<RectTransform>();
+        checkRect.SetParent(backgroundRect, false);
+        checkRect.anchorMin = Vector2.zero;
+        checkRect.anchorMax = Vector2.one;
+        checkRect.offsetMin = new Vector2(2f, 2f);
+        checkRect.offsetMax = new Vector2(-2f, -2f);
+        checkObject.GetComponent<Image>().color = new Color(0.35f, 0.82f, 0.62f, 1f);
+
+        Text text = CreateText("Label", rectTransform, label, 9, FontStyle.Normal, TextAnchor.MiddleLeft, 28f);
+        RectTransform textRect = text.GetComponent<RectTransform>();
+        textRect.anchorMin = new Vector2(0f, 0f);
+        textRect.anchorMax = Vector2.one;
+        textRect.offsetMin = new Vector2(22f, 0f);
+        textRect.offsetMax = Vector2.zero;
+
+        Toggle toggle = obj.GetComponent<Toggle>();
+        toggle.targetGraphic = backgroundObject.GetComponent<Image>();
+        toggle.graphic = checkObject.GetComponent<Image>();
+        toggle.isOn = initialValue;
+        toggle.onValueChanged.AddListener(onValueChanged);
+        return toggle;
     }
 
     private static WeatherLocation ParseIpLocation(string json)

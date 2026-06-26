@@ -1673,6 +1673,34 @@ public class AudioVisualizer : MonoBehaviour
         GUILayout.Label($"Raw BPM: {detectedBPM:F1} | Variance: {bpmVariance:F3}", style);
     }
 
+    public void BuildStatusLines(List<string> lines)
+    {
+        if (lines == null)
+        {
+            return;
+        }
+
+        lines.Add($"BPM: {limitedBPM:F1}");
+        lines.Add($"Key: {currentKey} {currentMode}");
+        if (showBeatText)
+        {
+            lines.Add("** BEAT **");
+        }
+
+        lines.Add($"Kick: {kickEnergy:F3} (T: {dynamicKickThreshold:F3})");
+        lines.Add($"Confidence: {(beatConfidences.Count > 0 ? beatConfidences.Last() : 0):F2}");
+        lines.Add($"Variance: {bpmVariance:F3}");
+        lines.Add(GetPlaybackStatusText());
+        lines.Add($"Silence Energy: {smoothedSilenceEnergy:F5}");
+
+        if (enableDynamicRange)
+        {
+            lines.Add($"Dynamic Scale: {dynamicScaleFactor:F2} | Max Amplitude: {maxRecentAmplitude:F3}");
+        }
+
+        lines.Add($"Raw BPM: {detectedBPM:F1} | Variance: {bpmVariance:F3}");
+    }
+
     private string GetPlaybackStatusText()
     {
         if (wasSilent)
