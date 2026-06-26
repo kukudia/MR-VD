@@ -946,10 +946,11 @@ public class AudioCaptureCSCore : MonoBehaviour
             Destroy(screenCanvasPanelRoot.GetChild(i).gameObject);
         }
 
-        _screenCanvasFont = Resources.GetBuiltinResource<Font>("Arial.ttf");
+        _screenCanvasFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
         if (_screenCanvasFont == null)
         {
-            _screenCanvasFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            Debug.LogError("[AudioCaptureCSCore] LegacyRuntime.ttf built-in font was not found. Screen canvas panel cannot be created.");
+            return false;
         }
 
         _screenCanvasContent = CreateRect("AudioCaptureCanvasContent", screenCanvasPanelRoot, new Vector2(270f, 480f));

@@ -643,10 +643,11 @@ catch {
             Destroy(screenCanvasPanelRoot.GetChild(i).gameObject);
         }
 
-        screenCanvasFont = Resources.GetBuiltinResource<Font>("Arial.ttf");
+        screenCanvasFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
         if (screenCanvasFont == null)
         {
-            screenCanvasFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            UnityEngine.Debug.LogError("[RuntimeInformationPanel] LegacyRuntime.ttf built-in font was not found. Screen canvas panel cannot be created.");
+            return false;
         }
 
         screenCanvasContent = CreateRect("RuntimeInfoCanvasContent", screenCanvasPanelRoot, new Vector2(270f, 480f));
