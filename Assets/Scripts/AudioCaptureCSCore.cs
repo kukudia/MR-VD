@@ -69,6 +69,9 @@ public class AudioCaptureCSCore : MonoBehaviour
     [Tooltip("Selected capture device index. In Loopback mode this points to an output device.")]
     public int selectedDeviceIndex = 0;
 
+    [Tooltip("Places the Windows default endpoint first and selects it after startup, refresh, or capture-mode changes.")]
+    public bool preferSystemDefaultDevice = true;
+
     [Tooltip("Runtime device name list for the current capture mode.")]
     public List<string> deviceNames = new List<string>();
 
@@ -154,7 +157,7 @@ public class AudioCaptureCSCore : MonoBehaviour
         EnsureFftDataArrays(fftDataSize);
         RefreshDeviceList();
 
-        if (rememberLastDevice)
+        if (rememberLastDevice && !preferSystemDefaultDevice)
         {
             TryRestoreLastDevice();
         }
@@ -185,7 +188,23 @@ public class AudioCaptureCSCore : MonoBehaviour
     [ContextMenu("Refresh Audio Devices")]
     public void RefreshDeviceList()
     {
+        RefreshDeviceList(preferSystemDefaultDevice);
+    }
+
+    public void RefreshDeviceListAndRestartCapture()
+    {
+        RefreshDeviceList();
+
+        if (availableDevices != null && availableDevices.Length > 0)
+        {
+            InitializeCapture();
+        }
+    }
+
+    private void RefreshDeviceList(bool selectDefaultDevice)
+    {
         deviceNames.Clear();
+        string previousDeviceId = GetSelectedDeviceId();
         availableDevices = null;
         devicesRefreshed = false;
 
@@ -196,12 +215,15 @@ public class AudioCaptureCSCore : MonoBehaviour
             using (var enumerator = new MMDeviceEnumerator())
             {
                 var deviceCollection = enumerator.EnumAudioEndpoints(dataFlow, DeviceState.Active);
+                string defaultDeviceId = GetDefaultDeviceId(enumerator, dataFlow);
 
                 var deviceList = new List<MMDevice>();
                 for (int i = 0; i < deviceCollection.Count; i++)
                 {
                     deviceList.Add(deviceCollection[i]);
                 }
+
+                MoveDefaultDeviceToTop(deviceList, defaultDeviceId);
                 availableDevices = deviceList.ToArray();
 
                 foreach (var device in availableDevices)
@@ -213,10 +235,25 @@ public class AudioCaptureCSCore : MonoBehaviour
             if (availableDevices.Length == 0)
             {
                 Debug.LogWarning($"[AudioCaptureCSCore] No active {captureMode} devices found.");
+                selectedDeviceIndex = 0;
             }
             else
             {
                 Debug.Log($"[AudioCaptureCSCore] Found {availableDevices.Length} {captureMode} device(s).");
+                if (selectDefaultDevice)
+                {
+                    selectedDeviceIndex = 0;
+                }
+                else if (!string.IsNullOrEmpty(previousDeviceId))
+                {
+                    int restoredIndex = Array.FindIndex(availableDevices, d =>
+                        string.Equals(d.DeviceID, previousDeviceId, StringComparison.OrdinalIgnoreCase));
+                    selectedDeviceIndex = restoredIndex >= 0 ? restoredIndex : Mathf.Clamp(selectedDeviceIndex, 0, availableDevices.Length - 1);
+                }
+                else
+                {
+                    selectedDeviceIndex = Mathf.Clamp(selectedDeviceIndex, 0, availableDevices.Length - 1);
+                }
             }
             devicesRefreshed = true;
         }
@@ -239,7 +276,7 @@ public class AudioCaptureCSCore : MonoBehaviour
 
         if (!devicesRefreshed || availableDevices == null)
         {
-            RefreshDeviceList();
+            RefreshDeviceList(false);
         }
 
         if (availableDevices == null || availableDevices.Length == 0)
@@ -256,6 +293,51 @@ public class AudioCaptureCSCore : MonoBehaviour
 
         selectedDeviceIndex = index;
         InitializeCapture();
+    }
+
+    private string GetSelectedDeviceId()
+    {
+        if (availableDevices == null || selectedDeviceIndex < 0 || selectedDeviceIndex >= availableDevices.Length)
+        {
+            return null;
+        }
+
+        return availableDevices[selectedDeviceIndex].DeviceID;
+    }
+
+    private static string GetDefaultDeviceId(MMDeviceEnumerator enumerator, DataFlow dataFlow)
+    {
+        try
+        {
+            using (MMDevice defaultDevice = enumerator.GetDefaultAudioEndpoint(dataFlow, Role.Multimedia))
+            {
+                return defaultDevice?.DeviceID;
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"[AudioCaptureCSCore] Could not resolve default {dataFlow} endpoint: {ex.Message}");
+            return null;
+        }
+    }
+
+    private static void MoveDefaultDeviceToTop(List<MMDevice> deviceList, string defaultDeviceId)
+    {
+        if (deviceList == null || deviceList.Count <= 1 || string.IsNullOrEmpty(defaultDeviceId))
+        {
+            return;
+        }
+
+        int defaultIndex = deviceList.FindIndex(device =>
+            string.Equals(device.DeviceID, defaultDeviceId, StringComparison.OrdinalIgnoreCase));
+        if (defaultIndex <= 0)
+        {
+            return;
+        }
+
+        MMDevice defaultDevice = deviceList[defaultIndex];
+        deviceList.RemoveAt(defaultIndex);
+        deviceList.Insert(0, defaultDevice);
     }
 
     private void InitializeCapture()
@@ -579,8 +661,7 @@ public class AudioCaptureCSCore : MonoBehaviour
         }
 
         captureMode = mode;
-        selectedDeviceIndex = 0;
-        RefreshDeviceList();
+        RefreshDeviceList(preferSystemDefaultDevice);
         InitializeCapture();
 
         Debug.Log($"[AudioCaptureCSCore] Capture mode switched to: {mode}");
@@ -728,8 +809,15 @@ public class AudioCaptureCSCore : MonoBehaviour
                 using (var enumerator = new MMDeviceEnumerator())
                 {
                     var col = enumerator.EnumAudioEndpoints(dataFlow, DeviceState.Active);
+                    string defaultDeviceId = GetDefaultDeviceId(enumerator, dataFlow);
+                    var currentDevices = new List<MMDevice>();
                     for (int i = 0; i < col.Count; i++)
-                        currentNames.Add(col[i].FriendlyName);
+                    {
+                        currentDevices.Add(col[i]);
+                    }
+
+                    MoveDefaultDeviceToTop(currentDevices, defaultDeviceId);
+                    currentNames.AddRange(currentDevices.Select(device => device.FriendlyName));
                 }
             }
             catch (Exception ex)
@@ -745,19 +833,22 @@ public class AudioCaptureCSCore : MonoBehaviour
                 _lastKnownDeviceNames = currentNames;
 
                 string previousDevice = currentDeviceName;
-                RefreshDeviceList();
+                RefreshDeviceList(preferSystemDefaultDevice);
 
                 int restoredIndex = Array.FindIndex(availableDevices ?? Array.Empty<MMDevice>(),
                     d => d.FriendlyName == previousDevice);
 
-                if (restoredIndex >= 0)
+                if (!preferSystemDefaultDevice && restoredIndex >= 0)
                 {
                     selectedDeviceIndex = restoredIndex;
                 }
                 else if (availableDevices != null && availableDevices.Length > 0)
                 {
                     selectedDeviceIndex = 0;
-                    Debug.LogWarning($"[AudioCaptureCSCore] Previous device \"{previousDevice}\" disconnected. Switching to index 0.");
+                    if (!preferSystemDefaultDevice)
+                    {
+                        Debug.LogWarning($"[AudioCaptureCSCore] Previous device \"{previousDevice}\" disconnected. Switching to index 0.");
+                    }
                     InitializeCapture();
                 }
 
@@ -806,7 +897,7 @@ public class AudioCaptureCSCore : MonoBehaviour
         GUILayout.BeginHorizontal();
         if (GUILayout.Button("Refresh"))
         {
-            RefreshDeviceList();
+            RefreshDeviceListAndRestartCapture();
         }
 
         if (GUILayout.Button("Previous"))
@@ -978,7 +1069,7 @@ public class AudioCaptureCSCore : MonoBehaviour
         RectTransform actionRow = FindOrCreateRow("ActionButtons", _screenCanvasContent, 30f);
         Button refreshButton = FindOrCreateButton("RefreshButton", actionRow, "Refresh");
         refreshButton.onClick.RemoveAllListeners();
-        refreshButton.onClick.AddListener(RefreshDeviceList);
+        refreshButton.onClick.AddListener(RefreshDeviceListAndRestartCapture);
         Button previousButton = FindOrCreateButton("PreviousButton", actionRow, "Prev");
         previousButton.onClick.RemoveAllListeners();
         previousButton.onClick.AddListener(SwitchToPreviousDevice);
@@ -987,11 +1078,114 @@ public class AudioCaptureCSCore : MonoBehaviour
         nextButton.onClick.AddListener(SwitchToNextDevice);
 
         _screenDeviceHeaderText = FindOrCreateText("DeviceHeaderText", _screenCanvasContent, string.Empty, 12, FontStyle.Bold, TextAnchor.MiddleLeft, 22f);
-        FindOrCreateRect("DeviceList", _screenCanvasContent, new Vector2(250f, 150f));
+        EnsureScreenDeviceList();
         _screenVisualizerText = FindOrCreateText("VisualizerText", _screenCanvasContent, string.Empty, 10, FontStyle.Normal, TextAnchor.UpperLeft, 185f);
 
         UpdateScreenCanvasPanel(true);
         return true;
+    }
+
+    private RectTransform EnsureScreenDeviceList()
+    {
+        RectTransform deviceList = FindOrCreateRect("DeviceList", _screenCanvasContent, new Vector2(250f, 150f));
+        deviceList.sizeDelta = new Vector2(250f, 150f);
+
+        VerticalLayoutGroup legacyLayout = deviceList.GetComponent<VerticalLayoutGroup>();
+        if (legacyLayout != null)
+        {
+            Destroy(legacyLayout);
+        }
+
+        LayoutElement layoutElement = deviceList.GetComponent<LayoutElement>();
+        if (layoutElement == null)
+        {
+            layoutElement = deviceList.gameObject.AddComponent<LayoutElement>();
+        }
+        layoutElement.preferredHeight = 150f;
+        layoutElement.minHeight = 120f;
+        layoutElement.flexibleHeight = 0f;
+
+        Image background = deviceList.GetComponent<Image>();
+        if (background == null)
+        {
+            background = deviceList.gameObject.AddComponent<Image>();
+        }
+        background.color = new Color(0.05f, 0.07f, 0.08f, 0.45f);
+        background.raycastTarget = true;
+
+        ScrollRect scrollRect = deviceList.GetComponent<ScrollRect>();
+        if (scrollRect == null)
+        {
+            scrollRect = deviceList.gameObject.AddComponent<ScrollRect>();
+        }
+        scrollRect.horizontal = false;
+        scrollRect.vertical = true;
+        scrollRect.movementType = ScrollRect.MovementType.Clamped;
+        scrollRect.scrollSensitivity = 12f;
+
+        for (int i = deviceList.childCount - 1; i >= 0; i--)
+        {
+            Transform child = deviceList.GetChild(i);
+            if (child.name != "Viewport")
+            {
+                Destroy(child.gameObject);
+            }
+        }
+
+        RectTransform viewport = FindOrCreateRect("Viewport", deviceList, new Vector2(250f, 150f));
+        viewport.anchorMin = Vector2.zero;
+        viewport.anchorMax = Vector2.one;
+        viewport.offsetMin = Vector2.zero;
+        viewport.offsetMax = Vector2.zero;
+        viewport.pivot = new Vector2(0.5f, 0.5f);
+
+        Image viewportImage = viewport.GetComponent<Image>();
+        if (viewportImage == null)
+        {
+            viewportImage = viewport.gameObject.AddComponent<Image>();
+        }
+        viewportImage.color = new Color(1f, 1f, 1f, 0.001f);
+        viewportImage.raycastTarget = true;
+
+        Mask mask = viewport.GetComponent<Mask>();
+        if (mask == null)
+        {
+            mask = viewport.gameObject.AddComponent<Mask>();
+        }
+        mask.showMaskGraphic = false;
+
+        RectTransform content = FindOrCreateRect("Content", viewport, new Vector2(250f, 150f));
+        content.anchorMin = new Vector2(0f, 1f);
+        content.anchorMax = new Vector2(1f, 1f);
+        content.pivot = new Vector2(0.5f, 1f);
+        content.anchoredPosition = Vector2.zero;
+        content.offsetMin = new Vector2(0f, content.offsetMin.y);
+        content.offsetMax = new Vector2(0f, 0f);
+
+        VerticalLayoutGroup layout = content.GetComponent<VerticalLayoutGroup>();
+        if (layout == null)
+        {
+            layout = content.gameObject.AddComponent<VerticalLayoutGroup>();
+        }
+        layout.padding = new RectOffset(0, 0, 0, 0);
+        layout.spacing = 3f;
+        layout.childAlignment = TextAnchor.UpperLeft;
+        layout.childControlWidth = true;
+        layout.childControlHeight = true;
+        layout.childForceExpandWidth = true;
+        layout.childForceExpandHeight = false;
+
+        ContentSizeFitter fitter = content.GetComponent<ContentSizeFitter>();
+        if (fitter == null)
+        {
+            fitter = content.gameObject.AddComponent<ContentSizeFitter>();
+        }
+        fitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
+        fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+        scrollRect.viewport = viewport;
+        scrollRect.content = content;
+        return content;
     }
 
     private void RebuildScreenDeviceButtons()
@@ -1001,48 +1195,30 @@ public class AudioCaptureCSCore : MonoBehaviour
             return;
         }
 
-        Transform deviceList = _screenCanvasContent.Find("DeviceList");
-        if (deviceList == null)
+        RectTransform deviceContent = EnsureScreenDeviceList();
+        if (deviceContent == null)
         {
             return;
         }
 
-        for (int i = deviceList.childCount - 1; i >= 0; i--)
+        for (int i = deviceContent.childCount - 1; i >= 0; i--)
         {
-            Destroy(deviceList.GetChild(i).gameObject);
-        }
-
-        VerticalLayoutGroup layout = deviceList.GetComponent<VerticalLayoutGroup>();
-        if (layout == null)
-        {
-            layout = deviceList.gameObject.AddComponent<VerticalLayoutGroup>();
-            layout.spacing = 3f;
-            layout.childAlignment = TextAnchor.UpperLeft;
-            layout.childControlWidth = true;
-            layout.childControlHeight = true;
-            layout.childForceExpandWidth = true;
-            layout.childForceExpandHeight = false;
+            Destroy(deviceContent.GetChild(i).gameObject);
         }
 
         if (deviceNames.Count == 0)
         {
-            FindOrCreateText("NoDevicesText", (RectTransform)deviceList, "No active devices", 10, FontStyle.Italic, TextAnchor.MiddleLeft, 24f);
+            FindOrCreateText("NoDevicesText", deviceContent, "No active devices", 10, FontStyle.Italic, TextAnchor.MiddleLeft, 24f);
             return;
         }
 
-        int maxVisibleDevices = Mathf.Min(deviceNames.Count, 5);
-        for (int i = 0; i < maxVisibleDevices; i++)
+        for (int i = 0; i < deviceNames.Count; i++)
         {
             int deviceIndex = i;
             string prefix = deviceIndex == selectedDeviceIndex ? "* " : string.Empty;
-            Button deviceButton = FindOrCreateButton("DeviceButton" + i, (RectTransform)deviceList, $"{prefix}{deviceIndex}: {deviceNames[i]}", 24f, 9);
+            Button deviceButton = FindOrCreateButton("DeviceButton" + i, deviceContent, $"{prefix}{deviceIndex}: {deviceNames[i]}", 24f, 9);
             deviceButton.onClick.RemoveAllListeners();
             deviceButton.onClick.AddListener(() => SwitchDevice(deviceIndex));
-        }
-
-        if (deviceNames.Count > maxVisibleDevices)
-        {
-            FindOrCreateText("MoreDevicesText", (RectTransform)deviceList, $"+ {deviceNames.Count - maxVisibleDevices} more devices", 9, FontStyle.Italic, TextAnchor.MiddleLeft, 18f);
         }
     }
 
@@ -1166,6 +1342,7 @@ public class AudioCaptureCSCore : MonoBehaviour
             image = obj.AddComponent<Image>();
         }
         image.color = new Color(0.18f, 0.24f, 0.28f, 0.88f);
+        image.raycastTarget = true;
 
         Button button = obj.GetComponent<Button>();
         if (button == null)
@@ -1173,6 +1350,7 @@ public class AudioCaptureCSCore : MonoBehaviour
             button = obj.AddComponent<Button>();
         }
         button.targetGraphic = image;
+        button.interactable = true;
 
         Text text = FindOrCreateText("Label", rectTransform, label, fontSize, FontStyle.Normal, TextAnchor.MiddleCenter, height);
         text.color = Color.white;

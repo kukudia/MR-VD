@@ -106,17 +106,67 @@ public static class ScreenCanvasPanelSceneBuilder
 
         CreateText("DeviceHeaderText", content, "Loopback Devices", font, 12, FontStyle.Bold, TextAnchor.MiddleLeft, 22f);
 
-        RectTransform deviceList = CreateRect("DeviceList", content, new Vector2(250f, 150f));
-        VerticalLayoutGroup deviceLayout = deviceList.gameObject.AddComponent<VerticalLayoutGroup>();
+        CreateDeviceList(content, font);
+
+        CreateText("VisualizerText", content, "Audio Visualizer\nAudioVisualizer not found", font, 10, FontStyle.Normal, TextAnchor.UpperLeft, 185f);
+    }
+
+    private static RectTransform CreateDeviceList(RectTransform parent, Font font)
+    {
+        RectTransform deviceList = CreateRect("DeviceList", parent, new Vector2(250f, 150f));
+
+        LayoutElement layoutElement = deviceList.gameObject.AddComponent<LayoutElement>();
+        layoutElement.preferredHeight = 150f;
+        layoutElement.minHeight = 120f;
+        layoutElement.flexibleHeight = 0f;
+
+        Image background = deviceList.gameObject.AddComponent<Image>();
+        background.color = new Color(0.05f, 0.07f, 0.08f, 0.45f);
+        background.raycastTarget = true;
+
+        ScrollRect scrollRect = deviceList.gameObject.AddComponent<ScrollRect>();
+        scrollRect.horizontal = false;
+        scrollRect.vertical = true;
+        scrollRect.movementType = ScrollRect.MovementType.Clamped;
+        scrollRect.scrollSensitivity = 12f;
+
+        RectTransform viewport = CreateRect("Viewport", deviceList, new Vector2(250f, 150f));
+        viewport.anchorMin = Vector2.zero;
+        viewport.anchorMax = Vector2.one;
+        viewport.offsetMin = Vector2.zero;
+        viewport.offsetMax = Vector2.zero;
+
+        Image viewportImage = viewport.gameObject.AddComponent<Image>();
+        viewportImage.color = new Color(1f, 1f, 1f, 0.001f);
+        viewportImage.raycastTarget = true;
+
+        Mask mask = viewport.gameObject.AddComponent<Mask>();
+        mask.showMaskGraphic = false;
+
+        RectTransform deviceContent = CreateRect("Content", viewport, new Vector2(250f, 150f));
+        deviceContent.anchorMin = new Vector2(0f, 1f);
+        deviceContent.anchorMax = new Vector2(1f, 1f);
+        deviceContent.pivot = new Vector2(0.5f, 1f);
+        deviceContent.anchoredPosition = Vector2.zero;
+        deviceContent.offsetMin = new Vector2(0f, deviceContent.offsetMin.y);
+        deviceContent.offsetMax = new Vector2(0f, 0f);
+
+        VerticalLayoutGroup deviceLayout = deviceContent.gameObject.AddComponent<VerticalLayoutGroup>();
         deviceLayout.spacing = 3f;
         deviceLayout.childAlignment = TextAnchor.UpperLeft;
         deviceLayout.childControlWidth = true;
         deviceLayout.childControlHeight = true;
         deviceLayout.childForceExpandWidth = true;
         deviceLayout.childForceExpandHeight = false;
-        CreateText("NoDevicesText", deviceList, "No active devices", font, 10, FontStyle.Italic, TextAnchor.MiddleLeft, 24f);
 
-        CreateText("VisualizerText", content, "Audio Visualizer\nAudioVisualizer not found", font, 10, FontStyle.Normal, TextAnchor.UpperLeft, 185f);
+        ContentSizeFitter fitter = deviceContent.gameObject.AddComponent<ContentSizeFitter>();
+        fitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
+        fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+        scrollRect.viewport = viewport;
+        scrollRect.content = deviceContent;
+        CreateText("NoDevicesText", deviceContent, "No active devices", font, 10, FontStyle.Italic, TextAnchor.MiddleLeft, 24f);
+        return deviceContent;
     }
 
     private static void BuildInfoPanel(RectTransform panel, Font font)
@@ -178,9 +228,11 @@ public static class ScreenCanvasPanelSceneBuilder
 
         Image image = obj.GetComponent<Image>();
         image.color = new Color(0.18f, 0.24f, 0.28f, 0.88f);
+        image.raycastTarget = true;
 
         Button button = obj.GetComponent<Button>();
         button.targetGraphic = image;
+        button.interactable = true;
 
         Text text = CreateText("Label", rect, label, font, fontSize, FontStyle.Normal, TextAnchor.MiddleCenter, height);
         RectTransform textRect = text.GetComponent<RectTransform>();

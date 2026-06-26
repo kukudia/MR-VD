@@ -1368,6 +1368,7 @@ MonoBehaviour:
   fftDataOutputScale: 1
   fftDataSmoothingWeight: 0.5
   selectedDeviceIndex: 0
+  preferSystemDefaultDevice: 1
   deviceNames: []
   rememberLastDevice: 0
   enableHotplugDetection: 1
