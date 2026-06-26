@@ -145,6 +145,9 @@ public class AudioCaptureCSCore : MonoBehaviour
     private string _screenDeviceListSignature = string.Empty;
     private float _nextScreenCanvasRefreshTime;
     private Font _screenCanvasFont;
+    private const float ScreenCanvasContentWidth = 270f;
+    private const float ScreenCanvasContentHeight = 560f;
+    private const float ScreenCanvasChildWidth = 250f;
 
     private void Awake()
     {
@@ -1039,8 +1042,9 @@ public class AudioCaptureCSCore : MonoBehaviour
             return false;
         }
 
-        _screenCanvasContent = FindOrCreateRect("AudioCaptureCanvasContent", screenCanvasPanelRoot, new Vector2(270f, 480f));
+        _screenCanvasContent = FindOrCreateRect("AudioCaptureCanvasContent", screenCanvasPanelRoot, new Vector2(ScreenCanvasContentWidth, ScreenCanvasContentHeight));
         _screenCanvasContent.localScale = Vector3.one * 0.1f;
+        EnsureLayoutElement(_screenCanvasContent.gameObject, ScreenCanvasContentHeight, ScreenCanvasContentHeight, 0f, ScreenCanvasContentWidth, ScreenCanvasContentWidth);
 
         VerticalLayoutGroup layout = _screenCanvasContent.GetComponent<VerticalLayoutGroup>();
         if (layout == null)
@@ -1087,8 +1091,8 @@ public class AudioCaptureCSCore : MonoBehaviour
 
     private RectTransform EnsureScreenDeviceList()
     {
-        RectTransform deviceList = FindOrCreateRect("DeviceList", _screenCanvasContent, new Vector2(250f, 150f));
-        deviceList.sizeDelta = new Vector2(250f, 150f);
+        RectTransform deviceList = FindOrCreateRect("DeviceList", _screenCanvasContent, new Vector2(ScreenCanvasChildWidth, 150f));
+        deviceList.sizeDelta = new Vector2(ScreenCanvasChildWidth, 150f);
 
         VerticalLayoutGroup legacyLayout = deviceList.GetComponent<VerticalLayoutGroup>();
         if (legacyLayout != null)
@@ -1096,14 +1100,7 @@ public class AudioCaptureCSCore : MonoBehaviour
             Destroy(legacyLayout);
         }
 
-        LayoutElement layoutElement = deviceList.GetComponent<LayoutElement>();
-        if (layoutElement == null)
-        {
-            layoutElement = deviceList.gameObject.AddComponent<LayoutElement>();
-        }
-        layoutElement.preferredHeight = 150f;
-        layoutElement.minHeight = 120f;
-        layoutElement.flexibleHeight = 0f;
+        EnsureLayoutElement(deviceList.gameObject, 120f, 150f, 0f, ScreenCanvasChildWidth, ScreenCanvasChildWidth);
 
         Image background = deviceList.GetComponent<Image>();
         if (background == null)
@@ -1132,7 +1129,7 @@ public class AudioCaptureCSCore : MonoBehaviour
             }
         }
 
-        RectTransform viewport = FindOrCreateRect("Viewport", deviceList, new Vector2(250f, 150f));
+        RectTransform viewport = FindOrCreateRect("Viewport", deviceList, new Vector2(ScreenCanvasChildWidth, 150f));
         viewport.anchorMin = Vector2.zero;
         viewport.anchorMax = Vector2.one;
         viewport.offsetMin = Vector2.zero;
@@ -1154,7 +1151,7 @@ public class AudioCaptureCSCore : MonoBehaviour
         }
         mask.showMaskGraphic = false;
 
-        RectTransform content = FindOrCreateRect("Content", viewport, new Vector2(250f, 150f));
+        RectTransform content = FindOrCreateRect("Content", viewport, new Vector2(ScreenCanvasChildWidth, 150f));
         content.anchorMin = new Vector2(0f, 1f);
         content.anchorMax = new Vector2(1f, 1f);
         content.pivot = new Vector2(0.5f, 1f);
@@ -1247,7 +1244,8 @@ public class AudioCaptureCSCore : MonoBehaviour
 
     private RectTransform FindOrCreateRow(string name, RectTransform parent, float height)
     {
-        RectTransform row = FindOrCreateRect(name, parent, new Vector2(250f, height));
+        RectTransform row = FindOrCreateRect(name, parent, new Vector2(ScreenCanvasChildWidth, height));
+        EnsureLayoutElement(row.gameObject, height, height, 0f, ScreenCanvasChildWidth, ScreenCanvasChildWidth);
         HorizontalLayoutGroup layout = row.GetComponent<HorizontalLayoutGroup>();
         if (layout == null)
         {
@@ -1293,7 +1291,8 @@ public class AudioCaptureCSCore : MonoBehaviour
         }
 
         rectTransform.SetParent(parent, false);
-        rectTransform.sizeDelta = new Vector2(250f, height);
+        rectTransform.sizeDelta = new Vector2(ScreenCanvasChildWidth, height);
+        EnsureLayoutElement(obj, height, height, 0f, ScreenCanvasChildWidth, ScreenCanvasChildWidth);
 
         if (obj.GetComponent<CanvasRenderer>() == null)
         {
@@ -1330,6 +1329,7 @@ public class AudioCaptureCSCore : MonoBehaviour
 
         rectTransform.SetParent(parent, false);
         rectTransform.sizeDelta = new Vector2(80f, height);
+        EnsureLayoutElement(obj, height, height, 0f, 80f, 80f);
 
         if (obj.GetComponent<CanvasRenderer>() == null)
         {
@@ -1360,5 +1360,22 @@ public class AudioCaptureCSCore : MonoBehaviour
         textRect.offsetMin = new Vector2(4f, 2f);
         textRect.offsetMax = new Vector2(-4f, -2f);
         return button;
+    }
+
+    private static LayoutElement EnsureLayoutElement(GameObject obj, float minHeight, float preferredHeight, float flexibleHeight, float minWidth = -1f, float preferredWidth = -1f)
+    {
+        LayoutElement layoutElement = obj.GetComponent<LayoutElement>();
+        if (layoutElement == null)
+        {
+            layoutElement = obj.AddComponent<LayoutElement>();
+        }
+
+        layoutElement.minHeight = minHeight;
+        layoutElement.preferredHeight = preferredHeight;
+        layoutElement.flexibleHeight = flexibleHeight;
+        layoutElement.minWidth = minWidth;
+        layoutElement.preferredWidth = preferredWidth;
+        layoutElement.flexibleWidth = minWidth > 0f ? 0f : -1f;
+        return layoutElement;
     }
 }

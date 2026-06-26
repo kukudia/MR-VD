@@ -10,6 +10,9 @@ public static class ScreenCanvasPanelSceneBuilder
     private const string RunOnceMarkerPath = "Temp/rebuild-screen-canvas-panels.once";
     private const string AudioPanelPath = "Screen/Canvas/AudioPanel";
     private const string InfoPanelPath = "Screen/Canvas/InfoPanel";
+    private const float AudioContentWidth = 270f;
+    private const float AudioContentHeight = 560f;
+    private const float AudioChildWidth = 250f;
 
     [InitializeOnLoadMethod]
     private static void BuildIfRequested()
@@ -81,8 +84,9 @@ public static class ScreenCanvasPanelSceneBuilder
 
     private static void BuildAudioPanel(RectTransform panel, Font font)
     {
-        RectTransform content = CreateRect("AudioCaptureCanvasContent", panel, new Vector2(270f, 480f));
+        RectTransform content = CreateRect("AudioCaptureCanvasContent", panel, new Vector2(AudioContentWidth, AudioContentHeight));
         content.localScale = Vector3.one * 0.1f;
+        AddLayoutElement(content.gameObject, AudioContentHeight, AudioContentHeight, 0f, AudioContentWidth, AudioContentWidth);
         VerticalLayoutGroup layout = content.gameObject.AddComponent<VerticalLayoutGroup>();
         layout.padding = new RectOffset(10, 10, 10, 10);
         layout.spacing = 5f;
@@ -113,12 +117,9 @@ public static class ScreenCanvasPanelSceneBuilder
 
     private static RectTransform CreateDeviceList(RectTransform parent, Font font)
     {
-        RectTransform deviceList = CreateRect("DeviceList", parent, new Vector2(250f, 150f));
+        RectTransform deviceList = CreateRect("DeviceList", parent, new Vector2(AudioChildWidth, 150f));
 
-        LayoutElement layoutElement = deviceList.gameObject.AddComponent<LayoutElement>();
-        layoutElement.preferredHeight = 150f;
-        layoutElement.minHeight = 120f;
-        layoutElement.flexibleHeight = 0f;
+        AddLayoutElement(deviceList.gameObject, 120f, 150f, 0f, AudioChildWidth, AudioChildWidth);
 
         Image background = deviceList.gameObject.AddComponent<Image>();
         background.color = new Color(0.05f, 0.07f, 0.08f, 0.45f);
@@ -130,7 +131,7 @@ public static class ScreenCanvasPanelSceneBuilder
         scrollRect.movementType = ScrollRect.MovementType.Clamped;
         scrollRect.scrollSensitivity = 12f;
 
-        RectTransform viewport = CreateRect("Viewport", deviceList, new Vector2(250f, 150f));
+        RectTransform viewport = CreateRect("Viewport", deviceList, new Vector2(AudioChildWidth, 150f));
         viewport.anchorMin = Vector2.zero;
         viewport.anchorMax = Vector2.one;
         viewport.offsetMin = Vector2.zero;
@@ -143,7 +144,7 @@ public static class ScreenCanvasPanelSceneBuilder
         Mask mask = viewport.gameObject.AddComponent<Mask>();
         mask.showMaskGraphic = false;
 
-        RectTransform deviceContent = CreateRect("Content", viewport, new Vector2(250f, 150f));
+        RectTransform deviceContent = CreateRect("Content", viewport, new Vector2(AudioChildWidth, 150f));
         deviceContent.anchorMin = new Vector2(0f, 1f);
         deviceContent.anchorMax = new Vector2(1f, 1f);
         deviceContent.pivot = new Vector2(0.5f, 1f);
@@ -201,7 +202,7 @@ public static class ScreenCanvasPanelSceneBuilder
     {
         RectTransform row = CreateRow(name, parent, 30f);
         Text label = CreateText(title + "Label", row, title, font, 12, FontStyle.Bold, TextAnchor.MiddleLeft, 28f);
-        LayoutElement layout = label.gameObject.AddComponent<LayoutElement>();
+        LayoutElement layout = label.gameObject.GetComponent<LayoutElement>();
         layout.flexibleWidth = 1f;
         layout.preferredWidth = 90f;
         return row;
@@ -209,7 +210,8 @@ public static class ScreenCanvasPanelSceneBuilder
 
     private static RectTransform CreateRow(string name, RectTransform parent, float height)
     {
-        RectTransform row = CreateRect(name, parent, new Vector2(250f, height));
+        RectTransform row = CreateRect(name, parent, new Vector2(AudioChildWidth, height));
+        AddLayoutElement(row.gameObject, height, height, 0f, AudioChildWidth, AudioChildWidth);
         HorizontalLayoutGroup layout = row.gameObject.AddComponent<HorizontalLayoutGroup>();
         layout.spacing = 4f;
         layout.childAlignment = TextAnchor.MiddleLeft;
@@ -225,6 +227,7 @@ public static class ScreenCanvasPanelSceneBuilder
         GameObject obj = CreateObject(name, parent, typeof(CanvasRenderer), typeof(Image), typeof(Button));
         RectTransform rect = obj.GetComponent<RectTransform>();
         rect.sizeDelta = new Vector2(width, height);
+        AddLayoutElement(obj, height, height, 0f, width, width);
 
         Image image = obj.GetComponent<Image>();
         image.color = new Color(0.18f, 0.24f, 0.28f, 0.88f);
@@ -248,6 +251,7 @@ public static class ScreenCanvasPanelSceneBuilder
         GameObject obj = CreateObject(name, parent, typeof(Toggle));
         RectTransform rect = obj.GetComponent<RectTransform>();
         rect.sizeDelta = new Vector2(68f, 28f);
+        AddLayoutElement(obj, 28f, 28f, 0f, 68f, 68f);
 
         GameObject background = CreateObject("Background", rect, typeof(CanvasRenderer), typeof(Image));
         RectTransform backgroundRect = background.GetComponent<RectTransform>();
@@ -285,7 +289,8 @@ public static class ScreenCanvasPanelSceneBuilder
     {
         GameObject obj = CreateObject(name, parent, typeof(CanvasRenderer), typeof(Text));
         RectTransform rect = obj.GetComponent<RectTransform>();
-        rect.sizeDelta = new Vector2(250f, height);
+        rect.sizeDelta = new Vector2(AudioChildWidth, height);
+        AddLayoutElement(obj, height, height, 0f, AudioChildWidth, AudioChildWidth);
 
         Text text = obj.GetComponent<Text>();
         text.font = font;
@@ -348,5 +353,17 @@ public static class ScreenCanvasPanelSceneBuilder
         }
 
         return obj.GetComponent<RectTransform>();
+    }
+
+    private static LayoutElement AddLayoutElement(GameObject obj, float minHeight, float preferredHeight, float flexibleHeight, float minWidth = -1f, float preferredWidth = -1f)
+    {
+        LayoutElement layoutElement = obj.AddComponent<LayoutElement>();
+        layoutElement.minHeight = minHeight;
+        layoutElement.preferredHeight = preferredHeight;
+        layoutElement.flexibleHeight = flexibleHeight;
+        layoutElement.minWidth = minWidth;
+        layoutElement.preferredWidth = preferredWidth;
+        layoutElement.flexibleWidth = minWidth > 0f ? 0f : -1f;
+        return layoutElement;
     }
 }
