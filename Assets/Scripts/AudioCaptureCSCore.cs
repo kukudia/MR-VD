@@ -936,14 +936,9 @@ public class AudioCaptureCSCore : MonoBehaviour
             return false;
         }
 
-        if (_screenCanvasContent != null && !forceRebuild)
+        if (_screenCanvasContent != null && _screenModeText != null && _screenDeviceText != null && _screenDeviceHeaderText != null && _screenVisualizerText != null && !forceRebuild)
         {
             return true;
-        }
-
-        for (int i = screenCanvasPanelRoot.childCount - 1; i >= 0; i--)
-        {
-            Destroy(screenCanvasPanelRoot.GetChild(i).gameObject);
         }
 
         _screenCanvasFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
@@ -953,10 +948,14 @@ public class AudioCaptureCSCore : MonoBehaviour
             return false;
         }
 
-        _screenCanvasContent = CreateRect("AudioCaptureCanvasContent", screenCanvasPanelRoot, new Vector2(270f, 480f));
+        _screenCanvasContent = FindOrCreateRect("AudioCaptureCanvasContent", screenCanvasPanelRoot, new Vector2(270f, 480f));
         _screenCanvasContent.localScale = Vector3.one * 0.1f;
 
-        VerticalLayoutGroup layout = _screenCanvasContent.gameObject.AddComponent<VerticalLayoutGroup>();
+        VerticalLayoutGroup layout = _screenCanvasContent.GetComponent<VerticalLayoutGroup>();
+        if (layout == null)
+        {
+            layout = _screenCanvasContent.gameObject.AddComponent<VerticalLayoutGroup>();
+        }
         layout.padding = new RectOffset(10, 10, 10, 10);
         layout.spacing = 5f;
         layout.childAlignment = TextAnchor.UpperLeft;
@@ -965,21 +964,31 @@ public class AudioCaptureCSCore : MonoBehaviour
         layout.childForceExpandWidth = true;
         layout.childForceExpandHeight = false;
 
-        _screenModeText = CreateText("ModeText", _screenCanvasContent, string.Empty, 13, FontStyle.Bold, TextAnchor.MiddleLeft, 24f);
-        _screenDeviceText = CreateText("DeviceText", _screenCanvasContent, string.Empty, 11, FontStyle.Normal, TextAnchor.UpperLeft, 42f);
+        _screenModeText = FindOrCreateText("ModeText", _screenCanvasContent, string.Empty, 13, FontStyle.Bold, TextAnchor.MiddleLeft, 24f);
+        _screenDeviceText = FindOrCreateText("DeviceText", _screenCanvasContent, string.Empty, 11, FontStyle.Normal, TextAnchor.UpperLeft, 42f);
 
-        RectTransform modeRow = CreateRow("ModeButtons", _screenCanvasContent, 30f);
-        CreateButton("InputButton", modeRow, "Input", () => SwitchCaptureMode(CaptureMode.Input));
-        CreateButton("LoopbackButton", modeRow, "Loopback", () => SwitchCaptureMode(CaptureMode.Loopback));
+        RectTransform modeRow = FindOrCreateRow("ModeButtons", _screenCanvasContent, 30f);
+        Button inputButton = FindOrCreateButton("InputButton", modeRow, "Input");
+        inputButton.onClick.RemoveAllListeners();
+        inputButton.onClick.AddListener(() => SwitchCaptureMode(CaptureMode.Input));
+        Button loopbackButton = FindOrCreateButton("LoopbackButton", modeRow, "Loopback");
+        loopbackButton.onClick.RemoveAllListeners();
+        loopbackButton.onClick.AddListener(() => SwitchCaptureMode(CaptureMode.Loopback));
 
-        RectTransform actionRow = CreateRow("ActionButtons", _screenCanvasContent, 30f);
-        CreateButton("RefreshButton", actionRow, "Refresh", RefreshDeviceList);
-        CreateButton("PreviousButton", actionRow, "Prev", SwitchToPreviousDevice);
-        CreateButton("NextButton", actionRow, "Next", SwitchToNextDevice);
+        RectTransform actionRow = FindOrCreateRow("ActionButtons", _screenCanvasContent, 30f);
+        Button refreshButton = FindOrCreateButton("RefreshButton", actionRow, "Refresh");
+        refreshButton.onClick.RemoveAllListeners();
+        refreshButton.onClick.AddListener(RefreshDeviceList);
+        Button previousButton = FindOrCreateButton("PreviousButton", actionRow, "Prev");
+        previousButton.onClick.RemoveAllListeners();
+        previousButton.onClick.AddListener(SwitchToPreviousDevice);
+        Button nextButton = FindOrCreateButton("NextButton", actionRow, "Next");
+        nextButton.onClick.RemoveAllListeners();
+        nextButton.onClick.AddListener(SwitchToNextDevice);
 
-        _screenDeviceHeaderText = CreateText("DeviceHeaderText", _screenCanvasContent, string.Empty, 12, FontStyle.Bold, TextAnchor.MiddleLeft, 22f);
-        CreateRect("DeviceList", _screenCanvasContent, new Vector2(250f, 150f));
-        _screenVisualizerText = CreateText("VisualizerText", _screenCanvasContent, string.Empty, 10, FontStyle.Normal, TextAnchor.UpperLeft, 185f);
+        _screenDeviceHeaderText = FindOrCreateText("DeviceHeaderText", _screenCanvasContent, string.Empty, 12, FontStyle.Bold, TextAnchor.MiddleLeft, 22f);
+        FindOrCreateRect("DeviceList", _screenCanvasContent, new Vector2(250f, 150f));
+        _screenVisualizerText = FindOrCreateText("VisualizerText", _screenCanvasContent, string.Empty, 10, FontStyle.Normal, TextAnchor.UpperLeft, 185f);
 
         UpdateScreenCanvasPanel(true);
         return true;
@@ -1017,7 +1026,7 @@ public class AudioCaptureCSCore : MonoBehaviour
 
         if (deviceNames.Count == 0)
         {
-            CreateText("NoDevicesText", (RectTransform)deviceList, "No active devices", 10, FontStyle.Italic, TextAnchor.MiddleLeft, 24f);
+            FindOrCreateText("NoDevicesText", (RectTransform)deviceList, "No active devices", 10, FontStyle.Italic, TextAnchor.MiddleLeft, 24f);
             return;
         }
 
@@ -1026,12 +1035,14 @@ public class AudioCaptureCSCore : MonoBehaviour
         {
             int deviceIndex = i;
             string prefix = deviceIndex == selectedDeviceIndex ? "* " : string.Empty;
-            CreateButton("DeviceButton" + i, (RectTransform)deviceList, $"{prefix}{deviceIndex}: {deviceNames[i]}", () => SwitchDevice(deviceIndex), 24f, 9);
+            Button deviceButton = FindOrCreateButton("DeviceButton" + i, (RectTransform)deviceList, $"{prefix}{deviceIndex}: {deviceNames[i]}", 24f, 9);
+            deviceButton.onClick.RemoveAllListeners();
+            deviceButton.onClick.AddListener(() => SwitchDevice(deviceIndex));
         }
 
         if (deviceNames.Count > maxVisibleDevices)
         {
-            CreateText("MoreDevicesText", (RectTransform)deviceList, $"+ {deviceNames.Count - maxVisibleDevices} more devices", 9, FontStyle.Italic, TextAnchor.MiddleLeft, 18f);
+            FindOrCreateText("MoreDevicesText", (RectTransform)deviceList, $"+ {deviceNames.Count - maxVisibleDevices} more devices", 9, FontStyle.Italic, TextAnchor.MiddleLeft, 18f);
         }
     }
 
@@ -1058,10 +1069,14 @@ public class AudioCaptureCSCore : MonoBehaviour
         _screenVisualizerText.text = string.Join("\n", lines);
     }
 
-    private RectTransform CreateRow(string name, RectTransform parent, float height)
+    private RectTransform FindOrCreateRow(string name, RectTransform parent, float height)
     {
-        RectTransform row = CreateRect(name, parent, new Vector2(250f, height));
-        HorizontalLayoutGroup layout = row.gameObject.AddComponent<HorizontalLayoutGroup>();
+        RectTransform row = FindOrCreateRect(name, parent, new Vector2(250f, height));
+        HorizontalLayoutGroup layout = row.GetComponent<HorizontalLayoutGroup>();
+        if (layout == null)
+        {
+            layout = row.gameObject.AddComponent<HorizontalLayoutGroup>();
+        }
         layout.spacing = 4f;
         layout.childControlWidth = true;
         layout.childControlHeight = true;
@@ -1070,11 +1085,17 @@ public class AudioCaptureCSCore : MonoBehaviour
         return row;
     }
 
-    private RectTransform CreateRect(string name, RectTransform parent, Vector2 size)
+    private RectTransform FindOrCreateRect(string name, RectTransform parent, Vector2 size)
     {
-        GameObject obj = new GameObject(name, typeof(RectTransform));
+        Transform existing = parent.Find(name);
+        GameObject obj = existing != null ? existing.gameObject : new GameObject(name, typeof(RectTransform));
         obj.layer = parent.gameObject.layer;
         RectTransform rectTransform = obj.GetComponent<RectTransform>();
+        if (rectTransform == null)
+        {
+            rectTransform = obj.AddComponent<RectTransform>();
+        }
+
         rectTransform.SetParent(parent, false);
         rectTransform.anchorMin = new Vector2(0.5f, 0.5f);
         rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
@@ -1084,15 +1105,31 @@ public class AudioCaptureCSCore : MonoBehaviour
         return rectTransform;
     }
 
-    private Text CreateText(string name, RectTransform parent, string text, int fontSize, FontStyle fontStyle, TextAnchor alignment, float height)
+    private Text FindOrCreateText(string name, RectTransform parent, string text, int fontSize, FontStyle fontStyle, TextAnchor alignment, float height)
     {
-        GameObject obj = new GameObject(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(Text));
+        Transform existing = parent.Find(name);
+        GameObject obj = existing != null ? existing.gameObject : new GameObject(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(Text));
         obj.layer = parent.gameObject.layer;
         RectTransform rectTransform = obj.GetComponent<RectTransform>();
+        if (rectTransform == null)
+        {
+            rectTransform = obj.AddComponent<RectTransform>();
+        }
+
         rectTransform.SetParent(parent, false);
         rectTransform.sizeDelta = new Vector2(250f, height);
 
+        if (obj.GetComponent<CanvasRenderer>() == null)
+        {
+            obj.AddComponent<CanvasRenderer>();
+        }
+
         Text label = obj.GetComponent<Text>();
+        if (label == null)
+        {
+            label = obj.AddComponent<Text>();
+        }
+
         label.font = _screenCanvasFont;
         label.fontSize = fontSize;
         label.fontStyle = fontStyle;
@@ -1104,22 +1141,40 @@ public class AudioCaptureCSCore : MonoBehaviour
         return label;
     }
 
-    private Button CreateButton(string name, RectTransform parent, string label, UnityAction onClick, float height = 28f, int fontSize = 10)
+    private Button FindOrCreateButton(string name, RectTransform parent, string label, float height = 28f, int fontSize = 10)
     {
-        GameObject obj = new GameObject(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button));
+        Transform existing = parent.Find(name);
+        GameObject obj = existing != null ? existing.gameObject : new GameObject(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button));
         obj.layer = parent.gameObject.layer;
         RectTransform rectTransform = obj.GetComponent<RectTransform>();
+        if (rectTransform == null)
+        {
+            rectTransform = obj.AddComponent<RectTransform>();
+        }
+
         rectTransform.SetParent(parent, false);
         rectTransform.sizeDelta = new Vector2(80f, height);
 
+        if (obj.GetComponent<CanvasRenderer>() == null)
+        {
+            obj.AddComponent<CanvasRenderer>();
+        }
+
         Image image = obj.GetComponent<Image>();
+        if (image == null)
+        {
+            image = obj.AddComponent<Image>();
+        }
         image.color = new Color(0.18f, 0.24f, 0.28f, 0.88f);
 
         Button button = obj.GetComponent<Button>();
+        if (button == null)
+        {
+            button = obj.AddComponent<Button>();
+        }
         button.targetGraphic = image;
-        button.onClick.AddListener(onClick);
 
-        Text text = CreateText("Label", rectTransform, label, fontSize, FontStyle.Normal, TextAnchor.MiddleCenter, height);
+        Text text = FindOrCreateText("Label", rectTransform, label, fontSize, FontStyle.Normal, TextAnchor.MiddleCenter, height);
         text.color = Color.white;
         RectTransform textRect = text.GetComponent<RectTransform>();
         textRect.anchorMin = Vector2.zero;

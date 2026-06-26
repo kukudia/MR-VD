@@ -145,28 +145,6 @@ catch {
     private string mailAccountName = string.Empty;
     private string mailError;
 
-    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
-    private static void CreatePanel()
-    {
-#if UNITY_2023_1_OR_NEWER
-        if (FindFirstObjectByType<RuntimeInformationPanel>() != null)
-#else
-        if (FindObjectOfType<RuntimeInformationPanel>() != null)
-#endif
-        {
-            return;
-        }
-
-        GameObject panelObject = GameObject.Find("Screen/Canvas/InfoPanel");
-        if (panelObject == null)
-        {
-            panelObject = new GameObject("Runtime Information Panel");
-            DontDestroyOnLoad(panelObject);
-        }
-
-        panelObject.AddComponent<RuntimeInformationPanel>();
-    }
-
     private void Awake()
     {
         if (instance != null && instance != this)
@@ -176,11 +154,6 @@ catch {
         }
 
         instance = this;
-        if (!IsUnderScreenCanvas())
-        {
-            DontDestroyOnLoad(gameObject);
-        }
-
         mailCancellation = new CancellationTokenSource();
     }
 
@@ -633,14 +606,9 @@ catch {
             return false;
         }
 
-        if (screenCanvasContent != null && !forceRebuild)
+        if (screenCanvasContent != null && localTimeText != null && weatherText != null && mailText != null && systemText != null && !forceRebuild)
         {
             return true;
-        }
-
-        for (int i = screenCanvasPanelRoot.childCount - 1; i >= 0; i--)
-        {
-            Destroy(screenCanvasPanelRoot.GetChild(i).gameObject);
         }
 
         screenCanvasFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
@@ -650,10 +618,14 @@ catch {
             return false;
         }
 
-        screenCanvasContent = CreateRect("RuntimeInfoCanvasContent", screenCanvasPanelRoot, new Vector2(270f, 480f));
+        screenCanvasContent = FindOrCreateRect("RuntimeInfoCanvasContent", screenCanvasPanelRoot, new Vector2(270f, 480f));
         screenCanvasContent.localScale = Vector3.one * 0.1f;
 
-        VerticalLayoutGroup layout = screenCanvasContent.gameObject.AddComponent<VerticalLayoutGroup>();
+        VerticalLayoutGroup layout = screenCanvasContent.GetComponent<VerticalLayoutGroup>();
+        if (layout == null)
+        {
+            layout = screenCanvasContent.gameObject.AddComponent<VerticalLayoutGroup>();
+        }
         layout.padding = new RectOffset(10, 10, 10, 10);
         layout.spacing = 6f;
         layout.childAlignment = TextAnchor.UpperLeft;
@@ -662,19 +634,27 @@ catch {
         layout.childForceExpandWidth = true;
         layout.childForceExpandHeight = false;
 
-        localTimeText = CreateText("LocalTimeText", screenCanvasContent, string.Empty, 15, FontStyle.Bold, TextAnchor.UpperLeft, 70f);
+        localTimeText = FindOrCreateText("LocalTimeText", screenCanvasContent, string.Empty, 15, FontStyle.Bold, TextAnchor.UpperLeft, 70f);
 
-        RectTransform weatherHeader = CreateHeaderRow("WeatherHeader", screenCanvasContent, "Weather");
-        CreateButton("WeatherRefreshButton", weatherHeader, "Refresh", () => RequestWeatherRefresh(true));
-        CreateToggle("WeatherAutoToggle", weatherHeader, "Auto", autoRefreshWeather, value => autoRefreshWeather = value);
-        weatherText = CreateText("WeatherText", screenCanvasContent, string.Empty, 10, FontStyle.Normal, TextAnchor.UpperLeft, 110f);
+        RectTransform weatherHeader = FindOrCreateHeaderRow("WeatherHeader", screenCanvasContent, "Weather");
+        Button weatherRefreshButton = FindOrCreateButton("WeatherRefreshButton", weatherHeader, "Refresh");
+        weatherRefreshButton.onClick.RemoveAllListeners();
+        weatherRefreshButton.onClick.AddListener(() => RequestWeatherRefresh(true));
+        Toggle weatherAutoToggle = FindOrCreateToggle("WeatherAutoToggle", weatherHeader, "Auto", autoRefreshWeather);
+        weatherAutoToggle.onValueChanged.RemoveAllListeners();
+        weatherAutoToggle.onValueChanged.AddListener(value => autoRefreshWeather = value);
+        weatherText = FindOrCreateText("WeatherText", screenCanvasContent, string.Empty, 10, FontStyle.Normal, TextAnchor.UpperLeft, 110f);
 
-        RectTransform mailHeader = CreateHeaderRow("MailHeader", screenCanvasContent, "Mail");
-        CreateButton("MailRefreshButton", mailHeader, "Refresh", () => RequestMailRefresh(true));
-        CreateToggle("MailAutoToggle", mailHeader, "Auto", autoRefreshMail, value => autoRefreshMail = value);
-        mailText = CreateText("MailText", screenCanvasContent, string.Empty, 9, FontStyle.Normal, TextAnchor.UpperLeft, 150f);
+        RectTransform mailHeader = FindOrCreateHeaderRow("MailHeader", screenCanvasContent, "Mail");
+        Button mailRefreshButton = FindOrCreateButton("MailRefreshButton", mailHeader, "Refresh");
+        mailRefreshButton.onClick.RemoveAllListeners();
+        mailRefreshButton.onClick.AddListener(() => RequestMailRefresh(true));
+        Toggle mailAutoToggle = FindOrCreateToggle("MailAutoToggle", mailHeader, "Auto", autoRefreshMail);
+        mailAutoToggle.onValueChanged.RemoveAllListeners();
+        mailAutoToggle.onValueChanged.AddListener(value => autoRefreshMail = value);
+        mailText = FindOrCreateText("MailText", screenCanvasContent, string.Empty, 9, FontStyle.Normal, TextAnchor.UpperLeft, 150f);
 
-        systemText = CreateText("SystemText", screenCanvasContent, string.Empty, 9, FontStyle.Normal, TextAnchor.UpperLeft, 60f);
+        systemText = FindOrCreateText("SystemText", screenCanvasContent, string.Empty, 9, FontStyle.Normal, TextAnchor.UpperLeft, 60f);
 
         UpdateScreenCanvasPanel(true);
         return true;
@@ -799,26 +779,14 @@ catch {
             + "\nPlatform: " + Application.platform + " | Network: " + Application.internetReachability;
     }
 
-    private bool IsUnderScreenCanvas()
+    private RectTransform FindOrCreateHeaderRow(string name, RectTransform parent, string title)
     {
-        Transform current = transform;
-        while (current != null)
+        RectTransform row = FindOrCreateRect(name, parent, new Vector2(250f, 30f));
+        HorizontalLayoutGroup layout = row.GetComponent<HorizontalLayoutGroup>();
+        if (layout == null)
         {
-            if (current.name == "Screen")
-            {
-                return true;
-            }
-
-            current = current.parent;
+            layout = row.gameObject.AddComponent<HorizontalLayoutGroup>();
         }
-
-        return false;
-    }
-
-    private RectTransform CreateHeaderRow(string name, RectTransform parent, string title)
-    {
-        RectTransform row = CreateRect(name, parent, new Vector2(250f, 30f));
-        HorizontalLayoutGroup layout = row.gameObject.AddComponent<HorizontalLayoutGroup>();
         layout.spacing = 4f;
         layout.childAlignment = TextAnchor.MiddleLeft;
         layout.childControlWidth = true;
@@ -826,18 +794,28 @@ catch {
         layout.childForceExpandWidth = false;
         layout.childForceExpandHeight = true;
 
-        Text label = CreateText(title + "Label", row, title, 12, FontStyle.Bold, TextAnchor.MiddleLeft, 28f);
-        LayoutElement labelLayout = label.gameObject.AddComponent<LayoutElement>();
+        Text label = FindOrCreateText(title + "Label", row, title, 12, FontStyle.Bold, TextAnchor.MiddleLeft, 28f);
+        LayoutElement labelLayout = label.GetComponent<LayoutElement>();
+        if (labelLayout == null)
+        {
+            labelLayout = label.gameObject.AddComponent<LayoutElement>();
+        }
         labelLayout.flexibleWidth = 1f;
         labelLayout.preferredWidth = 90f;
         return row;
     }
 
-    private RectTransform CreateRect(string name, RectTransform parent, Vector2 size)
+    private RectTransform FindOrCreateRect(string name, RectTransform parent, Vector2 size)
     {
-        GameObject obj = new GameObject(name, typeof(RectTransform));
+        Transform existing = parent.Find(name);
+        GameObject obj = existing != null ? existing.gameObject : new GameObject(name, typeof(RectTransform));
         obj.layer = parent.gameObject.layer;
         RectTransform rectTransform = obj.GetComponent<RectTransform>();
+        if (rectTransform == null)
+        {
+            rectTransform = obj.AddComponent<RectTransform>();
+        }
+
         rectTransform.SetParent(parent, false);
         rectTransform.anchorMin = new Vector2(0.5f, 0.5f);
         rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
@@ -847,15 +825,31 @@ catch {
         return rectTransform;
     }
 
-    private Text CreateText(string name, RectTransform parent, string text, int fontSize, FontStyle fontStyle, TextAnchor alignment, float height)
+    private Text FindOrCreateText(string name, RectTransform parent, string text, int fontSize, FontStyle fontStyle, TextAnchor alignment, float height)
     {
-        GameObject obj = new GameObject(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(Text));
+        Transform existing = parent.Find(name);
+        GameObject obj = existing != null ? existing.gameObject : new GameObject(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(Text));
         obj.layer = parent.gameObject.layer;
         RectTransform rectTransform = obj.GetComponent<RectTransform>();
+        if (rectTransform == null)
+        {
+            rectTransform = obj.AddComponent<RectTransform>();
+        }
+
         rectTransform.SetParent(parent, false);
         rectTransform.sizeDelta = new Vector2(250f, height);
 
+        if (obj.GetComponent<CanvasRenderer>() == null)
+        {
+            obj.AddComponent<CanvasRenderer>();
+        }
+
         Text label = obj.GetComponent<Text>();
+        if (label == null)
+        {
+            label = obj.AddComponent<Text>();
+        }
+
         label.font = screenCanvasFont;
         label.fontSize = fontSize;
         label.fontStyle = fontStyle;
@@ -867,22 +861,40 @@ catch {
         return label;
     }
 
-    private Button CreateButton(string name, RectTransform parent, string label, UnityAction onClick)
+    private Button FindOrCreateButton(string name, RectTransform parent, string label)
     {
-        GameObject obj = new GameObject(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button));
+        Transform existing = parent.Find(name);
+        GameObject obj = existing != null ? existing.gameObject : new GameObject(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button));
         obj.layer = parent.gameObject.layer;
         RectTransform rectTransform = obj.GetComponent<RectTransform>();
+        if (rectTransform == null)
+        {
+            rectTransform = obj.AddComponent<RectTransform>();
+        }
+
         rectTransform.SetParent(parent, false);
         rectTransform.sizeDelta = new Vector2(62f, 28f);
 
+        if (obj.GetComponent<CanvasRenderer>() == null)
+        {
+            obj.AddComponent<CanvasRenderer>();
+        }
+
         Image image = obj.GetComponent<Image>();
+        if (image == null)
+        {
+            image = obj.AddComponent<Image>();
+        }
         image.color = new Color(0.18f, 0.24f, 0.28f, 0.88f);
 
         Button button = obj.GetComponent<Button>();
+        if (button == null)
+        {
+            button = obj.AddComponent<Button>();
+        }
         button.targetGraphic = image;
-        button.onClick.AddListener(onClick);
 
-        Text text = CreateText("Label", rectTransform, label, 9, FontStyle.Normal, TextAnchor.MiddleCenter, 28f);
+        Text text = FindOrCreateText("Label", rectTransform, label, 9, FontStyle.Normal, TextAnchor.MiddleCenter, 28f);
         RectTransform textRect = text.GetComponent<RectTransform>();
         textRect.anchorMin = Vector2.zero;
         textRect.anchorMax = Vector2.one;
@@ -891,35 +903,73 @@ catch {
         return button;
     }
 
-    private Toggle CreateToggle(string name, RectTransform parent, string label, bool initialValue, UnityAction<bool> onValueChanged)
+    private Toggle FindOrCreateToggle(string name, RectTransform parent, string label, bool initialValue)
     {
-        GameObject obj = new GameObject(name, typeof(RectTransform), typeof(Toggle));
+        Transform existing = parent.Find(name);
+        GameObject obj = existing != null ? existing.gameObject : new GameObject(name, typeof(RectTransform), typeof(Toggle));
         obj.layer = parent.gameObject.layer;
         RectTransform rectTransform = obj.GetComponent<RectTransform>();
+        if (rectTransform == null)
+        {
+            rectTransform = obj.AddComponent<RectTransform>();
+        }
+
         rectTransform.SetParent(parent, false);
         rectTransform.sizeDelta = new Vector2(68f, 28f);
 
-        GameObject backgroundObject = new GameObject("Background", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        Transform backgroundExisting = rectTransform.Find("Background");
+        GameObject backgroundObject = backgroundExisting != null ? backgroundExisting.gameObject : new GameObject("Background", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
         backgroundObject.layer = obj.layer;
         RectTransform backgroundRect = backgroundObject.GetComponent<RectTransform>();
+        if (backgroundRect == null)
+        {
+            backgroundRect = backgroundObject.AddComponent<RectTransform>();
+        }
+
         backgroundRect.SetParent(rectTransform, false);
         backgroundRect.anchorMin = new Vector2(0f, 0.5f);
         backgroundRect.anchorMax = new Vector2(0f, 0.5f);
         backgroundRect.sizeDelta = new Vector2(12f, 12f);
         backgroundRect.anchoredPosition = new Vector2(8f, 0f);
-        backgroundObject.GetComponent<Image>().color = new Color(0.18f, 0.24f, 0.28f, 0.88f);
+        if (backgroundObject.GetComponent<CanvasRenderer>() == null)
+        {
+            backgroundObject.AddComponent<CanvasRenderer>();
+        }
 
-        GameObject checkObject = new GameObject("Checkmark", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        Image backgroundImage = backgroundObject.GetComponent<Image>();
+        if (backgroundImage == null)
+        {
+            backgroundImage = backgroundObject.AddComponent<Image>();
+        }
+        backgroundImage.color = new Color(0.18f, 0.24f, 0.28f, 0.88f);
+
+        Transform checkExisting = backgroundRect.Find("Checkmark");
+        GameObject checkObject = checkExisting != null ? checkExisting.gameObject : new GameObject("Checkmark", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
         checkObject.layer = obj.layer;
         RectTransform checkRect = checkObject.GetComponent<RectTransform>();
+        if (checkRect == null)
+        {
+            checkRect = checkObject.AddComponent<RectTransform>();
+        }
+
         checkRect.SetParent(backgroundRect, false);
         checkRect.anchorMin = Vector2.zero;
         checkRect.anchorMax = Vector2.one;
         checkRect.offsetMin = new Vector2(2f, 2f);
         checkRect.offsetMax = new Vector2(-2f, -2f);
-        checkObject.GetComponent<Image>().color = new Color(0.35f, 0.82f, 0.62f, 1f);
+        if (checkObject.GetComponent<CanvasRenderer>() == null)
+        {
+            checkObject.AddComponent<CanvasRenderer>();
+        }
 
-        Text text = CreateText("Label", rectTransform, label, 9, FontStyle.Normal, TextAnchor.MiddleLeft, 28f);
+        Image checkImage = checkObject.GetComponent<Image>();
+        if (checkImage == null)
+        {
+            checkImage = checkObject.AddComponent<Image>();
+        }
+        checkImage.color = new Color(0.35f, 0.82f, 0.62f, 1f);
+
+        Text text = FindOrCreateText("Label", rectTransform, label, 9, FontStyle.Normal, TextAnchor.MiddleLeft, 28f);
         RectTransform textRect = text.GetComponent<RectTransform>();
         textRect.anchorMin = new Vector2(0f, 0f);
         textRect.anchorMax = Vector2.one;
@@ -927,10 +977,13 @@ catch {
         textRect.offsetMax = Vector2.zero;
 
         Toggle toggle = obj.GetComponent<Toggle>();
-        toggle.targetGraphic = backgroundObject.GetComponent<Image>();
-        toggle.graphic = checkObject.GetComponent<Image>();
+        if (toggle == null)
+        {
+            toggle = obj.AddComponent<Toggle>();
+        }
+        toggle.targetGraphic = backgroundImage;
+        toggle.graphic = checkImage;
         toggle.isOn = initialValue;
-        toggle.onValueChanged.AddListener(onValueChanged);
         return toggle;
     }
 
