@@ -1149,15 +1149,18 @@ public class AudioCaptureCSCore : MonoBehaviour
             return;
         }
 
-        for (int i = deviceContent.childCount - 1; i >= 0; i--)
-        {
-            Destroy(deviceContent.GetChild(i).gameObject);
-        }
-
         if (deviceNames.Count == 0)
         {
-            FindOrCreateText("NoDevicesText", deviceContent, "No active devices", 10, FontStyle.Italic, TextAnchor.MiddleLeft, 24f);
+            SetScreenDeviceButtonsActive(deviceContent, 0);
+            Text noDevicesLabel = FindOrCreateText("NoDevicesText", deviceContent, "No active devices", 10, FontStyle.Italic, TextAnchor.MiddleLeft, 24f);
+            noDevicesLabel.gameObject.SetActive(true);
             return;
+        }
+
+        Transform noDevicesText = deviceContent.Find("NoDevicesText");
+        if (noDevicesText != null)
+        {
+            noDevicesText.gameObject.SetActive(false);
         }
 
         for (int i = 0; i < deviceNames.Count; i++)
@@ -1165,8 +1168,30 @@ public class AudioCaptureCSCore : MonoBehaviour
             int deviceIndex = i;
             string prefix = deviceIndex == selectedDeviceIndex ? "* " : string.Empty;
             Button deviceButton = FindOrCreateButton("DeviceButton" + i, deviceContent, $"{prefix}{deviceIndex}: {deviceNames[i]}", 24f, 9);
+            deviceButton.gameObject.SetActive(true);
+            deviceButton.transform.SetSiblingIndex(i);
             deviceButton.onClick.RemoveAllListeners();
             deviceButton.onClick.AddListener(() => SwitchDevice(deviceIndex));
+        }
+
+        SetScreenDeviceButtonsActive(deviceContent, deviceNames.Count);
+    }
+
+    private void SetScreenDeviceButtonsActive(RectTransform deviceContent, int activeCount)
+    {
+        for (int i = 0; i < deviceContent.childCount; i++)
+        {
+            Transform child = deviceContent.GetChild(i);
+            if (!child.name.StartsWith("DeviceButton", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            string suffix = child.name.Substring("DeviceButton".Length);
+            if (int.TryParse(suffix, out int deviceButtonIndex) && deviceButtonIndex >= activeCount)
+            {
+                child.gameObject.SetActive(false);
+            }
         }
     }
 
