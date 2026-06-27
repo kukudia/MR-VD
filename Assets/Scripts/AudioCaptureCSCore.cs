@@ -1094,10 +1094,11 @@ public class AudioCaptureCSCore : MonoBehaviour
         RectTransform deviceList = FindOrCreateRect("DeviceList", _screenCanvasContent, new Vector2(ScreenCanvasChildWidth, 150f));
         deviceList.sizeDelta = new Vector2(ScreenCanvasChildWidth, 150f);
 
-        VerticalLayoutGroup legacyLayout = deviceList.GetComponent<VerticalLayoutGroup>();
-        if (legacyLayout != null)
+        ScrollRect legacyScrollRect = deviceList.GetComponent<ScrollRect>();
+        if (legacyScrollRect != null)
         {
-            Destroy(legacyLayout);
+            legacyScrollRect.enabled = false;
+            Destroy(legacyScrollRect);
         }
 
         EnsureLayoutElement(deviceList.gameObject, 120f, 150f, 0f, ScreenCanvasChildWidth, ScreenCanvasChildWidth);
@@ -1110,59 +1111,19 @@ public class AudioCaptureCSCore : MonoBehaviour
         background.color = new Color(0.05f, 0.07f, 0.08f, 0.45f);
         background.raycastTarget = true;
 
-        ScrollRect scrollRect = deviceList.GetComponent<ScrollRect>();
-        if (scrollRect == null)
-        {
-            scrollRect = deviceList.gameObject.AddComponent<ScrollRect>();
-        }
-        scrollRect.horizontal = false;
-        scrollRect.vertical = true;
-        scrollRect.movementType = ScrollRect.MovementType.Clamped;
-        scrollRect.scrollSensitivity = 12f;
-
         for (int i = deviceList.childCount - 1; i >= 0; i--)
         {
             Transform child = deviceList.GetChild(i);
-            if (child.name != "Viewport")
+            if (child.name == "Viewport")
             {
                 Destroy(child.gameObject);
             }
         }
 
-        RectTransform viewport = FindOrCreateRect("Viewport", deviceList, new Vector2(ScreenCanvasChildWidth, 150f));
-        viewport.anchorMin = Vector2.zero;
-        viewport.anchorMax = Vector2.one;
-        viewport.offsetMin = Vector2.zero;
-        viewport.offsetMax = Vector2.zero;
-        viewport.pivot = new Vector2(0.5f, 0.5f);
-
-        Image viewportImage = viewport.GetComponent<Image>();
-        if (viewportImage == null)
-        {
-            viewportImage = viewport.gameObject.AddComponent<Image>();
-        }
-        viewportImage.color = new Color(1f, 1f, 1f, 0.001f);
-        viewportImage.raycastTarget = true;
-
-        Mask mask = viewport.GetComponent<Mask>();
-        if (mask == null)
-        {
-            mask = viewport.gameObject.AddComponent<Mask>();
-        }
-        mask.showMaskGraphic = false;
-
-        RectTransform content = FindOrCreateRect("Content", viewport, new Vector2(ScreenCanvasChildWidth, 150f));
-        content.anchorMin = new Vector2(0f, 1f);
-        content.anchorMax = new Vector2(1f, 1f);
-        content.pivot = new Vector2(0.5f, 1f);
-        content.anchoredPosition = Vector2.zero;
-        content.offsetMin = new Vector2(0f, content.offsetMin.y);
-        content.offsetMax = new Vector2(0f, 0f);
-
-        VerticalLayoutGroup layout = content.GetComponent<VerticalLayoutGroup>();
+        VerticalLayoutGroup layout = deviceList.GetComponent<VerticalLayoutGroup>();
         if (layout == null)
         {
-            layout = content.gameObject.AddComponent<VerticalLayoutGroup>();
+            layout = deviceList.gameObject.AddComponent<VerticalLayoutGroup>();
         }
         layout.padding = new RectOffset(0, 0, 0, 0);
         layout.spacing = 3f;
@@ -1172,17 +1133,7 @@ public class AudioCaptureCSCore : MonoBehaviour
         layout.childForceExpandWidth = true;
         layout.childForceExpandHeight = false;
 
-        ContentSizeFitter fitter = content.GetComponent<ContentSizeFitter>();
-        if (fitter == null)
-        {
-            fitter = content.gameObject.AddComponent<ContentSizeFitter>();
-        }
-        fitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
-        fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-
-        scrollRect.viewport = viewport;
-        scrollRect.content = content;
-        return content;
+        return deviceList;
     }
 
     private void RebuildScreenDeviceButtons()

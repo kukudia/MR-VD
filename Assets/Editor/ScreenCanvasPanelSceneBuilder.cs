@@ -125,34 +125,7 @@ public static class ScreenCanvasPanelSceneBuilder
         background.color = new Color(0.05f, 0.07f, 0.08f, 0.45f);
         background.raycastTarget = true;
 
-        ScrollRect scrollRect = deviceList.gameObject.AddComponent<ScrollRect>();
-        scrollRect.horizontal = false;
-        scrollRect.vertical = true;
-        scrollRect.movementType = ScrollRect.MovementType.Clamped;
-        scrollRect.scrollSensitivity = 12f;
-
-        RectTransform viewport = CreateRect("Viewport", deviceList, new Vector2(AudioChildWidth, 150f));
-        viewport.anchorMin = Vector2.zero;
-        viewport.anchorMax = Vector2.one;
-        viewport.offsetMin = Vector2.zero;
-        viewport.offsetMax = Vector2.zero;
-
-        Image viewportImage = viewport.gameObject.AddComponent<Image>();
-        viewportImage.color = new Color(1f, 1f, 1f, 0.001f);
-        viewportImage.raycastTarget = true;
-
-        Mask mask = viewport.gameObject.AddComponent<Mask>();
-        mask.showMaskGraphic = false;
-
-        RectTransform deviceContent = CreateRect("Content", viewport, new Vector2(AudioChildWidth, 150f));
-        deviceContent.anchorMin = new Vector2(0f, 1f);
-        deviceContent.anchorMax = new Vector2(1f, 1f);
-        deviceContent.pivot = new Vector2(0.5f, 1f);
-        deviceContent.anchoredPosition = Vector2.zero;
-        deviceContent.offsetMin = new Vector2(0f, deviceContent.offsetMin.y);
-        deviceContent.offsetMax = new Vector2(0f, 0f);
-
-        VerticalLayoutGroup deviceLayout = deviceContent.gameObject.AddComponent<VerticalLayoutGroup>();
+        VerticalLayoutGroup deviceLayout = deviceList.gameObject.AddComponent<VerticalLayoutGroup>();
         deviceLayout.spacing = 3f;
         deviceLayout.childAlignment = TextAnchor.UpperLeft;
         deviceLayout.childControlWidth = true;
@@ -160,14 +133,8 @@ public static class ScreenCanvasPanelSceneBuilder
         deviceLayout.childForceExpandWidth = true;
         deviceLayout.childForceExpandHeight = false;
 
-        ContentSizeFitter fitter = deviceContent.gameObject.AddComponent<ContentSizeFitter>();
-        fitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
-        fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-
-        scrollRect.viewport = viewport;
-        scrollRect.content = deviceContent;
-        CreateText("NoDevicesText", deviceContent, "No active devices", font, 10, FontStyle.Italic, TextAnchor.MiddleLeft, 24f);
-        return deviceContent;
+        CreateText("NoDevicesText", deviceList, "No active devices", font, 10, FontStyle.Italic, TextAnchor.MiddleLeft, 24f);
+        return deviceList;
     }
 
     private static void BuildInfoPanel(RectTransform panel, Font font)
