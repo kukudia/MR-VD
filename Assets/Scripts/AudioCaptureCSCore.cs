@@ -1059,6 +1059,13 @@ public class AudioCaptureCSCore : MonoBehaviour
         layout.childForceExpandWidth = true;
         layout.childForceExpandHeight = false;
 
+        ScreenCanvasArtTheme.ApplyPanelArt(
+            _screenCanvasContent,
+            ScreenCanvasArtTheme.AudioPanelBase,
+            ScreenCanvasArtTheme.AudioPrimaryAccent,
+            ScreenCanvasArtTheme.AudioSecondaryAccent,
+            true);
+
         _screenModeText = FindOrCreateText("ModeText", _screenCanvasContent, string.Empty, 13, FontStyle.Bold, TextAnchor.MiddleLeft, 24f);
         _screenDeviceText = FindOrCreateText("DeviceText", _screenCanvasContent, string.Empty, 11, FontStyle.Normal, TextAnchor.UpperLeft, 42f);
 
@@ -1108,8 +1115,12 @@ public class AudioCaptureCSCore : MonoBehaviour
         {
             background = deviceList.gameObject.AddComponent<Image>();
         }
-        background.color = new Color(0.05f, 0.07f, 0.08f, 0.45f);
-        background.raycastTarget = true;
+        ScreenCanvasArtTheme.ApplyPanelArt(
+            deviceList,
+            ScreenCanvasArtTheme.DeviceListBase,
+            ScreenCanvasArtTheme.AudioPrimaryAccent,
+            ScreenCanvasArtTheme.AudioSecondaryAccent,
+            false);
 
         for (int i = deviceList.childCount - 1; i >= 0; i--)
         {
@@ -1169,7 +1180,7 @@ public class AudioCaptureCSCore : MonoBehaviour
             string prefix = deviceIndex == selectedDeviceIndex ? "* " : string.Empty;
             Button deviceButton = FindOrCreateButton("DeviceButton" + i, deviceContent, $"{prefix}{deviceIndex}: {deviceNames[i]}", 24f, 9);
             deviceButton.gameObject.SetActive(true);
-            deviceButton.transform.SetSiblingIndex(i);
+            deviceButton.transform.SetSiblingIndex(ScreenCanvasArtTheme.GetContentStartSiblingIndex(deviceContent) + i);
             deviceButton.onClick.RemoveAllListeners();
             deviceButton.onClick.AddListener(() => SwitchDevice(deviceIndex));
         }
@@ -1289,6 +1300,7 @@ public class AudioCaptureCSCore : MonoBehaviour
         label.verticalOverflow = VerticalWrapMode.Truncate;
         label.color = Color.white;
         label.text = text;
+        ScreenCanvasArtTheme.StyleText(label, name, fontSize, fontStyle);
         return label;
     }
 
@@ -1327,6 +1339,7 @@ public class AudioCaptureCSCore : MonoBehaviour
         }
         button.targetGraphic = image;
         button.interactable = true;
+        ScreenCanvasArtTheme.StyleSelectable(button, image, true);
 
         Text text = FindOrCreateText("Label", rectTransform, label, fontSize, FontStyle.Normal, TextAnchor.MiddleCenter, height);
         text.color = Color.white;

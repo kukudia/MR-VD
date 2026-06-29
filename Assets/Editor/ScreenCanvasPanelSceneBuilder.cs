@@ -96,6 +96,13 @@ public static class ScreenCanvasPanelSceneBuilder
         layout.childForceExpandWidth = true;
         layout.childForceExpandHeight = false;
 
+        ScreenCanvasArtTheme.ApplyPanelArt(
+            content,
+            ScreenCanvasArtTheme.AudioPanelBase,
+            ScreenCanvasArtTheme.AudioPrimaryAccent,
+            ScreenCanvasArtTheme.AudioSecondaryAccent,
+            true);
+
         CreateText("ModeText", content, "Mode: Loopback", font, 13, FontStyle.Bold, TextAnchor.MiddleLeft, 24f);
         CreateText("DeviceText", content, "Device: None", font, 11, FontStyle.Normal, TextAnchor.UpperLeft, 42f);
 
@@ -125,6 +132,13 @@ public static class ScreenCanvasPanelSceneBuilder
         background.color = new Color(0.05f, 0.07f, 0.08f, 0.45f);
         background.raycastTarget = true;
 
+        ScreenCanvasArtTheme.ApplyPanelArt(
+            deviceList,
+            ScreenCanvasArtTheme.DeviceListBase,
+            ScreenCanvasArtTheme.AudioPrimaryAccent,
+            ScreenCanvasArtTheme.AudioSecondaryAccent,
+            false);
+
         VerticalLayoutGroup deviceLayout = deviceList.gameObject.AddComponent<VerticalLayoutGroup>();
         deviceLayout.spacing = 3f;
         deviceLayout.childAlignment = TextAnchor.UpperLeft;
@@ -150,6 +164,13 @@ public static class ScreenCanvasPanelSceneBuilder
         layout.childForceExpandWidth = true;
         layout.childForceExpandHeight = false;
 
+        ScreenCanvasArtTheme.ApplyPanelArt(
+            content,
+            ScreenCanvasArtTheme.InfoPanelBase,
+            ScreenCanvasArtTheme.InfoPrimaryAccent,
+            ScreenCanvasArtTheme.InfoSecondaryAccent,
+            true);
+
         CreateText("LocalTimeText", content, "Local Time\nHH:mm:ss\nyyyy-MM-dd", font, 15, FontStyle.Bold, TextAnchor.UpperLeft, 70f);
 
         RectTransform weatherHeader = CreateHeaderRow("WeatherHeader", content, "Weather", font);
@@ -172,6 +193,7 @@ public static class ScreenCanvasPanelSceneBuilder
         LayoutElement layout = label.gameObject.GetComponent<LayoutElement>();
         layout.flexibleWidth = 1f;
         layout.preferredWidth = 90f;
+        ScreenCanvasArtTheme.StyleText(label, title + "Label", 12, FontStyle.Bold);
         return row;
     }
 
@@ -203,6 +225,7 @@ public static class ScreenCanvasPanelSceneBuilder
         Button button = obj.GetComponent<Button>();
         button.targetGraphic = image;
         button.interactable = true;
+        ScreenCanvasArtTheme.StyleSelectable(button, image, true);
 
         Text text = CreateText("Label", rect, label, font, fontSize, FontStyle.Normal, TextAnchor.MiddleCenter, height);
         RectTransform textRect = text.GetComponent<RectTransform>();
@@ -249,6 +272,8 @@ public static class ScreenCanvasPanelSceneBuilder
         toggle.targetGraphic = backgroundImage;
         toggle.graphic = checkImage;
         toggle.isOn = isOn;
+        ScreenCanvasArtTheme.StyleSelectable(toggle, backgroundImage, false);
+        ScreenCanvasArtTheme.StyleText(text, name, 9, FontStyle.Normal);
         return toggle;
     }
 
@@ -268,6 +293,7 @@ public static class ScreenCanvasPanelSceneBuilder
         text.verticalOverflow = VerticalWrapMode.Truncate;
         text.color = Color.white;
         text.text = value;
+        ScreenCanvasArtTheme.StyleText(text, name, fontSize, style);
         return text;
     }
 

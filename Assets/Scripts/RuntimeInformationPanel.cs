@@ -634,6 +634,13 @@ catch {
         layout.childForceExpandWidth = true;
         layout.childForceExpandHeight = false;
 
+        ScreenCanvasArtTheme.ApplyPanelArt(
+            screenCanvasContent,
+            ScreenCanvasArtTheme.InfoPanelBase,
+            ScreenCanvasArtTheme.InfoPrimaryAccent,
+            ScreenCanvasArtTheme.InfoSecondaryAccent,
+            true);
+
         localTimeText = FindOrCreateText("LocalTimeText", screenCanvasContent, string.Empty, 15, FontStyle.Bold, TextAnchor.UpperLeft, 70f);
 
         RectTransform weatherHeader = FindOrCreateHeaderRow("WeatherHeader", screenCanvasContent, "Weather");
@@ -802,6 +809,7 @@ catch {
         }
         labelLayout.flexibleWidth = 1f;
         labelLayout.preferredWidth = 90f;
+        ScreenCanvasArtTheme.StyleText(label, title + "Label", 12, FontStyle.Bold);
         return row;
     }
 
@@ -858,6 +866,7 @@ catch {
         label.verticalOverflow = VerticalWrapMode.Truncate;
         label.color = Color.white;
         label.text = text;
+        ScreenCanvasArtTheme.StyleText(label, name, fontSize, fontStyle);
         return label;
     }
 
@@ -886,6 +895,7 @@ catch {
             image = obj.AddComponent<Image>();
         }
         image.color = new Color(0.18f, 0.24f, 0.28f, 0.88f);
+        image.raycastTarget = true;
 
         Button button = obj.GetComponent<Button>();
         if (button == null)
@@ -893,6 +903,7 @@ catch {
             button = obj.AddComponent<Button>();
         }
         button.targetGraphic = image;
+        ScreenCanvasArtTheme.StyleSelectable(button, image, true);
 
         Text text = FindOrCreateText("Label", rectTransform, label, 9, FontStyle.Normal, TextAnchor.MiddleCenter, 28f);
         RectTransform textRect = text.GetComponent<RectTransform>();
@@ -984,6 +995,8 @@ catch {
         toggle.targetGraphic = backgroundImage;
         toggle.graphic = checkImage;
         toggle.isOn = initialValue;
+        ScreenCanvasArtTheme.StyleSelectable(toggle, backgroundImage, false);
+        ScreenCanvasArtTheme.StyleText(text, name, 9, FontStyle.Normal);
         return toggle;
     }
 
