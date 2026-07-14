@@ -47,6 +47,68 @@ public static class ScreenCanvasPanelSceneBuilder
         Debug.Log("[ScreenCanvasPanelSceneBuilder] Rebuilt AudioPanel and InfoPanel under Screen/Canvas in " + ScenePath);
     }
 
+    [MenuItem("Tools/MR-VD/Validate Screen Canvas Dashboard")]
+    public static void Validate()
+    {
+        EditorSceneManager.OpenScene(ScenePath);
+
+        RectTransform infoPanel = RequireRectTransform(InfoPanelPath);
+        RectTransform dashboard = RequireChild(infoPanel, "RuntimeDashboard");
+        string[] requiredPaths =
+        {
+            "DashboardHeader/SettingsButton",
+            "TimeCard/TimeText",
+            "TimeCard/DateText",
+            "SettingsModule/SettingsBody/SettingsRowOne/AudioModuleToggle",
+            "SettingsModule/SettingsBody/SettingsRowOne/WeatherModuleToggle",
+            "SettingsModule/SettingsBody/SettingsRowTwo/SystemModuleToggle",
+            "SettingsModule/SettingsBody/SettingsRowTwo/WeatherAutoToggle",
+            "WeatherModule/WeatherHeader/WeatherRefreshButton",
+            "WeatherModule/WeatherBody/WeatherSummary/WeatherArtwork",
+            "SystemModule/SystemBody/SystemText"
+        };
+
+        for (int i = 0; i < requiredPaths.Length; i++)
+        {
+            RequireChild(dashboard, requiredPaths[i]);
+        }
+
+        RuntimeInformationPanel runtimeInformation = infoPanel.GetComponent<RuntimeInformationPanel>();
+        if (runtimeInformation == null)
+        {
+            throw new System.InvalidOperationException("RuntimeInformationPanel is missing from " + InfoPanelPath);
+        }
+
+        if (runtimeInformation.weatherVisuals == null || runtimeInformation.weatherVisuals.Length != 21)
+        {
+            throw new System.InvalidOperationException("RuntimeInformationPanel must reference all 21 weather visuals.");
+        }
+
+        for (int i = 0; i < runtimeInformation.weatherVisuals.Length; i++)
+        {
+            if (runtimeInformation.weatherVisuals[i] == null)
+            {
+                throw new System.InvalidOperationException("Weather visual " + (i + 1) + " is missing.");
+            }
+        }
+
+        foreach (Transform child in infoPanel.GetComponentsInChildren<Transform>(true))
+        {
+            if (child.name.IndexOf("Mail", System.StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                throw new System.InvalidOperationException("Mail UI remains under InfoPanel: " + child.name);
+            }
+        }
+
+        const float maximumLayoutHeight = 512f;
+        if (maximumLayoutHeight > dashboard.rect.height)
+        {
+            throw new System.InvalidOperationException("Expanded dashboard layout exceeds its height.");
+        }
+
+        Debug.Log("[ScreenCanvasPanelSceneBuilder] Validation passed: modular dashboard, 21 weather visuals, no mail UI, and layout budget " + maximumLayoutHeight + "/" + dashboard.rect.height + ".");
+    }
+
     private static void WireSceneComponents(RectTransform audioPanel, RectTransform infoPanel)
     {
         AudioCaptureCSCore audioCapture = Object.FindFirstObjectByType<AudioCaptureCSCore>();
@@ -80,6 +142,7 @@ public static class ScreenCanvasPanelSceneBuilder
         runtimeInformation.useScreenCanvasPanel = true;
         runtimeInformation.screenCanvasPanelRoot = infoPanel;
         runtimeInformation.showPanel = true;
+        runtimeInformation.weatherVisuals = LoadWeatherVisuals();
     }
 
     private static void BuildAudioPanel(RectTransform panel, Font font)
@@ -102,6 +165,10 @@ public static class ScreenCanvasPanelSceneBuilder
             ScreenCanvasArtTheme.AudioPrimaryAccent,
             ScreenCanvasArtTheme.AudioSecondaryAccent,
             true);
+
+        CanvasGroup audioGroup = content.gameObject.AddComponent<CanvasGroup>();
+        ScreenCanvasPanelAnimator audioAnimator = content.gameObject.AddComponent<ScreenCanvasPanelAnimator>();
+        audioAnimator.Configure(content, audioGroup);
 
         CreateText("ModeText", content, "Mode: Loopback", font, 13, FontStyle.Bold, TextAnchor.MiddleLeft, 24f);
         CreateText("DeviceText", content, "Device: None", font, 11, FontStyle.Normal, TextAnchor.UpperLeft, 42f);
@@ -153,10 +220,13 @@ public static class ScreenCanvasPanelSceneBuilder
 
     private static void BuildInfoPanel(RectTransform panel, Font font)
     {
-        RectTransform content = CreateRect("RuntimeInfoCanvasContent", panel, new Vector2(270f, 480f));
-        content.localScale = Vector3.one * 0.1f;
-        VerticalLayoutGroup layout = content.gameObject.AddComponent<VerticalLayoutGroup>();
-        layout.padding = new RectOffset(10, 10, 10, 10);
+        const float dashboardWidth = 286f;
+        const float contentWidth = 268f;
+
+        RectTransform dashboard = CreateRect("RuntimeDashboard", panel, new Vector2(dashboardWidth, 520f));
+        dashboard.localScale = Vector3.one * 0.1f;
+        VerticalLayoutGroup layout = dashboard.gameObject.AddComponent<VerticalLayoutGroup>();
+        layout.padding = new RectOffset(9, 9, 9, 9);
         layout.spacing = 6f;
         layout.childAlignment = TextAnchor.UpperLeft;
         layout.childControlWidth = true;
@@ -165,25 +235,110 @@ public static class ScreenCanvasPanelSceneBuilder
         layout.childForceExpandHeight = false;
 
         ScreenCanvasArtTheme.ApplyPanelArt(
-            content,
+            dashboard,
             ScreenCanvasArtTheme.InfoPanelBase,
             ScreenCanvasArtTheme.InfoPrimaryAccent,
             ScreenCanvasArtTheme.InfoSecondaryAccent,
             true);
 
-        CreateText("LocalTimeText", content, "Local Time\nHH:mm:ss\nyyyy-MM-dd", font, 15, FontStyle.Bold, TextAnchor.UpperLeft, 70f);
+        CanvasGroup dashboardGroup = dashboard.gameObject.AddComponent<CanvasGroup>();
+        ScreenCanvasPanelAnimator dashboardAnimator = dashboard.gameObject.AddComponent<ScreenCanvasPanelAnimator>();
+        dashboardAnimator.Configure(dashboard, dashboardGroup);
 
-        RectTransform weatherHeader = CreateHeaderRow("WeatherHeader", content, "Weather", font);
-        CreateButton("WeatherRefreshButton", weatherHeader, "Refresh", font, 62f, 28f, 9);
-        CreateToggle("WeatherAutoToggle", weatherHeader, "Auto", font, true);
-        CreateText("WeatherText", content, "No weather data yet.", font, 10, FontStyle.Normal, TextAnchor.UpperLeft, 110f);
+        RectTransform header = CreateRow("DashboardHeader", dashboard, 28f, contentWidth);
+        Text headerText = CreateText("HeaderText", header, "RUNTIME OVERVIEW", font, 11, FontStyle.Bold, TextAnchor.MiddleLeft, 28f, 174f);
+        headerText.color = ScreenCanvasArtTheme.MutedText;
+        CreateButton("SettingsButton", header, "SETTINGS", font, 86f, 26f, 8);
 
-        RectTransform mailHeader = CreateHeaderRow("MailHeader", content, "Mail", font);
-        CreateButton("MailRefreshButton", mailHeader, "Refresh", font, 62f, 28f, 9);
-        CreateToggle("MailAutoToggle", mailHeader, "Auto", font, true);
-        CreateText("MailText", content, "Unread: 0\nNo unread mail previews from the local Outlook inbox.", font, 9, FontStyle.Normal, TextAnchor.UpperLeft, 150f);
+        RectTransform timeCard = CreateCard("TimeCard", dashboard, contentWidth, 108f, ScreenCanvasArtTheme.CardRaised);
+        VerticalLayoutGroup timeLayout = timeCard.gameObject.AddComponent<VerticalLayoutGroup>();
+        timeLayout.padding = new RectOffset(10, 10, 8, 8);
+        timeLayout.spacing = 0f;
+        timeLayout.childAlignment = TextAnchor.UpperLeft;
+        timeLayout.childControlWidth = true;
+        timeLayout.childControlHeight = true;
+        timeLayout.childForceExpandWidth = true;
+        timeLayout.childForceExpandHeight = false;
 
-        CreateText("SystemText", content, "System", font, 9, FontStyle.Normal, TextAnchor.UpperLeft, 60f);
+        Text timeEyebrow = CreateText("TimeEyebrowText", timeCard, "LOCAL TIME", font, 8, FontStyle.Bold, TextAnchor.MiddleLeft, 14f, contentWidth - 20f);
+        timeEyebrow.color = ScreenCanvasArtTheme.InfoPrimaryAccent;
+        Text timeText = CreateText("TimeText", timeCard, "00:00:00", font, 32, FontStyle.Bold, TextAnchor.MiddleLeft, 42f, contentWidth - 20f);
+        timeText.color = Color.white;
+        Text dateText = CreateText("DateText", timeCard, "Monday, 01 January 2026", font, 11, FontStyle.Normal, TextAnchor.MiddleLeft, 20f, contentWidth - 20f);
+        dateText.color = new Color(0.93f, 0.95f, 0.96f, 1f);
+        Text zoneText = CreateText("TimeZoneText", timeCard, "Local time zone", font, 8, FontStyle.Normal, TextAnchor.MiddleLeft, 14f, contentWidth - 20f);
+        zoneText.color = ScreenCanvasArtTheme.MutedText;
+
+        RectTransform settingsModule = CreateCard("SettingsModule", dashboard, contentWidth, 0f, ScreenCanvasArtTheme.CardBase);
+        CanvasGroup settingsGroup = settingsModule.gameObject.AddComponent<CanvasGroup>();
+        RectTransform settingsBody = CreateVerticalBody("SettingsBody", settingsModule, contentWidth - 12f, 62f, 4f, new RectOffset(6, 6, 4, 4));
+        CanvasGroup settingsBodyGroup = settingsBody.gameObject.AddComponent<CanvasGroup>();
+        RectTransform settingsRowOne = CreateRow("SettingsRowOne", settingsBody, 25f, contentWidth - 24f);
+        CreateToggle("AudioModuleToggle", settingsRowOne, "Audio", font, true, 116f);
+        CreateToggle("WeatherModuleToggle", settingsRowOne, "Weather", font, true, 116f);
+        RectTransform settingsRowTwo = CreateRow("SettingsRowTwo", settingsBody, 25f, contentWidth - 24f);
+        CreateToggle("SystemModuleToggle", settingsRowTwo, "System", font, true, 116f);
+        CreateToggle("WeatherAutoToggle", settingsRowTwo, "Auto update", font, true, 116f);
+        ScreenCanvasModuleAnimator settingsAnimator = settingsModule.gameObject.AddComponent<ScreenCanvasModuleAnimator>();
+        settingsAnimator.Configure(settingsModule.GetComponent<LayoutElement>(), settingsGroup, settingsBodyGroup, 0f, 70f, true, false);
+
+        RectTransform weatherModule = CreateCard("WeatherModule", dashboard, contentWidth, 176f, ScreenCanvasArtTheme.CardBase);
+        VerticalLayoutGroup weatherLayout = weatherModule.gameObject.AddComponent<VerticalLayoutGroup>();
+        weatherLayout.padding = new RectOffset(6, 6, 5, 5);
+        weatherLayout.spacing = 4f;
+        weatherLayout.childAlignment = TextAnchor.UpperLeft;
+        weatherLayout.childControlWidth = true;
+        weatherLayout.childControlHeight = true;
+        weatherLayout.childForceExpandWidth = true;
+        weatherLayout.childForceExpandHeight = false;
+        CanvasGroup weatherGroup = weatherModule.gameObject.AddComponent<CanvasGroup>();
+
+        RectTransform weatherHeader = CreateRow("WeatherHeader", weatherModule, 30f, contentWidth - 12f);
+        Text weatherLabel = CreateText("WeatherLabel", weatherHeader, "WEATHER", font, 11, FontStyle.Bold, TextAnchor.MiddleLeft, 28f, 108f);
+        weatherLabel.color = ScreenCanvasArtTheme.InfoSecondaryAccent;
+        CreateButton("WeatherRefreshButton", weatherHeader, "REFRESH", font, 70f, 26f, 8);
+        CreateButton("WeatherExpandButton", weatherHeader, "HIDE", font, 58f, 26f, 8);
+
+        RectTransform weatherBody = CreateVerticalBody("WeatherBody", weatherModule, contentWidth - 12f, 128f, 3f, new RectOffset(2, 2, 0, 0));
+        CanvasGroup weatherBodyGroup = weatherBody.gameObject.AddComponent<CanvasGroup>();
+        RectTransform weatherSummary = CreateRow("WeatherSummary", weatherBody, 64f, contentWidth - 16f);
+        RawImage artwork = CreateRawImage("WeatherArtwork", weatherSummary, 64f, 64f);
+        CanvasGroup artworkGroup = artwork.gameObject.AddComponent<CanvasGroup>();
+        ScreenCanvasWeatherAnimator weatherArtworkAnimator = artwork.gameObject.AddComponent<ScreenCanvasWeatherAnimator>();
+        weatherArtworkAnimator.Configure(artwork.rectTransform, artworkGroup);
+
+        RectTransform weatherCopy = CreateVerticalBody("WeatherCopy", weatherSummary, 176f, 64f, 0f, new RectOffset(4, 0, 0, 0));
+        Text temperature = CreateText("WeatherTemperatureText", weatherCopy, "-- C", font, 22, FontStyle.Bold, TextAnchor.MiddleLeft, 30f, 172f);
+        temperature.color = Color.white;
+        Text condition = CreateText("WeatherConditionText", weatherCopy, "Weather unavailable", font, 9, FontStyle.Normal, TextAnchor.UpperLeft, 30f, 172f);
+        condition.color = ScreenCanvasArtTheme.MutedText;
+        CreateText("WeatherDetailsText", weatherBody, "Waiting for current conditions.", font, 9, FontStyle.Normal, TextAnchor.UpperLeft, 35f, contentWidth - 16f);
+        Text weatherStatus = CreateText("WeatherStatusText", weatherBody, "NOT YET UPDATED", font, 8, FontStyle.Bold, TextAnchor.MiddleLeft, 15f, contentWidth - 16f);
+        weatherStatus.color = ScreenCanvasArtTheme.InfoPrimaryAccent;
+        ScreenCanvasModuleAnimator weatherAnimator = weatherModule.gameObject.AddComponent<ScreenCanvasModuleAnimator>();
+        weatherAnimator.Configure(weatherModule.GetComponent<LayoutElement>(), weatherGroup, weatherBodyGroup, 40f, 176f, true, true);
+
+        RectTransform systemModule = CreateCard("SystemModule", dashboard, contentWidth, 88f, ScreenCanvasArtTheme.CardBase);
+        VerticalLayoutGroup systemLayout = systemModule.gameObject.AddComponent<VerticalLayoutGroup>();
+        systemLayout.padding = new RectOffset(6, 6, 5, 5);
+        systemLayout.spacing = 4f;
+        systemLayout.childAlignment = TextAnchor.UpperLeft;
+        systemLayout.childControlWidth = true;
+        systemLayout.childControlHeight = true;
+        systemLayout.childForceExpandWidth = true;
+        systemLayout.childForceExpandHeight = false;
+        CanvasGroup systemGroup = systemModule.gameObject.AddComponent<CanvasGroup>();
+
+        RectTransform systemHeader = CreateRow("SystemHeader", systemModule, 30f, contentWidth - 12f);
+        Text systemLabel = CreateText("SystemLabel", systemHeader, "SYSTEM", font, 11, FontStyle.Bold, TextAnchor.MiddleLeft, 28f, 182f);
+        systemLabel.color = ScreenCanvasArtTheme.InfoSecondaryAccent;
+        CreateButton("SystemExpandButton", systemHeader, "HIDE", font, 58f, 26f, 8);
+        RectTransform systemBody = CreateVerticalBody("SystemBody", systemModule, contentWidth - 12f, 42f, 0f, new RectOffset(2, 2, 0, 0));
+        CanvasGroup systemBodyGroup = systemBody.gameObject.AddComponent<CanvasGroup>();
+        Text systemText = CreateText("SystemText", systemBody, "DEVICE\nPLATFORM\nNETWORK", font, 8, FontStyle.Normal, TextAnchor.UpperLeft, 42f, contentWidth - 16f);
+        systemText.color = ScreenCanvasArtTheme.MutedText;
+        ScreenCanvasModuleAnimator systemAnimator = systemModule.gameObject.AddComponent<ScreenCanvasModuleAnimator>();
+        systemAnimator.Configure(systemModule.GetComponent<LayoutElement>(), systemGroup, systemBodyGroup, 40f, 88f, true, true);
     }
 
     private static RectTransform CreateHeaderRow(string name, RectTransform parent, string title, Font font)
@@ -199,8 +354,13 @@ public static class ScreenCanvasPanelSceneBuilder
 
     private static RectTransform CreateRow(string name, RectTransform parent, float height)
     {
-        RectTransform row = CreateRect(name, parent, new Vector2(AudioChildWidth, height));
-        AddLayoutElement(row.gameObject, height, height, 0f, AudioChildWidth, AudioChildWidth);
+        return CreateRow(name, parent, height, AudioChildWidth);
+    }
+
+    private static RectTransform CreateRow(string name, RectTransform parent, float height, float width)
+    {
+        RectTransform row = CreateRect(name, parent, new Vector2(width, height));
+        AddLayoutElement(row.gameObject, height, height, 0f, width, width);
         HorizontalLayoutGroup layout = row.gameObject.AddComponent<HorizontalLayoutGroup>();
         layout.spacing = 4f;
         layout.childAlignment = TextAnchor.MiddleLeft;
@@ -238,10 +398,15 @@ public static class ScreenCanvasPanelSceneBuilder
 
     private static Toggle CreateToggle(string name, RectTransform parent, string label, Font font, bool isOn)
     {
+        return CreateToggle(name, parent, label, font, isOn, 68f);
+    }
+
+    private static Toggle CreateToggle(string name, RectTransform parent, string label, Font font, bool isOn, float width)
+    {
         GameObject obj = CreateObject(name, parent, typeof(Toggle));
         RectTransform rect = obj.GetComponent<RectTransform>();
-        rect.sizeDelta = new Vector2(68f, 28f);
-        AddLayoutElement(obj, 28f, 28f, 0f, 68f, 68f);
+        rect.sizeDelta = new Vector2(width, 24f);
+        AddLayoutElement(obj, 24f, 24f, 0f, width, width);
 
         GameObject background = CreateObject("Background", rect, typeof(CanvasRenderer), typeof(Image));
         RectTransform backgroundRect = background.GetComponent<RectTransform>();
@@ -261,7 +426,7 @@ public static class ScreenCanvasPanelSceneBuilder
         Image checkImage = checkmark.GetComponent<Image>();
         checkImage.color = new Color(0.35f, 0.82f, 0.62f, 1f);
 
-        Text text = CreateText("Label", rect, label, font, 9, FontStyle.Normal, TextAnchor.MiddleLeft, 28f);
+        Text text = CreateText("Label", rect, label, font, 9, FontStyle.Normal, TextAnchor.MiddleLeft, 24f, width);
         RectTransform textRect = text.GetComponent<RectTransform>();
         textRect.anchorMin = new Vector2(0f, 0f);
         textRect.anchorMax = Vector2.one;
@@ -279,10 +444,15 @@ public static class ScreenCanvasPanelSceneBuilder
 
     private static Text CreateText(string name, RectTransform parent, string value, Font font, int fontSize, FontStyle style, TextAnchor alignment, float height)
     {
+        return CreateText(name, parent, value, font, fontSize, style, alignment, height, AudioChildWidth);
+    }
+
+    private static Text CreateText(string name, RectTransform parent, string value, Font font, int fontSize, FontStyle style, TextAnchor alignment, float height, float width)
+    {
         GameObject obj = CreateObject(name, parent, typeof(CanvasRenderer), typeof(Text));
         RectTransform rect = obj.GetComponent<RectTransform>();
-        rect.sizeDelta = new Vector2(AudioChildWidth, height);
-        AddLayoutElement(obj, height, height, 0f, AudioChildWidth, AudioChildWidth);
+        rect.sizeDelta = new Vector2(width, height);
+        AddLayoutElement(obj, height, height, 0f, width, width);
 
         Text text = obj.GetComponent<Text>();
         text.font = font;
@@ -295,6 +465,89 @@ public static class ScreenCanvasPanelSceneBuilder
         text.text = value;
         ScreenCanvasArtTheme.StyleText(text, name, fontSize, style);
         return text;
+    }
+
+    private static RectTransform CreateCard(string name, RectTransform parent, float width, float height, Color color)
+    {
+        RectTransform card = CreateRect(name, parent, new Vector2(width, height));
+        AddLayoutElement(card.gameObject, height, height, 0f, width, width);
+        Image image = card.gameObject.AddComponent<Image>();
+        image.color = color;
+        image.raycastTarget = true;
+
+        Shadow shadow = card.gameObject.AddComponent<Shadow>();
+        shadow.effectColor = new Color(0f, 0f, 0f, 0.45f);
+        shadow.effectDistance = new Vector2(1.5f, -1.5f);
+        shadow.useGraphicAlpha = true;
+        return card;
+    }
+
+    private static RectTransform CreateVerticalBody(string name, RectTransform parent, float width, float height, float spacing, RectOffset padding)
+    {
+        RectTransform body = CreateRect(name, parent, new Vector2(width, height));
+        AddLayoutElement(body.gameObject, height, height, 0f, width, width);
+        VerticalLayoutGroup layout = body.gameObject.AddComponent<VerticalLayoutGroup>();
+        layout.padding = padding;
+        layout.spacing = spacing;
+        layout.childAlignment = TextAnchor.UpperLeft;
+        layout.childControlWidth = true;
+        layout.childControlHeight = true;
+        layout.childForceExpandWidth = true;
+        layout.childForceExpandHeight = false;
+        return body;
+    }
+
+    private static RawImage CreateRawImage(string name, RectTransform parent, float width, float height)
+    {
+        GameObject obj = CreateObject(name, parent, typeof(CanvasRenderer), typeof(RawImage));
+        RectTransform rect = obj.GetComponent<RectTransform>();
+        rect.sizeDelta = new Vector2(width, height);
+        AddLayoutElement(obj, height, height, 0f, width, width);
+
+        RawImage image = obj.GetComponent<RawImage>();
+        image.color = Color.white;
+        image.raycastTarget = false;
+        return image;
+    }
+
+    private static Texture2D[] LoadWeatherVisuals()
+    {
+        string[] names =
+        {
+            "01 Sunny COLOR.gif",
+            "02 Partly Cloudy COLOR.gif",
+            "03 Partly Sunny COLOR.gif",
+            "04 Cloudy COLOR.gif",
+            "05 Drizzle COLOR.gif",
+            "06 Rain COLOR.gif",
+            "07 Snowy COLOR.gif",
+            "08 Drizzle Sunny COLOR.gif",
+            "09 Rain Sunny COLOR.gif",
+            "10 Snowy Sunny COLOR.gif",
+            "11 Clear Night COLOR.gif",
+            "12 Partly Cloudy Night COLOR.gif",
+            "13 Mostly Cloudy Night COLOR.gif",
+            "14 Drizzle Night COLOR.gif",
+            "15 Rain Night COLOR.gif",
+            "16 Snowy Night COLOR.gif",
+            "17 Storm COLOR.gif",
+            "18 Windy COLOR.gif",
+            "19 Hurricane COLOR.gif",
+            "20 Tornado COLOR.gif",
+            "21 Mist COLOR.gif"
+        };
+
+        Texture2D[] textures = new Texture2D[names.Length];
+        for (int i = 0; i < names.Length; i++)
+        {
+            textures[i] = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/GIF/" + names[i]);
+            if (textures[i] == null)
+            {
+                Debug.LogWarning("[ScreenCanvasPanelSceneBuilder] Weather artwork could not be loaded: " + names[i]);
+            }
+        }
+
+        return textures;
     }
 
     private static RectTransform CreateRect(string name, RectTransform parent, Vector2 size)
@@ -346,6 +599,23 @@ public static class ScreenCanvasPanelSceneBuilder
         }
 
         return obj.GetComponent<RectTransform>();
+    }
+
+    private static RectTransform RequireChild(RectTransform parent, string path)
+    {
+        Transform child = parent.Find(path);
+        if (child == null)
+        {
+            throw new System.InvalidOperationException("Could not find " + path + " under " + parent.name);
+        }
+
+        RectTransform rect = child as RectTransform;
+        if (rect == null)
+        {
+            throw new System.InvalidOperationException(path + " is not a RectTransform.");
+        }
+
+        return rect;
     }
 
     private static LayoutElement AddLayoutElement(GameObject obj, float minHeight, float preferredHeight, float flexibleHeight, float minWidth = -1f, float preferredWidth = -1f)

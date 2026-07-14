@@ -4,13 +4,16 @@ using UnityEngine.UI;
 
 public static class ScreenCanvasArtTheme
 {
-    public static readonly Color AudioPanelBase = new Color(0.04f, 0.06f, 0.09f, 0.96f);
-    public static readonly Color InfoPanelBase = new Color(0.05f, 0.05f, 0.08f, 0.96f);
-    public static readonly Color DeviceListBase = new Color(0.03f, 0.05f, 0.07f, 0.96f);
-    public static readonly Color AudioPrimaryAccent = new Color(0.25f, 0.88f, 0.82f, 1f);
-    public static readonly Color AudioSecondaryAccent = new Color(0.96f, 0.68f, 0.30f, 1f);
-    public static readonly Color InfoPrimaryAccent = new Color(0.95f, 0.75f, 0.35f, 1f);
-    public static readonly Color InfoSecondaryAccent = new Color(0.68f, 0.46f, 1f, 1f);
+    public static readonly Color AudioPanelBase = new Color(0.035f, 0.045f, 0.055f, 0.97f);
+    public static readonly Color InfoPanelBase = new Color(0.045f, 0.047f, 0.052f, 0.98f);
+    public static readonly Color DeviceListBase = new Color(0.025f, 0.035f, 0.04f, 0.98f);
+    public static readonly Color AudioPrimaryAccent = new Color(0.20f, 0.82f, 0.75f, 1f);
+    public static readonly Color AudioSecondaryAccent = new Color(0.96f, 0.63f, 0.25f, 1f);
+    public static readonly Color InfoPrimaryAccent = new Color(0.98f, 0.72f, 0.27f, 1f);
+    public static readonly Color InfoSecondaryAccent = new Color(0.35f, 0.84f, 0.72f, 1f);
+    public static readonly Color CardBase = new Color(0.09f, 0.10f, 0.11f, 0.96f);
+    public static readonly Color CardRaised = new Color(0.12f, 0.13f, 0.14f, 0.98f);
+    public static readonly Color MutedText = new Color(0.74f, 0.78f, 0.80f, 0.88f);
 
     public static void ApplyPanelArt(RectTransform root, Color baseColor, Color primaryAccent, Color secondaryAccent, bool animated)
     {
@@ -306,6 +309,213 @@ public sealed class ScreenCanvasArtAnimator : MonoBehaviour
         if (rightBand != null)
         {
             rightBand.color = new Color(secondaryAccent.r, secondaryAccent.g, secondaryAccent.b, 0.08f + 0.05f * pulse);
+        }
+    }
+}
+
+public sealed class ScreenCanvasModuleAnimator : MonoBehaviour
+{
+    [SerializeField] private LayoutElement layoutElement;
+    [SerializeField] private CanvasGroup rootGroup;
+    [SerializeField] private CanvasGroup bodyGroup;
+    [SerializeField] private float collapsedHeight;
+    [SerializeField] private float expandedHeight;
+
+    private bool visible = true;
+    private bool expanded = true;
+    private float startHeight;
+    private float targetHeight;
+    private float startRootAlpha;
+    private float targetRootAlpha;
+    private float startBodyAlpha;
+    private float targetBodyAlpha;
+    private float elapsed;
+    private float duration = 0.2f;
+
+    public void Configure(LayoutElement layout, CanvasGroup root, CanvasGroup body, float collapsed, float expandedValue, bool initialVisible, bool initialExpanded)
+    {
+        layoutElement = layout;
+        rootGroup = root;
+        bodyGroup = body;
+        collapsedHeight = Mathf.Max(0f, collapsed);
+        expandedHeight = Mathf.Max(collapsedHeight, expandedValue);
+        SetState(initialVisible, initialExpanded, true, 0f);
+    }
+
+    public void SetState(bool isVisible, bool isExpanded, bool immediate, float transitionDuration)
+    {
+        visible = isVisible;
+        expanded = isExpanded;
+        duration = Mathf.Max(0.01f, transitionDuration);
+        elapsed = 0f;
+
+        float currentHeight = layoutElement != null ? layoutElement.preferredHeight : 0f;
+        startHeight = currentHeight < 0f ? expandedHeight : currentHeight;
+        targetHeight = visible ? (expanded ? expandedHeight : collapsedHeight) : 0f;
+
+        startRootAlpha = rootGroup != null ? rootGroup.alpha : 1f;
+        targetRootAlpha = visible && (expanded || collapsedHeight > 0.5f) ? 1f : 0f;
+        startBodyAlpha = bodyGroup != null ? bodyGroup.alpha : 1f;
+        targetBodyAlpha = visible && expanded ? 1f : 0f;
+
+        if (rootGroup != null)
+        {
+            rootGroup.interactable = visible;
+            rootGroup.blocksRaycasts = visible;
+        }
+
+        if (bodyGroup != null)
+        {
+            bodyGroup.interactable = visible && expanded;
+            bodyGroup.blocksRaycasts = visible && expanded;
+        }
+
+        if (immediate)
+        {
+            Apply(1f);
+            elapsed = duration;
+        }
+    }
+
+    private void Update()
+    {
+        if (layoutElement == null || elapsed >= duration)
+        {
+            return;
+        }
+
+        elapsed += Time.unscaledDeltaTime;
+        float progress = Mathf.Clamp01(elapsed / duration);
+        Apply(1f - Mathf.Pow(1f - progress, 3f));
+    }
+
+    private void Apply(float progress)
+    {
+        if (layoutElement != null)
+        {
+            layoutElement.preferredHeight = Mathf.Lerp(startHeight, targetHeight, progress);
+            layoutElement.minHeight = layoutElement.preferredHeight;
+        }
+
+        if (rootGroup != null)
+        {
+            rootGroup.alpha = Mathf.Lerp(startRootAlpha, targetRootAlpha, progress);
+        }
+
+        if (bodyGroup != null)
+        {
+            bodyGroup.alpha = Mathf.Lerp(startBodyAlpha, targetBodyAlpha, progress);
+        }
+    }
+}
+
+public sealed class ScreenCanvasPanelAnimator : MonoBehaviour
+{
+    [SerializeField] private RectTransform target;
+    [SerializeField] private CanvasGroup canvasGroup;
+
+    private Vector3 visibleScale = Vector3.one;
+    private Vector3 startScale = Vector3.one;
+    private Vector3 targetScale = Vector3.one;
+    private float startAlpha = 1f;
+    private float targetAlpha = 1f;
+    private float elapsed;
+    private float duration = 0.2f;
+
+    public void Configure(RectTransform targetRect, CanvasGroup group)
+    {
+        target = targetRect;
+        canvasGroup = group;
+        visibleScale = target != null ? target.localScale : Vector3.one;
+    }
+
+    public void SetVisible(bool visible, bool immediate, float transitionDuration)
+    {
+        if (target == null)
+        {
+            target = transform as RectTransform;
+            visibleScale = target != null ? target.localScale : Vector3.one;
+        }
+
+        if (canvasGroup == null)
+        {
+            canvasGroup = GetComponent<CanvasGroup>();
+        }
+
+        duration = Mathf.Max(0.01f, transitionDuration);
+        elapsed = 0f;
+        startScale = target != null ? target.localScale : Vector3.one;
+        targetScale = visible ? visibleScale : visibleScale * 0.96f;
+        startAlpha = canvasGroup != null ? canvasGroup.alpha : 1f;
+        targetAlpha = visible ? 1f : 0f;
+
+        if (canvasGroup != null)
+        {
+            canvasGroup.interactable = visible;
+            canvasGroup.blocksRaycasts = visible;
+        }
+
+        if (immediate)
+        {
+            Apply(1f);
+            elapsed = duration;
+        }
+    }
+
+    private void Update()
+    {
+        if (elapsed >= duration)
+        {
+            return;
+        }
+
+        elapsed += Time.unscaledDeltaTime;
+        float progress = Mathf.Clamp01(elapsed / duration);
+        Apply(1f - Mathf.Pow(1f - progress, 3f));
+    }
+
+    private void Apply(float progress)
+    {
+        if (target != null)
+        {
+            target.localScale = Vector3.LerpUnclamped(startScale, targetScale, progress);
+        }
+
+        if (canvasGroup != null)
+        {
+            canvasGroup.alpha = Mathf.Lerp(startAlpha, targetAlpha, progress);
+        }
+    }
+}
+
+public sealed class ScreenCanvasWeatherAnimator : MonoBehaviour
+{
+    [SerializeField] private RectTransform artwork;
+    [SerializeField] private CanvasGroup canvasGroup;
+    [SerializeField] private float speed = 1.15f;
+    [SerializeField] private float scaleAmount = 0.035f;
+
+    public void Configure(RectTransform artworkRect, CanvasGroup group)
+    {
+        artwork = artworkRect;
+        canvasGroup = group;
+    }
+
+    private void Update()
+    {
+        if (artwork == null)
+        {
+            return;
+        }
+
+        float wave = 0.5f + 0.5f * Mathf.Sin(Time.unscaledTime * speed);
+        float scale = 1f + scaleAmount * wave;
+        artwork.localScale = new Vector3(scale, scale, 1f);
+        artwork.localRotation = Quaternion.Euler(0f, 0f, Mathf.Lerp(-1.2f, 1.2f, wave));
+
+        if (canvasGroup != null)
+        {
+            canvasGroup.alpha = Mathf.Lerp(0.88f, 1f, wave);
         }
     }
 }

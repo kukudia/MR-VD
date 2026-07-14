@@ -1,107 +1,41 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Globalization;
-using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.Networking;
-using UnityEngine.Events;
 using UnityEngine.UI;
 
 /// <summary>
-/// Shows local runtime information such as date, time, weather, and local mail status.
+/// Presents local time, weather, and system status inside Screen/Canvas.
 /// </summary>
 public sealed class RuntimeInformationPanel : MonoBehaviour
 {
     private const float MinimumWeatherRefreshIntervalSeconds = 60f;
-    private const float MinimumMailRefreshIntervalSeconds = 10f;
     private const int DefaultRequestTimeoutSeconds = 12;
-    private const int MaxMailPreviewCount = 5;
     private const string IpLocationEndpoint = "https://ipwho.is/";
-    private const string OpenMeteoEndpointFormat = "https://api.open-meteo.com/v1/forecast?latitude={0}&longitude={1}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m,wind_direction_10m&timezone=auto";
-
-    private const string QueryOutlookMailScript = @"
-$ErrorActionPreference = 'SilentlyContinue'
-[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-$separator = [char]9
-
-function Encode-Field([string]$value) {
-    if ($null -eq $value) {
-        $value = ''
-    }
-
-    [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes([string]$value))
-}
-
-function Write-EncodedLine([string[]]$fields) {
-    ($fields | ForEach-Object { Encode-Field $_ }) -join $separator
-}
-
-try {
-    $outlook = New-Object -ComObject Outlook.Application
-    $namespace = $outlook.GetNamespace('MAPI')
-    $inbox = $namespace.GetDefaultFolder(6)
-    $items = $inbox.Items
-    $unread = $items.Restrict('[Unread] = true')
-    $unread.Sort('[ReceivedTime]', $true)
-    $unreadCount = [int]$unread.Count
-    $accountName = ''
-
-    if ($namespace.Accounts -and $namespace.Accounts.Count -gt 0) {
-        $accountName = [string]$namespace.Accounts.Item(1).DisplayName
-    }
-
-    if ([string]::IsNullOrWhiteSpace($accountName) -and $inbox.Store -ne $null) {
-        $accountName = [string]$inbox.Store.DisplayName
-    }
-
-    Write-EncodedLine @('SUMMARY', [string]$unreadCount, $accountName)
-
-    $limit = [Math]::Min($unreadCount, 5)
-    for ($i = 1; $i -le $limit; $i++) {
-        $mail = $unread.Item($i)
-        if ($null -eq $mail) {
-            continue
-        }
-
-        $sender = [string]$mail.SenderName
-        if ([string]::IsNullOrWhiteSpace($sender) -and $mail.SenderEmailAddress) {
-            $sender = [string]$mail.SenderEmailAddress
-        }
-
-        $subject = [string]$mail.Subject
-        $received = ''
-        if ($mail.ReceivedTime) {
-            $received = ([DateTime]$mail.ReceivedTime).ToString('yyyy-MM-dd HH:mm')
-        }
-
-        Write-EncodedLine @('MAIL', $sender, $subject, $received)
-    }
-}
-catch {
-    Write-EncodedLine @('ERROR', $_.Exception.Message)
-}
-";
+    private const string OpenMeteoEndpointFormat = "https://api.open-meteo.com/v1/forecast?latitude={0}&longitude={1}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m,wind_direction_10m,is_day&timezone=auto";
 
     [Header("Panel")]
     public bool showPanel = true;
     public KeyCode togglePanelKey = KeyCode.F9;
-    public Rect panelRect = new Rect(460f, 16f, 440f, 520f);
-    public float mailListHeight = 150f;
 
     [Header("Screen Canvas Panel")]
-    [Tooltip("Renders this panel inside Screen/Canvas/InfoPanel instead of the legacy IMGUI overlay.")]
     public bool useScreenCanvasPanel = true;
-
-    [Tooltip("Optional target panel under Screen/Canvas. When empty, Screen/Canvas/InfoPanel is used.")]
     public RectTransform screenCanvasPanelRoot;
 
-    [Tooltip("How often the Screen/Canvas panel text is refreshed.")]
     [Range(0.05f, 1f)]
     public float screenCanvasRefreshInterval = 0.2f;
+
+    [Range(0.05f, 0.6f)]
+    public float transitionDuration = 0.22f;
+
+    [Header("Modules")]
+    public bool showAudioModule = true;
+    public bool showWeatherModule = true;
+    public bool showSystemModule = true;
+    public bool weatherModuleExpanded = true;
+    public bool systemModuleExpanded = true;
 
     [Header("Weather")]
     public bool autoRefreshWeather = true;
@@ -112,38 +46,42 @@ catch {
     public string manualWeatherLocationLabel = "Manual Location";
     public float weatherRefreshIntervalSeconds = 900f;
 
-    [Header("Mail")]
-    public bool autoRefreshMail = true;
-    public float mailRefreshIntervalSeconds = 300f;
-    public float mailQueryTimeoutSeconds = 8f;
+    [Tooltip("Weather artwork 01-21 from Assets/GIF, in numeric filename order.")]
+    public Texture2D[] weatherVisuals = new Texture2D[21];
 
     private static RuntimeInformationPanel instance;
 
-    private readonly object mailLock = new object();
-    private readonly List<MailPreview> mailPreviews = new List<MailPreview>();
-
-    private CancellationTokenSource mailCancellation;
-    private Vector2 mailScrollPosition;
-    private GUIStyle wrapLabelStyle;
-    private GUIStyle strongLabelStyle;
-    private GUIStyle mutedLabelStyle;
-    private RectTransform screenCanvasContent;
-    private Text localTimeText;
-    private Text weatherText;
-    private Text mailText;
+    private RectTransform dashboard;
+    private Text timeText;
+    private Text dateText;
+    private Text timeZoneText;
+    private Text weatherTemperatureText;
+    private Text weatherConditionText;
+    private Text weatherDetailsText;
+    private Text weatherStatusText;
     private Text systemText;
-    private Font screenCanvasFont;
-    private float nextScreenCanvasRefreshTime;
+    private RawImage weatherArtwork;
+    private Button settingsButton;
+    private Button weatherRefreshButton;
+    private Button weatherExpandButton;
+    private Button systemExpandButton;
+    private Toggle audioModuleToggle;
+    private Toggle weatherModuleToggle;
+    private Toggle systemModuleToggle;
+    private Toggle weatherAutoToggle;
+    private ScreenCanvasModuleAnimator settingsAnimator;
+    private ScreenCanvasModuleAnimator weatherAnimator;
+    private ScreenCanvasModuleAnimator systemAnimator;
+    private ScreenCanvasPanelAnimator dashboardAnimator;
+    private ScreenCanvasPanelAnimator audioPanelAnimator;
 
+    private bool settingsExpanded;
+    private bool uiWired;
     private bool weatherRefreshInProgress;
-    private bool mailRefreshInProgress;
     private DateTime lastWeatherRefreshUtc;
-    private DateTime lastMailRefreshUtc;
     private WeatherSnapshot weatherSnapshot;
     private string weatherError;
-    private int unreadMailCount;
-    private string mailAccountName = string.Empty;
-    private string mailError;
+    private float nextScreenCanvasRefreshTime;
 
     private void Awake()
     {
@@ -154,13 +92,12 @@ catch {
         }
 
         instance = this;
-        mailCancellation = new CancellationTokenSource();
     }
 
     private void Start()
     {
+        EnsureScreenCanvasPanel();
         RequestWeatherRefresh(true);
-        RequestMailRefresh(true);
     }
 
     private void Update()
@@ -168,19 +105,13 @@ catch {
         if (togglePanelKey != KeyCode.None && Input.GetKeyDown(togglePanelKey))
         {
             showPanel = !showPanel;
-            UpdateScreenCanvasPanel(true);
+            ApplyDashboardVisibility(false);
         }
 
         if (autoRefreshWeather
             && (DateTime.UtcNow - lastWeatherRefreshUtc).TotalSeconds >= Mathf.Max(MinimumWeatherRefreshIntervalSeconds, weatherRefreshIntervalSeconds))
         {
             RequestWeatherRefresh(false);
-        }
-
-        if (autoRefreshMail
-            && (DateTime.UtcNow - lastMailRefreshUtc).TotalSeconds >= Mathf.Max(MinimumMailRefreshIntervalSeconds, mailRefreshIntervalSeconds))
-        {
-            RequestMailRefresh(false);
         }
 
         UpdateScreenCanvasPanel(false);
@@ -191,13 +122,6 @@ catch {
         if (instance == this)
         {
             instance = null;
-        }
-
-        if (mailCancellation != null)
-        {
-            mailCancellation.Cancel();
-            mailCancellation.Dispose();
-            mailCancellation = null;
         }
     }
 
@@ -216,94 +140,13 @@ catch {
         StartCoroutine(RefreshWeather());
     }
 
-    public void RequestMailRefresh(bool force)
-    {
-        if (!IsWindowsRuntime())
-        {
-            lock (mailLock)
-            {
-                mailError = "Outlook mail detection is available only on Windows.";
-                lastMailRefreshUtc = DateTime.UtcNow;
-                mailRefreshInProgress = false;
-            }
-
-            return;
-        }
-
-        lock (mailLock)
-        {
-            if (mailRefreshInProgress)
-            {
-                return;
-            }
-
-            if (!force && (DateTime.UtcNow - lastMailRefreshUtc).TotalSeconds < Mathf.Max(MinimumMailRefreshIntervalSeconds, mailRefreshIntervalSeconds))
-            {
-                return;
-            }
-
-            mailRefreshInProgress = true;
-            mailError = null;
-        }
-
-        if (mailCancellation == null || mailCancellation.IsCancellationRequested)
-        {
-            mailCancellation = new CancellationTokenSource();
-        }
-
-        int timeoutMilliseconds = Mathf.Max(1000, Mathf.RoundToInt(mailQueryTimeoutSeconds * 1000f));
-        CancellationToken token = mailCancellation.Token;
-
-        Task.Run(() => QueryOutlookMail(timeoutMilliseconds, token), token)
-            .ContinueWith(task =>
-            {
-                MailQueryResult result = null;
-                string error = null;
-
-                if (task.IsCanceled || token.IsCancellationRequested)
-                {
-                    error = "Mail refresh was canceled.";
-                }
-                else if (task.IsFaulted)
-                {
-                    error = task.Exception != null ? task.Exception.GetBaseException().Message : "Mail refresh failed.";
-                }
-                else
-                {
-                    result = task.Result;
-                    error = result.ErrorMessage;
-                }
-
-                lock (mailLock)
-                {
-                    mailRefreshInProgress = false;
-
-                    if (token.IsCancellationRequested)
-                    {
-                        return;
-                    }
-
-                    mailPreviews.Clear();
-                    if (result != null)
-                    {
-                        unreadMailCount = result.UnreadCount;
-                        mailAccountName = result.AccountName;
-                        mailPreviews.AddRange(result.Previews);
-                    }
-
-                    mailError = error;
-                    lastMailRefreshUtc = DateTime.UtcNow;
-                }
-            }, CancellationToken.None);
-    }
-
     private IEnumerator RefreshWeather()
     {
         weatherRefreshInProgress = true;
         weatherError = null;
+        UpdateWeatherPresentation();
 
         WeatherLocation location = null;
-
         if (useIpLocationForWeather)
         {
             using (UnityWebRequest request = UnityWebRequest.Get(IpLocationEndpoint))
@@ -317,7 +160,7 @@ catch {
                 }
                 else
                 {
-                    weatherError = "Location lookup failed: " + request.error;
+                    weatherError = "Location unavailable: " + request.error;
                 }
             }
         }
@@ -330,10 +173,9 @@ catch {
         if (location == null)
         {
             weatherError = string.IsNullOrWhiteSpace(weatherError)
-                ? "Weather location is unavailable. Enable IP lookup or set manual coordinates."
+                ? "Enable IP location or provide manual coordinates."
                 : weatherError;
-            lastWeatherRefreshUtc = DateTime.UtcNow;
-            weatherRefreshInProgress = false;
+            FinishWeatherRefresh();
             yield break;
         }
 
@@ -352,7 +194,6 @@ catch {
                 if (snapshot != null)
                 {
                     weatherSnapshot = snapshot;
-                    weatherError = null;
                 }
                 else
                 {
@@ -361,214 +202,41 @@ catch {
             }
             else
             {
-                weatherError = "Weather refresh failed: " + request.error;
+                weatherError = "Weather unavailable: " + request.error;
             }
         }
 
+        FinishWeatherRefresh();
+    }
+
+    private void FinishWeatherRefresh()
+    {
         lastWeatherRefreshUtc = DateTime.UtcNow;
         weatherRefreshInProgress = false;
+        UpdateWeatherPresentation();
     }
 
     private void OnGUI()
     {
-        if (useScreenCanvasPanel && EnsureScreenCanvasPanel(false))
+        if (useScreenCanvasPanel || !showPanel)
         {
             return;
         }
 
-        if (!showPanel)
-        {
-            return;
-        }
-
-        EnsureStyles();
-        panelRect.width = Mathf.Max(panelRect.width, 400f);
-        panelRect.height = Mathf.Max(panelRect.height, 420f);
-        panelRect = GUILayout.Window(GetInstanceID(), panelRect, DrawPanel, "Information Panel");
-    }
-
-    private void DrawPanel(int windowId)
-    {
-        DrawLocalTimeSection();
-        GUILayout.Space(8f);
-        DrawWeatherSection();
-        GUILayout.Space(8f);
-        DrawMailSection();
-        GUILayout.Space(8f);
-        DrawSystemSection();
-
-        GUI.DragWindow(new Rect(0f, 0f, 10000f, 24f));
-    }
-
-    private void DrawLocalTimeSection()
-    {
+        GUILayout.BeginArea(new Rect(16f, 16f, 420f, 300f), GUI.skin.box);
         DateTime now = DateTime.Now;
-        GUILayout.Label("Local Time", strongLabelStyle);
         GUILayout.Label(now.ToString("HH:mm:ss", CultureInfo.CurrentCulture));
-        GUILayout.Label(now.ToString("yyyy-MM-dd dddd", CultureInfo.CurrentCulture), wrapLabelStyle);
-        GUILayout.Label(TimeZoneInfo.Local.DisplayName, mutedLabelStyle);
-    }
-
-    private void DrawWeatherSection()
-    {
-        GUILayout.BeginHorizontal();
-        GUILayout.Label("Weather", strongLabelStyle);
-        GUILayout.FlexibleSpace();
-        bool wasEnabled = GUI.enabled;
-        GUI.enabled = wasEnabled && !weatherRefreshInProgress;
-        if (GUILayout.Button(weatherRefreshInProgress ? "Refreshing..." : "Refresh", GUILayout.Width(96f)))
-        {
-            RequestWeatherRefresh(true);
-        }
-
-        GUI.enabled = wasEnabled;
-        autoRefreshWeather = GUILayout.Toggle(autoRefreshWeather, "Auto", GUILayout.Width(58f));
-        GUILayout.EndHorizontal();
-
-        if (weatherSnapshot != null)
-        {
-            GUILayout.Label(weatherSnapshot.LocationLabel, wrapLabelStyle);
-            GUILayout.Label(string.Format(
-                CultureInfo.CurrentCulture,
-                "{0:0.#} C | feels {1:0.#} C | {2}",
-                weatherSnapshot.TemperatureCelsius,
-                weatherSnapshot.ApparentTemperatureCelsius,
-                weatherSnapshot.Condition),
-                wrapLabelStyle);
-            GUILayout.Label(string.Format(
-                CultureInfo.CurrentCulture,
-                "Humidity {0:0}% | Wind {1:0.#} km/h {2:0} deg | Rain {3:0.#} mm",
-                weatherSnapshot.RelativeHumidity,
-                weatherSnapshot.WindSpeedKmh,
-                weatherSnapshot.WindDirectionDegrees,
-                weatherSnapshot.PrecipitationMm),
-                wrapLabelStyle);
-        }
-        else
-        {
-            GUILayout.Label("No weather data yet.", wrapLabelStyle);
-        }
-
-        if (lastWeatherRefreshUtc != default(DateTime))
-        {
-            GUILayout.Label("Last weather refresh: " + lastWeatherRefreshUtc.ToLocalTime().ToString("HH:mm:ss", CultureInfo.CurrentCulture), mutedLabelStyle);
-        }
-
-        if (!string.IsNullOrWhiteSpace(weatherError))
-        {
-            GUILayout.Label(weatherError, wrapLabelStyle);
-        }
-    }
-
-    private void DrawMailSection()
-    {
-        List<MailPreview> previews;
-        int unreadCount;
-        string accountName;
-        string error;
-        bool refreshing;
-        DateTime refreshedUtc;
-
-        lock (mailLock)
-        {
-            previews = new List<MailPreview>(mailPreviews);
-            unreadCount = unreadMailCount;
-            accountName = mailAccountName;
-            error = mailError;
-            refreshing = mailRefreshInProgress;
-            refreshedUtc = lastMailRefreshUtc;
-        }
-
-        GUILayout.BeginHorizontal();
-        GUILayout.Label("Mail", strongLabelStyle);
-        GUILayout.FlexibleSpace();
-        bool wasEnabled = GUI.enabled;
-        GUI.enabled = wasEnabled && !refreshing;
-        if (GUILayout.Button(refreshing ? "Refreshing..." : "Refresh", GUILayout.Width(96f)))
-        {
-            RequestMailRefresh(true);
-        }
-
-        GUI.enabled = wasEnabled;
-        autoRefreshMail = GUILayout.Toggle(autoRefreshMail, "Auto", GUILayout.Width(58f));
-        GUILayout.EndHorizontal();
-
-        GUILayout.Label("Unread: " + unreadCount, wrapLabelStyle);
-        if (!string.IsNullOrWhiteSpace(accountName))
-        {
-            GUILayout.Label("Account: " + accountName, wrapLabelStyle);
-        }
-
-        if (refreshedUtc != default(DateTime))
-        {
-            GUILayout.Label("Last mail refresh: " + refreshedUtc.ToLocalTime().ToString("HH:mm:ss", CultureInfo.CurrentCulture), mutedLabelStyle);
-        }
-
-        if (!string.IsNullOrWhiteSpace(error))
-        {
-            GUILayout.Label(error, wrapLabelStyle);
-        }
-
-        mailScrollPosition = GUILayout.BeginScrollView(mailScrollPosition, GUILayout.Height(mailListHeight));
-        if (previews.Count == 0)
-        {
-            GUILayout.Label("No unread mail previews from the local Outlook inbox.", wrapLabelStyle);
-        }
-        else
-        {
-            for (int i = 0; i < previews.Count; i++)
-            {
-                MailPreview preview = previews[i];
-                GUILayout.Label(preview.ReceivedAtLabel + " | " + preview.Sender, strongLabelStyle);
-                GUILayout.Label(preview.Subject, wrapLabelStyle);
-                GUILayout.Space(4f);
-            }
-        }
-
-        GUILayout.EndScrollView();
-    }
-
-    private void DrawSystemSection()
-    {
-        GUILayout.Label("System", strongLabelStyle);
-        GUILayout.Label("Machine: " + Environment.MachineName + " | User: " + Environment.UserName, wrapLabelStyle);
-        GUILayout.Label("Platform: " + Application.platform + " | Network: " + Application.internetReachability, wrapLabelStyle);
-    }
-
-    private void EnsureStyles()
-    {
-        if (wrapLabelStyle != null)
-        {
-            return;
-        }
-
-        wrapLabelStyle = new GUIStyle(GUI.skin.label)
-        {
-            wordWrap = true
-        };
-
-        strongLabelStyle = new GUIStyle(GUI.skin.label)
-        {
-            fontStyle = FontStyle.Bold,
-            wordWrap = true
-        };
-
-        mutedLabelStyle = new GUIStyle(GUI.skin.label)
-        {
-            wordWrap = true
-        };
-        mutedLabelStyle.normal.textColor = new Color(0.72f, 0.72f, 0.72f, 1f);
+        GUILayout.Label(now.ToString("yyyy-MM-dd dddd", CultureInfo.CurrentCulture));
+        GUILayout.Space(8f);
+        GUILayout.Label(BuildWeatherFallbackText());
+        GUILayout.Space(8f);
+        GUILayout.Label(BuildSystemText());
+        GUILayout.EndArea();
     }
 
     private void UpdateScreenCanvasPanel(bool force)
     {
-        if (!useScreenCanvasPanel || !EnsureScreenCanvasPanel(false))
-        {
-            return;
-        }
-
-        screenCanvasContent.gameObject.SetActive(showPanel);
-        if (!showPanel)
+        if (!useScreenCanvasPanel || !EnsureScreenCanvasPanel())
         {
             return;
         }
@@ -579,13 +247,15 @@ catch {
         }
 
         nextScreenCanvasRefreshTime = Time.unscaledTime + Mathf.Max(0.05f, screenCanvasRefreshInterval);
-        UpdateLocalTimeText();
-        UpdateWeatherText();
-        UpdateMailText();
-        UpdateSystemText();
+        DateTime now = DateTime.Now;
+        timeText.text = now.ToString("HH:mm:ss", CultureInfo.CurrentCulture);
+        dateText.text = now.ToString("dddd, dd MMMM yyyy", CultureInfo.CurrentCulture);
+        timeZoneText.text = TimeZoneInfo.Local.StandardName;
+        UpdateWeatherPresentation();
+        systemText.text = BuildSystemText();
     }
 
-    private bool EnsureScreenCanvasPanel(bool forceRebuild)
+    private bool EnsureScreenCanvasPanel()
     {
         if (!useScreenCanvasPanel)
         {
@@ -606,398 +276,354 @@ catch {
             return false;
         }
 
-        if (screenCanvasContent != null && localTimeText != null && weatherText != null && mailText != null && systemText != null && !forceRebuild)
+        if (dashboard == null)
         {
-            return true;
+            dashboard = FindRect(screenCanvasPanelRoot, "RuntimeDashboard");
         }
 
-        screenCanvasFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-        if (screenCanvasFont == null)
+        if (dashboard == null)
         {
-            UnityEngine.Debug.LogError("[RuntimeInformationPanel] LegacyRuntime.ttf built-in font was not found. Screen canvas panel cannot be created.");
             return false;
         }
 
-        screenCanvasContent = FindOrCreateRect("RuntimeInfoCanvasContent", screenCanvasPanelRoot, new Vector2(270f, 480f));
-        screenCanvasContent.localScale = Vector3.one * 0.1f;
-
-        VerticalLayoutGroup layout = screenCanvasContent.GetComponent<VerticalLayoutGroup>();
-        if (layout == null)
+        if (!uiWired)
         {
-            layout = screenCanvasContent.gameObject.AddComponent<VerticalLayoutGroup>();
+            uiWired = BindDashboard();
         }
-        layout.padding = new RectOffset(10, 10, 10, 10);
-        layout.spacing = 6f;
-        layout.childAlignment = TextAnchor.UpperLeft;
-        layout.childControlWidth = true;
-        layout.childControlHeight = true;
-        layout.childForceExpandWidth = true;
-        layout.childForceExpandHeight = false;
 
-        ScreenCanvasArtTheme.ApplyPanelArt(
-            screenCanvasContent,
-            ScreenCanvasArtTheme.InfoPanelBase,
-            ScreenCanvasArtTheme.InfoPrimaryAccent,
-            ScreenCanvasArtTheme.InfoSecondaryAccent,
-            true);
+        return uiWired;
+    }
 
-        localTimeText = FindOrCreateText("LocalTimeText", screenCanvasContent, string.Empty, 15, FontStyle.Bold, TextAnchor.UpperLeft, 70f);
+    private bool BindDashboard()
+    {
+        timeText = Find<Text>(dashboard, "TimeCard/TimeText");
+        dateText = Find<Text>(dashboard, "TimeCard/DateText");
+        timeZoneText = Find<Text>(dashboard, "TimeCard/TimeZoneText");
+        weatherTemperatureText = Find<Text>(dashboard, "WeatherModule/WeatherBody/WeatherSummary/WeatherCopy/WeatherTemperatureText");
+        weatherConditionText = Find<Text>(dashboard, "WeatherModule/WeatherBody/WeatherSummary/WeatherCopy/WeatherConditionText");
+        weatherDetailsText = Find<Text>(dashboard, "WeatherModule/WeatherBody/WeatherDetailsText");
+        weatherStatusText = Find<Text>(dashboard, "WeatherModule/WeatherBody/WeatherStatusText");
+        weatherArtwork = Find<RawImage>(dashboard, "WeatherModule/WeatherBody/WeatherSummary/WeatherArtwork");
+        systemText = Find<Text>(dashboard, "SystemModule/SystemBody/SystemText");
+        settingsButton = Find<Button>(dashboard, "DashboardHeader/SettingsButton");
+        weatherRefreshButton = Find<Button>(dashboard, "WeatherModule/WeatherHeader/WeatherRefreshButton");
+        weatherExpandButton = Find<Button>(dashboard, "WeatherModule/WeatherHeader/WeatherExpandButton");
+        systemExpandButton = Find<Button>(dashboard, "SystemModule/SystemHeader/SystemExpandButton");
+        audioModuleToggle = Find<Toggle>(dashboard, "SettingsModule/SettingsBody/SettingsRowOne/AudioModuleToggle");
+        weatherModuleToggle = Find<Toggle>(dashboard, "SettingsModule/SettingsBody/SettingsRowOne/WeatherModuleToggle");
+        systemModuleToggle = Find<Toggle>(dashboard, "SettingsModule/SettingsBody/SettingsRowTwo/SystemModuleToggle");
+        weatherAutoToggle = Find<Toggle>(dashboard, "SettingsModule/SettingsBody/SettingsRowTwo/WeatherAutoToggle");
+        settingsAnimator = Find<ScreenCanvasModuleAnimator>(dashboard, "SettingsModule");
+        weatherAnimator = Find<ScreenCanvasModuleAnimator>(dashboard, "WeatherModule");
+        systemAnimator = Find<ScreenCanvasModuleAnimator>(dashboard, "SystemModule");
+        dashboardAnimator = dashboard.GetComponent<ScreenCanvasPanelAnimator>();
 
-        RectTransform weatherHeader = FindOrCreateHeaderRow("WeatherHeader", screenCanvasContent, "Weather");
-        Button weatherRefreshButton = FindOrCreateButton("WeatherRefreshButton", weatherHeader, "Refresh");
+        RectTransform audioPanel = FindSiblingPanel("AudioPanel/AudioCaptureCanvasContent");
+        if (audioPanel != null)
+        {
+            audioPanelAnimator = audioPanel.GetComponent<ScreenCanvasPanelAnimator>();
+        }
+
+        bool complete = timeText != null
+            && dateText != null
+            && timeZoneText != null
+            && weatherTemperatureText != null
+            && weatherConditionText != null
+            && weatherDetailsText != null
+            && weatherStatusText != null
+            && weatherArtwork != null
+            && systemText != null
+            && settingsButton != null
+            && weatherRefreshButton != null
+            && weatherExpandButton != null
+            && systemExpandButton != null
+            && audioModuleToggle != null
+            && weatherModuleToggle != null
+            && systemModuleToggle != null
+            && weatherAutoToggle != null
+            && settingsAnimator != null
+            && weatherAnimator != null
+            && systemAnimator != null;
+
+        if (!complete)
+        {
+            Debug.LogError("[RuntimeInformationPanel] RuntimeDashboard is incomplete. Rebuild it from Tools/MR-VD/Rebuild Screen Canvas Panels.");
+            return false;
+        }
+
+        settingsButton.onClick.RemoveAllListeners();
+        settingsButton.onClick.AddListener(() => SetSettingsExpanded(!settingsExpanded, false));
         weatherRefreshButton.onClick.RemoveAllListeners();
         weatherRefreshButton.onClick.AddListener(() => RequestWeatherRefresh(true));
-        Toggle weatherAutoToggle = FindOrCreateToggle("WeatherAutoToggle", weatherHeader, "Auto", autoRefreshWeather);
-        weatherAutoToggle.onValueChanged.RemoveAllListeners();
-        weatherAutoToggle.onValueChanged.AddListener(value => autoRefreshWeather = value);
-        weatherText = FindOrCreateText("WeatherText", screenCanvasContent, string.Empty, 10, FontStyle.Normal, TextAnchor.UpperLeft, 110f);
+        weatherExpandButton.onClick.RemoveAllListeners();
+        weatherExpandButton.onClick.AddListener(() => SetWeatherExpanded(!weatherModuleExpanded, false));
+        systemExpandButton.onClick.RemoveAllListeners();
+        systemExpandButton.onClick.AddListener(() => SetSystemExpanded(!systemModuleExpanded, false));
 
-        RectTransform mailHeader = FindOrCreateHeaderRow("MailHeader", screenCanvasContent, "Mail");
-        Button mailRefreshButton = FindOrCreateButton("MailRefreshButton", mailHeader, "Refresh");
-        mailRefreshButton.onClick.RemoveAllListeners();
-        mailRefreshButton.onClick.AddListener(() => RequestMailRefresh(true));
-        Toggle mailAutoToggle = FindOrCreateToggle("MailAutoToggle", mailHeader, "Auto", autoRefreshMail);
-        mailAutoToggle.onValueChanged.RemoveAllListeners();
-        mailAutoToggle.onValueChanged.AddListener(value => autoRefreshMail = value);
-        mailText = FindOrCreateText("MailText", screenCanvasContent, string.Empty, 9, FontStyle.Normal, TextAnchor.UpperLeft, 150f);
+        ConfigureToggle(audioModuleToggle, showAudioModule, SetAudioModuleVisible);
+        ConfigureToggle(weatherModuleToggle, showWeatherModule, SetWeatherModuleVisible);
+        ConfigureToggle(systemModuleToggle, showSystemModule, SetSystemModuleVisible);
+        ConfigureToggle(weatherAutoToggle, autoRefreshWeather, value => autoRefreshWeather = value);
 
-        systemText = FindOrCreateText("SystemText", screenCanvasContent, string.Empty, 9, FontStyle.Normal, TextAnchor.UpperLeft, 60f);
-
-        UpdateScreenCanvasPanel(true);
+        SetSettingsExpanded(false, true);
+        SetWeatherModuleVisible(showWeatherModule, true);
+        SetSystemModuleVisible(showSystemModule, true);
+        SetAudioModuleVisible(showAudioModule, true);
+        ApplyDashboardVisibility(true);
         return true;
     }
 
-    private void UpdateLocalTimeText()
+    private void ConfigureToggle(Toggle toggle, bool value, UnityEngine.Events.UnityAction<bool> listener)
     {
-        DateTime now = DateTime.Now;
-        localTimeText.text = "Local Time\n"
-            + now.ToString("HH:mm:ss", CultureInfo.CurrentCulture)
-            + "\n"
-            + now.ToString("yyyy-MM-dd dddd", CultureInfo.CurrentCulture)
-            + "\n"
-            + TimeZoneInfo.Local.DisplayName;
+        toggle.onValueChanged.RemoveAllListeners();
+        toggle.SetIsOnWithoutNotify(value);
+        toggle.onValueChanged.AddListener(listener);
     }
 
-    private void UpdateWeatherText()
+    private void SetSettingsExpanded(bool expanded, bool immediate)
     {
-        StringBuilder builder = new StringBuilder();
-        if (weatherSnapshot != null)
+        settingsExpanded = expanded;
+        settingsAnimator.SetState(true, settingsExpanded, immediate, transitionDuration);
+        SetButtonLabel(settingsButton, settingsExpanded ? "DONE" : "SETTINGS");
+    }
+
+    private void SetAudioModuleVisible(bool visible)
+    {
+        SetAudioModuleVisible(visible, false);
+    }
+
+    private void SetAudioModuleVisible(bool visible, bool immediate)
+    {
+        showAudioModule = visible;
+        if (audioPanelAnimator != null)
         {
-            builder.AppendLine(weatherSnapshot.LocationLabel);
-            builder.AppendLine(string.Format(
-                CultureInfo.CurrentCulture,
-                "{0:0.#} C | feels {1:0.#} C | {2}",
-                weatherSnapshot.TemperatureCelsius,
-                weatherSnapshot.ApparentTemperatureCelsius,
-                weatherSnapshot.Condition));
-            builder.AppendLine(string.Format(
-                CultureInfo.CurrentCulture,
-                "Humidity {0:0}% | Wind {1:0.#} km/h {2:0} deg",
-                weatherSnapshot.RelativeHumidity,
-                weatherSnapshot.WindSpeedKmh,
-                weatherSnapshot.WindDirectionDegrees));
-            builder.AppendLine(string.Format(CultureInfo.CurrentCulture, "Rain {0:0.#} mm", weatherSnapshot.PrecipitationMm));
+            audioPanelAnimator.SetVisible(visible, immediate, transitionDuration);
+        }
+    }
+
+    private void SetWeatherModuleVisible(bool visible)
+    {
+        SetWeatherModuleVisible(visible, false);
+    }
+
+    private void SetWeatherModuleVisible(bool visible, bool immediate)
+    {
+        showWeatherModule = visible;
+        weatherAnimator.SetState(visible, weatherModuleExpanded, immediate, transitionDuration);
+    }
+
+    private void SetSystemModuleVisible(bool visible)
+    {
+        SetSystemModuleVisible(visible, false);
+    }
+
+    private void SetSystemModuleVisible(bool visible, bool immediate)
+    {
+        showSystemModule = visible;
+        systemAnimator.SetState(visible, systemModuleExpanded, immediate, transitionDuration);
+    }
+
+    private void SetWeatherExpanded(bool expanded, bool immediate)
+    {
+        weatherModuleExpanded = expanded;
+        weatherAnimator.SetState(showWeatherModule, expanded, immediate, transitionDuration);
+        SetButtonLabel(weatherExpandButton, expanded ? "HIDE" : "SHOW");
+    }
+
+    private void SetSystemExpanded(bool expanded, bool immediate)
+    {
+        systemModuleExpanded = expanded;
+        systemAnimator.SetState(showSystemModule, expanded, immediate, transitionDuration);
+        SetButtonLabel(systemExpandButton, expanded ? "HIDE" : "SHOW");
+    }
+
+    private void ApplyDashboardVisibility(bool immediate)
+    {
+        if (dashboardAnimator != null)
+        {
+            dashboardAnimator.SetVisible(showPanel, immediate, transitionDuration);
+        }
+        else if (dashboard != null)
+        {
+            dashboard.gameObject.SetActive(showPanel);
+        }
+    }
+
+    private void UpdateWeatherPresentation()
+    {
+        if (weatherTemperatureText == null)
+        {
+            return;
+        }
+
+        weatherRefreshButton.interactable = !weatherRefreshInProgress;
+        if (weatherSnapshot == null)
+        {
+            weatherTemperatureText.text = "-- C";
+            weatherConditionText.text = "Weather unavailable";
+            weatherDetailsText.text = "Waiting for location and current conditions.";
+            weatherArtwork.texture = null;
+            weatherArtwork.enabled = false;
         }
         else
         {
-            builder.AppendLine("No weather data yet.");
+            weatherTemperatureText.text = string.Format(CultureInfo.CurrentCulture, "{0:0.#} C", weatherSnapshot.TemperatureCelsius);
+            weatherConditionText.text = weatherSnapshot.Condition + "  |  " + weatherSnapshot.LocationLabel;
+            weatherDetailsText.text = string.Format(
+                CultureInfo.CurrentCulture,
+                "Feels {0:0.#} C    Humidity {1:0}%\nWind {2:0.#} km/h    Rain {3:0.#} mm",
+                weatherSnapshot.ApparentTemperatureCelsius,
+                weatherSnapshot.RelativeHumidity,
+                weatherSnapshot.WindSpeedKmh,
+                weatherSnapshot.PrecipitationMm);
+
+            Texture2D texture = ResolveWeatherVisual(weatherSnapshot);
+            weatherArtwork.texture = texture;
+            weatherArtwork.enabled = texture != null;
         }
 
         if (weatherRefreshInProgress)
         {
-            builder.AppendLine("Refreshing...");
+            weatherStatusText.text = "UPDATING CURRENT CONDITIONS";
         }
-
-        if (lastWeatherRefreshUtc != default(DateTime))
+        else if (!string.IsNullOrWhiteSpace(weatherError))
         {
-            builder.AppendLine("Last refresh: " + lastWeatherRefreshUtc.ToLocalTime().ToString("HH:mm:ss", CultureInfo.CurrentCulture));
+            weatherStatusText.text = weatherError;
         }
-
-        if (!string.IsNullOrWhiteSpace(weatherError))
+        else if (lastWeatherRefreshUtc != default(DateTime))
         {
-            builder.AppendLine(weatherError);
-        }
-
-        weatherText.text = builder.ToString().TrimEnd();
-    }
-
-    private void UpdateMailText()
-    {
-        List<MailPreview> previews;
-        int unreadCount;
-        string accountName;
-        string error;
-        bool refreshing;
-        DateTime refreshedUtc;
-
-        lock (mailLock)
-        {
-            previews = new List<MailPreview>(mailPreviews);
-            unreadCount = unreadMailCount;
-            accountName = mailAccountName;
-            error = mailError;
-            refreshing = mailRefreshInProgress;
-            refreshedUtc = lastMailRefreshUtc;
-        }
-
-        StringBuilder builder = new StringBuilder();
-        builder.AppendLine("Unread: " + unreadCount);
-        if (!string.IsNullOrWhiteSpace(accountName))
-        {
-            builder.AppendLine("Account: " + accountName);
-        }
-
-        if (refreshing)
-        {
-            builder.AppendLine("Refreshing...");
-        }
-
-        if (refreshedUtc != default(DateTime))
-        {
-            builder.AppendLine("Last refresh: " + refreshedUtc.ToLocalTime().ToString("HH:mm:ss", CultureInfo.CurrentCulture));
-        }
-
-        if (!string.IsNullOrWhiteSpace(error))
-        {
-            builder.AppendLine(error);
-        }
-
-        if (previews.Count == 0)
-        {
-            builder.AppendLine("No unread mail previews from the local Outlook inbox.");
+            weatherStatusText.text = "UPDATED " + lastWeatherRefreshUtc.ToLocalTime().ToString("HH:mm", CultureInfo.CurrentCulture);
         }
         else
         {
-            for (int i = 0; i < previews.Count; i++)
-            {
-                MailPreview preview = previews[i];
-                builder.AppendLine(preview.ReceivedAtLabel + " | " + preview.Sender);
-                builder.AppendLine(preview.Subject);
-            }
+            weatherStatusText.text = "NOT YET UPDATED";
         }
-
-        mailText.text = builder.ToString().TrimEnd();
     }
 
-    private void UpdateSystemText()
+    private Texture2D ResolveWeatherVisual(WeatherSnapshot snapshot)
     {
-        systemText.text = "System\n"
-            + "Machine: " + Environment.MachineName + " | User: " + Environment.UserName
-            + "\nPlatform: " + Application.platform + " | Network: " + Application.internetReachability;
+        int visualNumber = WeatherCodeToVisualNumber(snapshot.WeatherCode, snapshot.IsDay, snapshot.WindSpeedKmh);
+        int index = visualNumber - 1;
+        return weatherVisuals != null && index >= 0 && index < weatherVisuals.Length
+            ? weatherVisuals[index]
+            : null;
     }
 
-    private RectTransform FindOrCreateHeaderRow(string name, RectTransform parent, string title)
+    private static int WeatherCodeToVisualNumber(int code, bool isDay, float windSpeedKmh)
     {
-        RectTransform row = FindOrCreateRect(name, parent, new Vector2(250f, 30f));
-        HorizontalLayoutGroup layout = row.GetComponent<HorizontalLayoutGroup>();
-        if (layout == null)
+        if (windSpeedKmh >= 45f && code < 51)
         {
-            layout = row.gameObject.AddComponent<HorizontalLayoutGroup>();
+            return 18;
         }
-        layout.spacing = 4f;
-        layout.childAlignment = TextAnchor.MiddleLeft;
-        layout.childControlWidth = true;
-        layout.childControlHeight = true;
-        layout.childForceExpandWidth = false;
-        layout.childForceExpandHeight = true;
 
-        Text label = FindOrCreateText(title + "Label", row, title, 12, FontStyle.Bold, TextAnchor.MiddleLeft, 28f);
-        LayoutElement labelLayout = label.GetComponent<LayoutElement>();
-        if (labelLayout == null)
+        if (code == 0)
         {
-            labelLayout = label.gameObject.AddComponent<LayoutElement>();
+            return isDay ? 1 : 11;
         }
-        labelLayout.flexibleWidth = 1f;
-        labelLayout.preferredWidth = 90f;
-        ScreenCanvasArtTheme.StyleText(label, title + "Label", 12, FontStyle.Bold);
-        return row;
+
+        if (code == 1)
+        {
+            return isDay ? 3 : 12;
+        }
+
+        if (code == 2)
+        {
+            return isDay ? 2 : 12;
+        }
+
+        if (code == 3)
+        {
+            return isDay ? 4 : 13;
+        }
+
+        if (code == 45 || code == 48)
+        {
+            return 21;
+        }
+
+        if (code >= 51 && code <= 57)
+        {
+            return isDay ? 5 : 14;
+        }
+
+        if ((code >= 61 && code <= 67) || (code >= 80 && code <= 82))
+        {
+            return isDay ? 6 : 15;
+        }
+
+        if ((code >= 71 && code <= 77) || (code >= 85 && code <= 86))
+        {
+            return isDay ? 7 : 16;
+        }
+
+        if (code >= 95)
+        {
+            return 17;
+        }
+
+        return isDay ? 2 : 12;
     }
 
-    private RectTransform FindOrCreateRect(string name, RectTransform parent, Vector2 size)
+    private string BuildWeatherFallbackText()
     {
-        Transform existing = parent.Find(name);
-        GameObject obj = existing != null ? existing.gameObject : new GameObject(name, typeof(RectTransform));
-        obj.layer = parent.gameObject.layer;
-        RectTransform rectTransform = obj.GetComponent<RectTransform>();
-        if (rectTransform == null)
+        if (weatherSnapshot == null)
         {
-            rectTransform = obj.AddComponent<RectTransform>();
+            return string.IsNullOrWhiteSpace(weatherError) ? "Weather unavailable." : weatherError;
         }
 
-        rectTransform.SetParent(parent, false);
-        rectTransform.anchorMin = new Vector2(0.5f, 0.5f);
-        rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
-        rectTransform.pivot = new Vector2(0.5f, 0.5f);
-        rectTransform.sizeDelta = size;
-        rectTransform.localScale = Vector3.one;
-        return rectTransform;
+        return string.Format(
+            CultureInfo.CurrentCulture,
+            "{0}: {1:0.#} C, {2}",
+            weatherSnapshot.LocationLabel,
+            weatherSnapshot.TemperatureCelsius,
+            weatherSnapshot.Condition);
     }
 
-    private Text FindOrCreateText(string name, RectTransform parent, string text, int fontSize, FontStyle fontStyle, TextAnchor alignment, float height)
+    private static string BuildSystemText()
     {
-        Transform existing = parent.Find(name);
-        GameObject obj = existing != null ? existing.gameObject : new GameObject(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(Text));
-        obj.layer = parent.gameObject.layer;
-        RectTransform rectTransform = obj.GetComponent<RectTransform>();
-        if (rectTransform == null)
-        {
-            rectTransform = obj.AddComponent<RectTransform>();
-        }
-
-        rectTransform.SetParent(parent, false);
-        rectTransform.sizeDelta = new Vector2(250f, height);
-
-        if (obj.GetComponent<CanvasRenderer>() == null)
-        {
-            obj.AddComponent<CanvasRenderer>();
-        }
-
-        Text label = obj.GetComponent<Text>();
-        if (label == null)
-        {
-            label = obj.AddComponent<Text>();
-        }
-
-        label.font = screenCanvasFont;
-        label.fontSize = fontSize;
-        label.fontStyle = fontStyle;
-        label.alignment = alignment;
-        label.horizontalOverflow = HorizontalWrapMode.Wrap;
-        label.verticalOverflow = VerticalWrapMode.Truncate;
-        label.color = Color.white;
-        label.text = text;
-        ScreenCanvasArtTheme.StyleText(label, name, fontSize, fontStyle);
-        return label;
+        string reachability = Application.internetReachability == NetworkReachability.NotReachable
+            ? "Offline"
+            : "Online";
+        return "DEVICE  " + Environment.MachineName
+            + "\nPLATFORM  " + Application.platform
+            + "\nNETWORK  " + reachability;
     }
 
-    private Button FindOrCreateButton(string name, RectTransform parent, string label)
+    private RectTransform FindSiblingPanel(string relativePath)
     {
-        Transform existing = parent.Find(name);
-        GameObject obj = existing != null ? existing.gameObject : new GameObject(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button));
-        obj.layer = parent.gameObject.layer;
-        RectTransform rectTransform = obj.GetComponent<RectTransform>();
-        if (rectTransform == null)
+        if (screenCanvasPanelRoot == null || screenCanvasPanelRoot.parent == null)
         {
-            rectTransform = obj.AddComponent<RectTransform>();
+            return null;
         }
 
-        rectTransform.SetParent(parent, false);
-        rectTransform.sizeDelta = new Vector2(62f, 28f);
+        Transform target = screenCanvasPanelRoot.parent.Find(relativePath);
+        return target as RectTransform;
+    }
 
-        if (obj.GetComponent<CanvasRenderer>() == null)
-        {
-            obj.AddComponent<CanvasRenderer>();
-        }
+    private static RectTransform FindRect(RectTransform root, string path)
+    {
+        Transform target = root.Find(path);
+        return target as RectTransform;
+    }
 
-        Image image = obj.GetComponent<Image>();
-        if (image == null)
-        {
-            image = obj.AddComponent<Image>();
-        }
-        image.color = new Color(0.18f, 0.24f, 0.28f, 0.88f);
-        image.raycastTarget = true;
+    private static T Find<T>(RectTransform root, string path) where T : Component
+    {
+        Transform target = root.Find(path);
+        return target != null ? target.GetComponent<T>() : null;
+    }
 
-        Button button = obj.GetComponent<Button>();
+    private static void SetButtonLabel(Button button, string label)
+    {
         if (button == null)
         {
-            button = obj.AddComponent<Button>();
+            return;
         }
-        button.targetGraphic = image;
-        ScreenCanvasArtTheme.StyleSelectable(button, image, true);
 
-        Text text = FindOrCreateText("Label", rectTransform, label, 9, FontStyle.Normal, TextAnchor.MiddleCenter, 28f);
-        RectTransform textRect = text.GetComponent<RectTransform>();
-        textRect.anchorMin = Vector2.zero;
-        textRect.anchorMax = Vector2.one;
-        textRect.offsetMin = new Vector2(3f, 2f);
-        textRect.offsetMax = new Vector2(-3f, -2f);
-        return button;
-    }
-
-    private Toggle FindOrCreateToggle(string name, RectTransform parent, string label, bool initialValue)
-    {
-        Transform existing = parent.Find(name);
-        GameObject obj = existing != null ? existing.gameObject : new GameObject(name, typeof(RectTransform), typeof(Toggle));
-        obj.layer = parent.gameObject.layer;
-        RectTransform rectTransform = obj.GetComponent<RectTransform>();
-        if (rectTransform == null)
+        Text text = button.GetComponentInChildren<Text>(true);
+        if (text != null)
         {
-            rectTransform = obj.AddComponent<RectTransform>();
+            text.text = label;
         }
-
-        rectTransform.SetParent(parent, false);
-        rectTransform.sizeDelta = new Vector2(68f, 28f);
-
-        Transform backgroundExisting = rectTransform.Find("Background");
-        GameObject backgroundObject = backgroundExisting != null ? backgroundExisting.gameObject : new GameObject("Background", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
-        backgroundObject.layer = obj.layer;
-        RectTransform backgroundRect = backgroundObject.GetComponent<RectTransform>();
-        if (backgroundRect == null)
-        {
-            backgroundRect = backgroundObject.AddComponent<RectTransform>();
-        }
-
-        backgroundRect.SetParent(rectTransform, false);
-        backgroundRect.anchorMin = new Vector2(0f, 0.5f);
-        backgroundRect.anchorMax = new Vector2(0f, 0.5f);
-        backgroundRect.sizeDelta = new Vector2(12f, 12f);
-        backgroundRect.anchoredPosition = new Vector2(8f, 0f);
-        if (backgroundObject.GetComponent<CanvasRenderer>() == null)
-        {
-            backgroundObject.AddComponent<CanvasRenderer>();
-        }
-
-        Image backgroundImage = backgroundObject.GetComponent<Image>();
-        if (backgroundImage == null)
-        {
-            backgroundImage = backgroundObject.AddComponent<Image>();
-        }
-        backgroundImage.color = new Color(0.18f, 0.24f, 0.28f, 0.88f);
-
-        Transform checkExisting = backgroundRect.Find("Checkmark");
-        GameObject checkObject = checkExisting != null ? checkExisting.gameObject : new GameObject("Checkmark", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
-        checkObject.layer = obj.layer;
-        RectTransform checkRect = checkObject.GetComponent<RectTransform>();
-        if (checkRect == null)
-        {
-            checkRect = checkObject.AddComponent<RectTransform>();
-        }
-
-        checkRect.SetParent(backgroundRect, false);
-        checkRect.anchorMin = Vector2.zero;
-        checkRect.anchorMax = Vector2.one;
-        checkRect.offsetMin = new Vector2(2f, 2f);
-        checkRect.offsetMax = new Vector2(-2f, -2f);
-        if (checkObject.GetComponent<CanvasRenderer>() == null)
-        {
-            checkObject.AddComponent<CanvasRenderer>();
-        }
-
-        Image checkImage = checkObject.GetComponent<Image>();
-        if (checkImage == null)
-        {
-            checkImage = checkObject.AddComponent<Image>();
-        }
-        checkImage.color = new Color(0.35f, 0.82f, 0.62f, 1f);
-
-        Text text = FindOrCreateText("Label", rectTransform, label, 9, FontStyle.Normal, TextAnchor.MiddleLeft, 28f);
-        RectTransform textRect = text.GetComponent<RectTransform>();
-        textRect.anchorMin = new Vector2(0f, 0f);
-        textRect.anchorMax = Vector2.one;
-        textRect.offsetMin = new Vector2(22f, 0f);
-        textRect.offsetMax = Vector2.zero;
-
-        Toggle toggle = obj.GetComponent<Toggle>();
-        if (toggle == null)
-        {
-            toggle = obj.AddComponent<Toggle>();
-        }
-        toggle.targetGraphic = backgroundImage;
-        toggle.graphic = checkImage;
-        toggle.isOn = initialValue;
-        ScreenCanvasArtTheme.StyleSelectable(toggle, backgroundImage, false);
-        ScreenCanvasArtTheme.StyleText(text, name, 9, FontStyle.Normal);
-        return toggle;
     }
 
     private static WeatherLocation ParseIpLocation(string json)
@@ -1015,8 +641,10 @@ catch {
                 return null;
             }
 
-            string label = BuildLocationLabel(response.city, response.region, response.country);
-            return new WeatherLocation(response.latitude, response.longitude, label);
+            return new WeatherLocation(
+                response.latitude,
+                response.longitude,
+                BuildLocationLabel(response.city, response.region, response.country));
         }
         catch
         {
@@ -1048,6 +676,8 @@ catch {
                 current.precipitation,
                 current.wind_speed_10m,
                 current.wind_direction_10m,
+                current.weather_code,
+                current.is_day != 0,
                 WeatherCodeToText(current.weather_code));
         }
         catch
@@ -1074,7 +704,7 @@ catch {
             parts.Add(country);
         }
 
-        return parts.Count == 0 ? "Current network location" : string.Join(", ", parts);
+        return parts.Count == 0 ? "Current location" : string.Join(", ", parts);
     }
 
     private static string WeatherCodeToText(int code)
@@ -1084,32 +714,31 @@ catch {
             case 0:
                 return "Clear";
             case 1:
+                return "Mostly clear";
             case 2:
-            case 3:
                 return "Partly cloudy";
+            case 3:
+                return "Overcast";
             case 45:
             case 48:
                 return "Fog";
             case 51:
             case 53:
             case 55:
-                return "Drizzle";
             case 56:
             case 57:
-                return "Freezing drizzle";
+                return "Drizzle";
             case 61:
             case 63:
             case 65:
-                return "Rain";
             case 66:
             case 67:
-                return "Freezing rain";
+                return "Rain";
             case 71:
             case 73:
             case 75:
-                return "Snow";
             case 77:
-                return "Snow grains";
+                return "Snow";
             case 80:
             case 81:
             case 82:
@@ -1123,166 +752,8 @@ catch {
             case 99:
                 return "Thunderstorm with hail";
             default:
-                return "Weather code " + code;
+                return "Current conditions";
         }
-    }
-
-    private static MailQueryResult QueryOutlookMail(int timeoutMilliseconds, CancellationToken token)
-    {
-        ProcessStartInfo startInfo = new ProcessStartInfo
-        {
-            FileName = "powershell.exe",
-            Arguments = "-NoProfile -ExecutionPolicy Bypass -EncodedCommand " + EncodePowerShellCommand(QueryOutlookMailScript),
-            UseShellExecute = false,
-            CreateNoWindow = true,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true
-        };
-
-        using (Process process = new Process())
-        {
-            process.StartInfo = startInfo;
-
-            try
-            {
-                if (!process.Start())
-                {
-                    return MailQueryResult.Failed("Unable to start PowerShell.");
-                }
-            }
-            catch (Exception ex)
-            {
-                return MailQueryResult.Failed(ex.Message);
-            }
-
-            Task<string> outputTask = process.StandardOutput.ReadToEndAsync();
-            Task<string> errorTask = process.StandardError.ReadToEndAsync();
-
-            if (!process.WaitForExit(timeoutMilliseconds) || token.IsCancellationRequested)
-            {
-                TryKill(process);
-                return MailQueryResult.Failed("Timed out while querying Outlook mail.");
-            }
-
-            string output = ReadCompletedTask(outputTask);
-            string error = ReadCompletedTask(errorTask);
-            MailQueryResult result = ParseMailOutput(output);
-
-            if (process.ExitCode != 0)
-            {
-                return MailQueryResult.Failed(string.IsNullOrWhiteSpace(error) ? "PowerShell mail query failed." : error.Trim());
-            }
-
-            if (!string.IsNullOrWhiteSpace(result.ErrorMessage))
-            {
-                return result;
-            }
-
-            return result;
-        }
-    }
-
-    private static MailQueryResult ParseMailOutput(string output)
-    {
-        MailQueryResult result = new MailQueryResult();
-        if (string.IsNullOrWhiteSpace(output))
-        {
-            result.ErrorMessage = "No Outlook mail data was returned. Confirm Outlook is installed and signed in.";
-            return result;
-        }
-
-        string[] lines = output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
-        for (int i = 0; i < lines.Length; i++)
-        {
-            string[] fields = lines[i].Split('\t');
-            if (fields.Length == 0)
-            {
-                continue;
-            }
-
-            string recordType = DecodeField(fields[0]);
-            if (string.Equals(recordType, "SUMMARY", StringComparison.OrdinalIgnoreCase))
-            {
-                if (fields.Length > 1)
-                {
-                    int.TryParse(DecodeField(fields[1]), NumberStyles.Integer, CultureInfo.InvariantCulture, out result.UnreadCount);
-                }
-
-                if (fields.Length > 2)
-                {
-                    result.AccountName = DecodeField(fields[2]);
-                }
-            }
-            else if (string.Equals(recordType, "MAIL", StringComparison.OrdinalIgnoreCase))
-            {
-                if (fields.Length < 4 || result.Previews.Count >= MaxMailPreviewCount)
-                {
-                    continue;
-                }
-
-                result.Previews.Add(new MailPreview(
-                    DecodeField(fields[1]),
-                    DecodeField(fields[2]),
-                    DecodeField(fields[3])));
-            }
-            else if (string.Equals(recordType, "ERROR", StringComparison.OrdinalIgnoreCase))
-            {
-                result.ErrorMessage = fields.Length > 1 ? DecodeField(fields[1]) : "Outlook mail query failed.";
-            }
-        }
-
-        return result;
-    }
-
-    private static string EncodePowerShellCommand(string command)
-    {
-        return Convert.ToBase64String(Encoding.Unicode.GetBytes(command));
-    }
-
-    private static string DecodeField(string encodedValue)
-    {
-        try
-        {
-            byte[] bytes = Convert.FromBase64String(encodedValue);
-            return Encoding.UTF8.GetString(bytes);
-        }
-        catch
-        {
-            return string.Empty;
-        }
-    }
-
-    private static string ReadCompletedTask(Task<string> task)
-    {
-        try
-        {
-            return task.Wait(1000) ? task.Result : string.Empty;
-        }
-        catch
-        {
-            return string.Empty;
-        }
-    }
-
-    private static void TryKill(Process process)
-    {
-        try
-        {
-            if (!process.HasExited)
-            {
-                process.Kill();
-            }
-        }
-        catch
-        {
-            // Process may already be gone.
-        }
-    }
-
-    private static bool IsWindowsRuntime()
-    {
-        return Application.platform == RuntimePlatform.WindowsPlayer
-            || Application.platform == RuntimePlatform.WindowsEditor;
     }
 
 #pragma warning disable 0649
@@ -1313,6 +784,7 @@ catch {
         public int weather_code;
         public float wind_speed_10m;
         public float wind_direction_10m;
+        public int is_day;
     }
 #pragma warning restore 0649
 
@@ -1326,7 +798,7 @@ catch {
         {
             Latitude = latitude;
             Longitude = longitude;
-            Label = string.IsNullOrWhiteSpace(label) ? "Weather Location" : label;
+            Label = string.IsNullOrWhiteSpace(label) ? "Weather location" : label;
         }
     }
 
@@ -1339,6 +811,8 @@ catch {
         public readonly float PrecipitationMm;
         public readonly float WindSpeedKmh;
         public readonly float WindDirectionDegrees;
+        public readonly int WeatherCode;
+        public readonly bool IsDay;
         public readonly string Condition;
 
         public WeatherSnapshot(
@@ -1349,43 +823,20 @@ catch {
             float precipitationMm,
             float windSpeedKmh,
             float windDirectionDegrees,
+            int weatherCode,
+            bool isDay,
             string condition)
         {
-            LocationLabel = string.IsNullOrWhiteSpace(locationLabel) ? "Weather Location" : locationLabel;
+            LocationLabel = string.IsNullOrWhiteSpace(locationLabel) ? "Weather location" : locationLabel;
             TemperatureCelsius = temperatureCelsius;
             ApparentTemperatureCelsius = apparentTemperatureCelsius;
             RelativeHumidity = relativeHumidity;
             PrecipitationMm = precipitationMm;
             WindSpeedKmh = windSpeedKmh;
             WindDirectionDegrees = windDirectionDegrees;
+            WeatherCode = weatherCode;
+            IsDay = isDay;
             Condition = string.IsNullOrWhiteSpace(condition) ? "Unknown" : condition;
-        }
-    }
-
-    private sealed class MailQueryResult
-    {
-        public readonly List<MailPreview> Previews = new List<MailPreview>();
-        public int UnreadCount;
-        public string AccountName = string.Empty;
-        public string ErrorMessage;
-
-        public static MailQueryResult Failed(string errorMessage)
-        {
-            return new MailQueryResult { ErrorMessage = errorMessage };
-        }
-    }
-
-    private sealed class MailPreview
-    {
-        public readonly string Sender;
-        public readonly string Subject;
-        public readonly string ReceivedAtLabel;
-
-        public MailPreview(string sender, string subject, string receivedAtLabel)
-        {
-            Sender = string.IsNullOrWhiteSpace(sender) ? "Unknown Sender" : sender;
-            Subject = string.IsNullOrWhiteSpace(subject) ? "(No subject)" : subject;
-            ReceivedAtLabel = string.IsNullOrWhiteSpace(receivedAtLabel) ? "Unknown time" : receivedAtLabel;
         }
     }
 }
