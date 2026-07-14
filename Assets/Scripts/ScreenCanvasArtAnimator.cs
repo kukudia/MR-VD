@@ -4,15 +4,15 @@ using UnityEngine.UI;
 
 public static class ScreenCanvasArtTheme
 {
-    public static readonly Color AudioPanelBase = new Color(0.035f, 0.045f, 0.055f, 0.97f);
-    public static readonly Color InfoPanelBase = new Color(0.045f, 0.047f, 0.052f, 0.98f);
-    public static readonly Color DeviceListBase = new Color(0.025f, 0.035f, 0.04f, 0.98f);
+    public static readonly Color AudioPanelBase = new Color(0.035f, 0.045f, 0.055f, 0f);
+    public static readonly Color InfoPanelBase = new Color(0.045f, 0.047f, 0.052f, 0f);
+    public static readonly Color DeviceListBase = new Color(0.025f, 0.035f, 0.04f, 0f);
     public static readonly Color AudioPrimaryAccent = new Color(0.20f, 0.82f, 0.75f, 1f);
     public static readonly Color AudioSecondaryAccent = new Color(0.96f, 0.63f, 0.25f, 1f);
     public static readonly Color InfoPrimaryAccent = new Color(0.98f, 0.72f, 0.27f, 1f);
     public static readonly Color InfoSecondaryAccent = new Color(0.35f, 0.84f, 0.72f, 1f);
-    public static readonly Color CardBase = new Color(0.09f, 0.10f, 0.11f, 0.96f);
-    public static readonly Color CardRaised = new Color(0.12f, 0.13f, 0.14f, 0.98f);
+    public static readonly Color CardBase = new Color(0.09f, 0.10f, 0.11f, 0f);
+    public static readonly Color CardRaised = new Color(0.12f, 0.13f, 0.14f, 0f);
     public static readonly Color MutedText = new Color(0.74f, 0.78f, 0.80f, 0.88f);
 
     public static void ApplyPanelArt(RectTransform root, Color baseColor, Color primaryAccent, Color secondaryAccent, bool animated)
@@ -413,8 +413,8 @@ public sealed class ScreenCanvasPanelAnimator : MonoBehaviour
 {
     [SerializeField] private RectTransform target;
     [SerializeField] private CanvasGroup canvasGroup;
+    [SerializeField] private Vector3 visibleScale;
 
-    private Vector3 visibleScale = Vector3.one;
     private Vector3 startScale = Vector3.one;
     private Vector3 targetScale = Vector3.one;
     private float startAlpha = 1f;
@@ -429,12 +429,18 @@ public sealed class ScreenCanvasPanelAnimator : MonoBehaviour
         visibleScale = target != null ? target.localScale : Vector3.one;
     }
 
+    public Vector3 VisibleScale => visibleScale;
+
     public void SetVisible(bool visible, bool immediate, float transitionDuration)
     {
         if (target == null)
         {
             target = transform as RectTransform;
-            visibleScale = target != null ? target.localScale : Vector3.one;
+        }
+
+        if (target != null && visibleScale.sqrMagnitude < 0.000001f)
+        {
+            visibleScale = target.localScale;
         }
 
         if (canvasGroup == null)

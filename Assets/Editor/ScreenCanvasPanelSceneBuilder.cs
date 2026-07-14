@@ -35,6 +35,9 @@ public static class ScreenCanvasPanelSceneBuilder
         RectTransform audioPanel = RequireRectTransform(AudioPanelPath);
         RectTransform infoPanel = RequireRectTransform(InfoPanelPath);
 
+        MakePanelTransparent(audioPanel);
+        MakePanelTransparent(infoPanel);
+
         ClearChildren(audioPanel, "AudioCaptureCSCore");
         ClearChildren(infoPanel);
 
@@ -44,7 +47,7 @@ public static class ScreenCanvasPanelSceneBuilder
 
         EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
         EditorSceneManager.SaveOpenScenes();
-        Debug.Log("[ScreenCanvasPanelSceneBuilder] Rebuilt AudioPanel and InfoPanel under Screen/Canvas in " + ScenePath);
+        Debug.Log("[ScreenCanvasPanelSceneBuilder] Rebuilt transparent AudioPanel and InfoPanel under Screen/Canvas in " + ScenePath);
     }
 
     [MenuItem("Tools/MR-VD/Validate Screen Canvas Dashboard")]
@@ -52,8 +55,10 @@ public static class ScreenCanvasPanelSceneBuilder
     {
         EditorSceneManager.OpenScene(ScenePath);
 
+        RectTransform audioPanel = RequireRectTransform(AudioPanelPath);
         RectTransform infoPanel = RequireRectTransform(InfoPanelPath);
         RectTransform dashboard = RequireChild(infoPanel, "RuntimeDashboard");
+        RectTransform audioContent = RequireChild(audioPanel, "AudioCaptureCanvasContent");
         string[] requiredPaths =
         {
             "DashboardHeader/SettingsButton",
@@ -106,7 +111,23 @@ public static class ScreenCanvasPanelSceneBuilder
             throw new System.InvalidOperationException("Expanded dashboard layout exceeds its height.");
         }
 
-        Debug.Log("[ScreenCanvasPanelSceneBuilder] Validation passed: modular dashboard, 21 weather visuals, no mail UI, and layout budget " + maximumLayoutHeight + "/" + dashboard.rect.height + ".");
+        ValidateTransparentPanel(audioPanel);
+        ValidateTransparentPanel(infoPanel);
+        ValidateTransparentPanel(audioContent);
+        ValidateTransparentPanel(dashboard);
+        ValidateTransparentPanel(RequireChild(audioContent, "DeviceList"));
+        ValidateTransparentPanel(RequireChild(dashboard, "TimeCard"));
+        ValidateTransparentPanel(RequireChild(dashboard, "SettingsModule"));
+        ValidateTransparentPanel(RequireChild(dashboard, "WeatherModule"));
+        ValidateTransparentPanel(RequireChild(dashboard, "SystemModule"));
+
+        ScreenCanvasPanelAnimator audioAnimator = audioContent.GetComponent<ScreenCanvasPanelAnimator>();
+        if (audioAnimator == null || (audioAnimator.VisibleScale - audioContent.localScale).sqrMagnitude > 0.000001f)
+        {
+            throw new System.InvalidOperationException("Audio panel animator does not preserve its authored scale.");
+        }
+
+        Debug.Log("[ScreenCanvasPanelSceneBuilder] Validation passed: stable audio scale, transparent panels, 21 weather visuals, no mail UI, and layout budget " + maximumLayoutHeight + "/" + dashboard.rect.height + ".");
     }
 
     private static void WireSceneComponents(RectTransform audioPanel, RectTransform infoPanel)
@@ -480,6 +501,29 @@ public static class ScreenCanvasPanelSceneBuilder
         shadow.effectDistance = new Vector2(1.5f, -1.5f);
         shadow.useGraphicAlpha = true;
         return card;
+    }
+
+    private static void MakePanelTransparent(RectTransform panel)
+    {
+        Image image = panel.GetComponent<Image>();
+        if (image == null)
+        {
+            image = panel.gameObject.AddComponent<Image>();
+        }
+
+        Color color = image.color;
+        color.a = 0f;
+        image.color = color;
+        image.raycastTarget = false;
+    }
+
+    private static void ValidateTransparentPanel(RectTransform panel)
+    {
+        Image image = panel.GetComponent<Image>();
+        if (image == null || image.color.a > 0.0001f)
+        {
+            throw new System.InvalidOperationException(panel.name + " must have a transparent background.");
+        }
     }
 
     private static RectTransform CreateVerticalBody(string name, RectTransform parent, float width, float height, float spacing, RectOffset padding)
