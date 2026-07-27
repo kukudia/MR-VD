@@ -1534,7 +1534,7 @@ MonoBehaviour:
   rawLeftFftData: []
   rawRightFftData: []
   linearFftData: 1
-  fftDataSize: 2048
+  fftDataSize: 4096
   updateFftDataAutomatically: 1
   fftDataOutputScale: 1
   fftDataSmoothingWeight: 0.5
@@ -34528,7 +34528,7 @@ MonoBehaviour:
   barMinFrequencyHz: 40
   barMaxFrequencyHz: 8000
   barFrequencyCurve: 1
-  barBinSampleRadius: 1
+  barBinSampleRadius: 0
   logCompressionStrength: 20
   logCompressionOffset: 1
   maxBarHeight: 0.25

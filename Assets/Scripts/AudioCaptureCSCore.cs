@@ -51,7 +51,7 @@ public class AudioCaptureCSCore : MonoBehaviour
 
     [Header("FFT Data Output")]
     [Tooltip("Length of the exposed FFT arrays. Keep this aligned with the visualizer FFT size.")]
-    public int fftDataSize = 2048;
+    public int fftDataSize = 4096;
 
     [Tooltip("Automatically updates frequencyData and smoothedFftData when no other script updates the FFT arrays manually.")]
     public bool updateFftDataAutomatically = true;
@@ -410,9 +410,9 @@ public class AudioCaptureCSCore : MonoBehaviour
             waveSource = notificationStream.ToWaveSource();
             Debug.Log("[AudioCaptureCSCore] Audio stream and notification stream initialized.");
 
-            fftProvider = new FftProvider(waveSource.WaveFormat.Channels, FftSize.Fft2048);
-            leftFftProvider = new FftProvider(1, FftSize.Fft2048);
-            rightFftProvider = new FftProvider(1, FftSize.Fft2048);
+            fftProvider = new FftProvider(waveSource.WaveFormat.Channels, FftSize.Fft4096);
+            leftFftProvider = new FftProvider(1, FftSize.Fft4096);
+            rightFftProvider = new FftProvider(1, FftSize.Fft4096);
             Debug.Log("[AudioCaptureCSCore] FFT Provider created with channels: " + waveSource.WaveFormat.Channels);
 
             int channels = waveSource.WaveFormat.Channels;
@@ -600,7 +600,7 @@ public class AudioCaptureCSCore : MonoBehaviour
     {
         if (dataSize <= 0)
         {
-            dataSize = 2048;
+            dataSize = 4096;
         }
 
         if (rawFftData == null || rawFftData.Length != dataSize)

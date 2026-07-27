@@ -42,13 +42,13 @@ public class AudioVisualizer : MonoBehaviour
     [Min(100f)]
     public float barMaxFrequencyHz = 8000f;
 
-    [Tooltip("Curves the side-to-center frequency sweep. Values above 1 give more bars to bass and low mids.")]
+    [Tooltip("Curves the logarithmic side-to-center frequency sweep. 1 uses standard log spacing; values above 1 give more bars to bass and low mids.")]
     [Range(0.25f, 4f)]
     public float barFrequencyCurve = 1f;
 
     [Tooltip("Extra FFT bins included around each bar frequency band. Larger values reduce single-bin jitter.")]
     [Range(0, 4)]
-    public int barBinSampleRadius = 1;
+    public int barBinSampleRadius = 0;
 
     [Header("Log Compression")]
     [Tooltip("Log compression strength. Higher values increase compression; 1.0 to 3.0 is recommended.")]
@@ -72,7 +72,7 @@ public class AudioVisualizer : MonoBehaviour
     [Range(0.1f, 5f)]
     public float dynamicRangeSpeed = 1f;
 
-    private const int fftSize = 2048;
+    private const int fftSize = 4096;
 
     private float dynamicScaleFactor = 1f;
     private float maxRecentAmplitude = 1f;
@@ -559,10 +559,12 @@ public class AudioVisualizer : MonoBehaviour
 
         float startT = GetCurvedBarEdge((float)sideIndex / sideBarCount);
         float endT = GetCurvedBarEdge((float)(sideIndex + 1) / sideBarCount);
-        int binAfterMax = maxBin + 1;
+        float frequencyRatio = maxFrequency / minFrequency;
+        float startFrequency = minFrequency * Mathf.Pow(frequencyRatio, startT);
+        float endFrequency = minFrequency * Mathf.Pow(frequencyRatio, endT);
 
-        startBin = Mathf.Clamp(Mathf.FloorToInt(Mathf.Lerp(minBin, binAfterMax, startT)), minBin, maxBin);
-        endBin = Mathf.Clamp(Mathf.CeilToInt(Mathf.Lerp(minBin, binAfterMax, endT)) - 1, startBin, maxBin);
+        startBin = Mathf.Clamp(Mathf.FloorToInt(startFrequency * spectrumLength / sampleRate), minBin, maxBin);
+        endBin = Mathf.Clamp(Mathf.CeilToInt(endFrequency * spectrumLength / sampleRate) - 1, startBin, maxBin);
     }
 
     private float GetCurvedBarEdge(float edgeT)
