@@ -3,6 +3,12 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
+public enum BarColorMode
+{
+    Gradient,
+    Rhythm
+}
+
 /// <summary>
 /// Builds an audio-reactive bar visualizer and exposes beat, BPM, silence, and key-analysis data.
 /// </summary>
@@ -88,6 +94,9 @@ public class AudioVisualizer : MonoBehaviour
     [Tooltip("Enables emissive bar materials and audio-reactive color changes.")]
     public bool enableBarGlow = true;
 
+    [Tooltip("Gradient separates colors by frequency. Rhythm runs a mirrored color wave that pulses on detected beats.")]
+    public BarColorMode barColorMode = BarColorMode.Gradient;
+
     [Tooltip("Optional emissive bar material. When empty, a URP/Lit material is created at runtime.")]
     public Material barGlowMaterial;
 
@@ -114,6 +123,14 @@ public class AudioVisualizer : MonoBehaviour
     [Tooltip("Frequency-band hue spread. Higher values create stronger color separation between bars.")]
     [Range(0f, 1f)]
     public float barFrequencyHueSpread = 0.42f;
+
+    [Tooltip("Travel speed of the mirrored color wave in Rhythm mode.")]
+    [Range(0f, 8f)]
+    public float rhythmWaveSpeed = 1.5f;
+
+    [Tooltip("Additional hue shift applied when a beat is detected in Rhythm mode.")]
+    [Range(0f, 0.5f)]
+    public float rhythmBeatHueShift = 0.12f;
 
     [Tooltip("Influence of kick energy on the overall hue.")]
     [Range(0f, 1f)]
@@ -708,18 +725,46 @@ public class AudioVisualizer : MonoBehaviour
         float smoothFactor = 1f - Mathf.Exp(-barGlowSmoothingSpeed * Time.deltaTime);
         barGlowLevels[index] = Mathf.Lerp(barGlowLevels[index], targetGlow, smoothFactor);
 
+        float beatPulse = showBeatText
+            ? Mathf.Clamp01(beatTimer / Mathf.Max(0.01f, beatDisplayTime))
+            : 0f;
         float beatBoost = showBeatText ? beatBarEmissionBoost : 0f;
         float energyHueOffset = Mathf.Clamp01(kickEnergy * 30f) * kickHueInfluence
                               + Mathf.Clamp01(synthEnergy * 12f) * synthHueInfluence;
         float barOffset = barCount > 1 ? (float)index / (barCount - 1) : 0f;
-        float hue = Mathf.Repeat(Time.time * barHueCycleSpeed + barOffset * barFrequencyHueSpread + energyHueOffset, 1f);
-        float saturation = Mathf.Lerp(0.65f, 1f, barGlowLevels[index]);
-        float value = Mathf.Lerp(0.35f, 1f, barGlowLevels[index]);
+        float baseHue = Time.time * barHueCycleSpeed + energyHueOffset;
+        float hue;
+        float colorLevel;
+
+        if (barColorMode == BarColorMode.Rhythm)
+        {
+            int leftBarCount = Mathf.Max(1, barCount / 2);
+            bool isLeftSide = index < leftBarCount;
+            int sideBarCount = isLeftSide ? leftBarCount : Mathf.Max(1, barCount - leftBarCount);
+            int sideIndex = isLeftSide ? index : barCount - 1 - index;
+            float sideOffset = sideBarCount > 1 ? (float)sideIndex / (sideBarCount - 1) : 0f;
+            float wavePhase = (sideOffset * 2f - Time.time * rhythmWaveSpeed) * Mathf.PI * 2f;
+            float rhythmWave = 0.5f + Mathf.Sin(wavePhase) * 0.5f;
+            float rhythmPulse = beatPulse * Mathf.Lerp(0.35f, 1f, rhythmWave);
+
+            hue = Mathf.Repeat(
+                baseHue + (rhythmWave - 0.5f) * barFrequencyHueSpread + beatPulse * rhythmBeatHueShift,
+                1f);
+            colorLevel = Mathf.Clamp01(Mathf.Max(barGlowLevels[index], rhythmPulse));
+        }
+        else
+        {
+            hue = Mathf.Repeat(baseHue + barOffset * barFrequencyHueSpread, 1f);
+            colorLevel = barGlowLevels[index];
+        }
+
+        float saturation = Mathf.Lerp(0.65f, 1f, colorLevel);
+        float value = Mathf.Lerp(0.35f, 1f, colorLevel);
         Color color = Color.HSVToRGB(hue, saturation, value);
 
         float emissionIntensity = baseBarEmissionIntensity
                                 + barGlowLevels[index] * audioBarEmissionIntensity
-                                + beatBoost * barGlowLevels[index];
+                                + beatBoost * colorLevel;
 
         renderer.GetPropertyBlock(barPropertyBlock);
         SetRendererColorProperty(barPropertyBlock, renderer, "_BaseColor", color);
