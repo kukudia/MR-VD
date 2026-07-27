@@ -1,6 +1,9 @@
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.SceneManagement;
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
 
 /// <summary>
 /// Adds a lightweight visible cone to a Unity spot light so URP stage lights read as beams in air.
@@ -97,6 +100,13 @@ public class StageVisibleLightBeam : MonoBehaviour
     private void OnEnable()
     {
         sourceLight = GetComponent<Light>();
+#if UNITY_EDITOR
+        if (!Application.isPlaying)
+        {
+            QueueEditorRefresh();
+            return;
+        }
+#endif
         EnsureBeamObject();
         ForceRefresh();
     }
@@ -115,11 +125,19 @@ public class StageVisibleLightBeam : MonoBehaviour
         sideSegments = Mathf.Clamp(sideSegments, 8, 64);
         lengthSegments = Mathf.Clamp(lengthSegments, 2, 12);
         minVisibleIntensity = Mathf.Max(0f, minVisibleIntensity);
+#if UNITY_EDITOR
+        QueueEditorRefresh();
+        return;
+#else
         ForceRefresh();
+#endif
     }
 
     private void OnDisable()
     {
+#if UNITY_EDITOR
+        EditorApplication.delayCall -= RefreshAfterEditorValidation;
+#endif
         if (meshRenderer != null)
         {
             meshRenderer.enabled = false;
@@ -128,8 +146,30 @@ public class StageVisibleLightBeam : MonoBehaviour
 
     private void OnDestroy()
     {
+#if UNITY_EDITOR
+        EditorApplication.delayCall -= RefreshAfterEditorValidation;
+#endif
         DestroyGeneratedObjects();
     }
+
+#if UNITY_EDITOR
+    private void QueueEditorRefresh()
+    {
+        EditorApplication.delayCall -= RefreshAfterEditorValidation;
+        EditorApplication.delayCall += RefreshAfterEditorValidation;
+    }
+
+    private void RefreshAfterEditorValidation()
+    {
+        EditorApplication.delayCall -= RefreshAfterEditorValidation;
+        if (this == null || !isActiveAndEnabled || Application.isPlaying)
+        {
+            return;
+        }
+
+        ForceRefresh();
+    }
+#endif
 
     private void UpdateBeam()
     {

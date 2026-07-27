@@ -19,6 +19,10 @@ public partial class StageManager : MonoBehaviour
 {
     [Header("Stage Core References")]
     public AudioVisualizer audioVisualizer;
+    [Tooltip("Optional focus used for light aiming and screen-space motion.")]
+    public Transform lightingFocusTarget;
+    [Tooltip("Root that carries the stage light groups and follows the lighting focus.")]
+    public Transform lightingRigRoot;
 
     [Header("Legacy Lighting Arrays")]
     public Light[] spotlights;
@@ -231,6 +235,7 @@ public partial class StageManager : MonoBehaviour
         UpdateDirector(dt);
         UpdatePalette(dt);
         UpdateEnvelopes(dt);
+        UpdateLightingRig(dt);
         UpdateLighting(dt);
         UpdateVfx(dt);
         UpdateScreens(dt);
@@ -743,8 +748,40 @@ public partial class StageManager : MonoBehaviour
                 bounds.Encapsulate(renderer.bounds);
             }
         }
-        stageBounds = bounds;
-        stageCenter = environment.useStageBoundsForTarget ? bounds.center : transform.position;
+        if (lightingFocusTarget != null)
+        {
+            Vector3 focusSize = new Vector3(
+                Mathf.Max(0.1f, lighting.focusWidth),
+                Mathf.Max(0.1f, lighting.focusHeight),
+                Mathf.Max(0.1f, lighting.focusDepth));
+            stageBounds = new Bounds(lightingFocusTarget.position, focusSize);
+            stageCenter = lightingFocusTarget.position;
+        }
+        else
+        {
+            stageBounds = bounds;
+            stageCenter = environment.useStageBoundsForTarget ? bounds.center : transform.position;
+        }
+    }
+
+    private void UpdateLightingRig(float dt)
+    {
+        if (lightingFocusTarget == null)
+        {
+            return;
+        }
+
+        stageCenter = lightingFocusTarget.position;
+        stageBounds.center = stageCenter;
+
+        if (!lighting.followFocusTarget || lightingRigRoot == null)
+        {
+            return;
+        }
+
+        float smooth = 1f - Mathf.Exp(-lighting.focusFollowSpeed * Mathf.Max(0f, dt));
+        lightingRigRoot.position = Vector3.Lerp(lightingRigRoot.position, lightingFocusTarget.position, smooth);
+        lightingRigRoot.rotation = Quaternion.Slerp(lightingRigRoot.rotation, lightingFocusTarget.rotation, smooth);
     }
 
     private void CacheFixtures()
@@ -1213,6 +1250,33 @@ public partial class StageManager : MonoBehaviour
         Vector3 target = stageCenter;
         float normalized = count <= 1 ? 0f : (float)index / (count - 1);
         float t = Time.time * runtime.motionMaster;
+
+        if (lightingFocusTarget != null)
+        {
+            float screenAmpX = Mathf.Max(0.05f, lighting.focusWidth * 0.42f);
+            float screenAmpY = Mathf.Max(0.05f, lighting.focusHeight * 0.42f);
+            Vector2 offset = Vector2.zero;
+            switch (mode)
+            {
+                case MotionMode.LockCenter: offset.y = Mathf.Sin(t + f.phase) * screenAmpY * 0.18f; break;
+                case MotionMode.SlowSweep: offset = new Vector2(Mathf.Sin(t * 0.7f + normalized * Mathf.PI * 2f) * screenAmpX, Mathf.Cos(t * 0.4f + f.phase) * screenAmpY * 0.35f); break;
+                case MotionMode.FastSweep: offset = new Vector2(Mathf.Sin(t * 2.7f + normalized * Mathf.PI * 2f) * screenAmpX, Mathf.Cos(t * 1.9f + f.phase) * screenAmpY); break;
+                case MotionMode.FigureEight: offset = new Vector2(Mathf.Sin(t + f.phase) * screenAmpX, Mathf.Sin((t + f.phase) * 2f) * screenAmpY * 0.55f); break;
+                case MotionMode.Fan: offset = new Vector2(Mathf.Lerp(-screenAmpX, screenAmpX, normalized), Mathf.Sin(t + f.phase) * screenAmpY * 0.45f); break;
+                case MotionMode.Spiral:
+                    float screenRadius = Mathf.PingPong(t * 0.2f + normalized, 1f);
+                    offset = new Vector2(Mathf.Cos(t * 2f + f.phase) * screenAmpX * screenRadius, Mathf.Sin(t * 2f + f.phase) * screenAmpY * screenRadius);
+                    break;
+                case MotionMode.RandomWalk: offset = new Vector2((Mathf.PerlinNoise(t * 0.4f, f.seed) - 0.5f) * screenAmpX * 2f, (Mathf.PerlinNoise(f.seed, t * 0.4f) - 0.5f) * screenAmpY * 2f); break;
+                case MotionMode.CrossFire: offset = new Vector2((index % 2 == 0 ? -screenAmpX : screenAmpX) * Mathf.Sin(t * 0.9f), Mathf.Cos(t + normalized) * screenAmpY * 0.45f); break;
+                case MotionMode.WaveTilt: offset = new Vector2(Mathf.Sin(t * 1.3f + normalized * Mathf.PI * 2f) * screenAmpX, Mathf.Sin(t * 2f + f.phase) * screenAmpY * 0.5f); break;
+            }
+
+            target += lightingFocusTarget.right * offset.x + lightingFocusTarget.up * offset.y;
+            AimAt(f, target, dt);
+            return;
+        }
+
         float ampX = Mathf.Max(1f, stageBounds.size.x * 0.35f);
         float ampZ = Mathf.Max(1f, stageBounds.size.z * 0.35f);
         switch (mode)
@@ -1246,6 +1310,22 @@ public partial class StageManager : MonoBehaviour
         float radius = lighting.chaseOrbitRadius > 0f ? lighting.chaseOrbitRadius : Mathf.Max(new Vector2(f.homeLocalPosition.x, f.homeLocalPosition.z).magnitude, 4f);
         float height = lighting.chaseOrbitHeight > 0f ? lighting.chaseOrbitHeight : f.homeLocalPosition.y;
         Vector3 localTarget = f.homeLocalPosition;
+
+        if (lightingFocusTarget != null)
+        {
+            float depth = f.homeLocalPosition.z;
+            if (mode == MotionMode.Orbit || mode == MotionMode.CounterOrbit) localTarget = new Vector3(Mathf.Cos(angle * Mathf.Deg2Rad) * radius, Mathf.Sin(angle * Mathf.Deg2Rad) * height, depth);
+            else if (mode == MotionMode.FigureEight) localTarget = new Vector3(Mathf.Sin(Time.time * BeatRate() + f.phase) * radius, Mathf.Sin(Time.time * BeatRate() * 2f + f.phase) * height, depth);
+            else if (mode == MotionMode.CrossFire) localTarget = new Vector3(Mathf.Lerp(-radius, radius, normalized), Mathf.Sin(Time.time * 2f + f.phase) * height, depth);
+            else if (mode == MotionMode.RandomWalk) localTarget = f.homeLocalPosition + new Vector3((Mathf.PerlinNoise(Time.time, f.seed) - 0.5f) * radius, (Mathf.PerlinNoise(f.seed, Time.time) - 0.5f) * height, 0f);
+            else { AimMotion(f, mode, index, count, dt); return; }
+
+            float focusSmooth = 1f - Mathf.Exp(-lighting.transformSmoothing * dt);
+            f.transform.localPosition = Vector3.Lerp(f.transform.localPosition, localTarget, focusSmooth);
+            AimAt(f, stageCenter, dt);
+            return;
+        }
+
         if (mode == MotionMode.Orbit || mode == MotionMode.CounterOrbit) localTarget = new Vector3(Mathf.Cos(angle * Mathf.Deg2Rad) * radius, height + Mathf.Sin(Time.time + f.phase) * frame.energy, Mathf.Sin(angle * Mathf.Deg2Rad) * radius);
         else if (mode == MotionMode.FigureEight) localTarget = new Vector3(Mathf.Sin(Time.time * BeatRate() + f.phase) * radius, height, Mathf.Sin(Time.time * BeatRate() * 2f + f.phase) * radius * 0.5f);
         else if (mode == MotionMode.CrossFire) localTarget = new Vector3(Mathf.Lerp(-radius, radius, normalized), height, Mathf.Sin(Time.time * 2f + f.phase) * radius);
@@ -1952,6 +2032,11 @@ public partial class StageManager : MonoBehaviour
         public bool forceStrobeWhite = false;
         public bool softShadowsOnPeak = true;
         public bool createVisibleLightBeams = true;
+        public bool followFocusTarget = true;
+        [Range(0.1f, 10f)] public float focusWidth = 2.4f;
+        [Range(0.1f, 10f)] public float focusHeight = 1.35f;
+        [Range(0.1f, 10f)] public float focusDepth = 1.2f;
+        [Range(0.1f, 30f)] public float focusFollowSpeed = 10f;
         [Range(0f, 4f)] public float outputGain = 1f;
         [Range(0f, 2f)] public float spotGain = 1f;
         [Range(0f, 2f)] public float rimGain = 1f;
