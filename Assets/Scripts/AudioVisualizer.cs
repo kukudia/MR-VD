@@ -128,9 +128,13 @@ public class AudioVisualizer : MonoBehaviour
     [Range(0f, 8f)]
     public float rhythmWaveSpeed = 1.5f;
 
-    [Tooltip("Additional hue shift applied when a beat is detected in Rhythm mode.")]
-    [Range(0f, 0.5f)]
-    public float rhythmBeatHueShift = 0.12f;
+    [Tooltip("Maximum hue distance from the primary color in Rhythm mode. Smaller values keep the palette within a coordinated analogous color family.")]
+    [Range(0f, 0.15f)]
+    public float rhythmHarmonyHueRange = 0.06f;
+
+    [Tooltip("Hue shift applied when a beat is detected in Rhythm mode. The shift is clamped to the harmony range.")]
+    [Range(0f, 0.15f)]
+    public float rhythmBeatHueShift = 0.04f;
 
     [Tooltip("Influence of kick energy on the overall hue.")]
     [Range(0f, 1f)]
@@ -729,15 +733,15 @@ public class AudioVisualizer : MonoBehaviour
             ? Mathf.Clamp01(beatTimer / Mathf.Max(0.01f, beatDisplayTime))
             : 0f;
         float beatBoost = showBeatText ? beatBarEmissionBoost : 0f;
-        float energyHueOffset = Mathf.Clamp01(kickEnergy * 30f) * kickHueInfluence
-                              + Mathf.Clamp01(synthEnergy * 12f) * synthHueInfluence;
         float barOffset = barCount > 1 ? (float)index / (barCount - 1) : 0f;
-        float baseHue = Time.time * barHueCycleSpeed + energyHueOffset;
         float hue;
         float colorLevel;
 
         if (barColorMode == BarColorMode.Rhythm)
         {
+            float energyHueOffset = Mathf.Clamp01(smoothedKickEnergy * 30f) * kickHueInfluence
+                                  + Mathf.Clamp01(smoothedSynthEnergy * 12f) * synthHueInfluence;
+            float baseHue = Time.time * barHueCycleSpeed + energyHueOffset;
             int leftBarCount = Mathf.Max(1, barCount / 2);
             bool isLeftSide = index < leftBarCount;
             int sideBarCount = isLeftSide ? leftBarCount : Mathf.Max(1, barCount - leftBarCount);
@@ -745,20 +749,27 @@ public class AudioVisualizer : MonoBehaviour
             float sideOffset = sideBarCount > 1 ? (float)sideIndex / (sideBarCount - 1) : 0f;
             float wavePhase = (sideOffset * 2f - Time.time * rhythmWaveSpeed) * Mathf.PI * 2f;
             float rhythmWave = 0.5f + Mathf.Sin(wavePhase) * 0.5f;
+            float harmoniousWave = Mathf.SmoothStep(0f, 1f, rhythmWave);
             float rhythmPulse = beatPulse * Mathf.Lerp(0.35f, 1f, rhythmWave);
+            float harmonyRange = Mathf.Clamp(rhythmHarmonyHueRange, 0f, 0.15f);
+            float harmonyOffset = Mathf.Lerp(-harmonyRange, harmonyRange, harmoniousWave);
+            float beatHueOffset = Mathf.Min(rhythmBeatHueShift, harmonyRange) * beatPulse;
 
-            hue = Mathf.Repeat(
-                baseHue + (rhythmWave - 0.5f) * barFrequencyHueSpread + beatPulse * rhythmBeatHueShift,
-                1f);
+            hue = Mathf.Repeat(baseHue + harmonyOffset + beatHueOffset, 1f);
             colorLevel = Mathf.Clamp01(Mathf.Max(barGlowLevels[index], rhythmPulse));
         }
         else
         {
+            float energyHueOffset = Mathf.Clamp01(kickEnergy * 30f) * kickHueInfluence
+                                  + Mathf.Clamp01(synthEnergy * 12f) * synthHueInfluence;
+            float baseHue = Time.time * barHueCycleSpeed + energyHueOffset;
             hue = Mathf.Repeat(baseHue + barOffset * barFrequencyHueSpread, 1f);
             colorLevel = barGlowLevels[index];
         }
 
-        float saturation = Mathf.Lerp(0.65f, 1f, colorLevel);
+        float saturation = barColorMode == BarColorMode.Rhythm
+            ? Mathf.Lerp(0.72f, 0.92f, colorLevel)
+            : Mathf.Lerp(0.65f, 1f, colorLevel);
         float value = Mathf.Lerp(0.35f, 1f, colorLevel);
         Color color = Color.HSVToRGB(hue, saturation, value);
 

@@ -34545,7 +34545,8 @@ MonoBehaviour:
   barGlowSmoothingSpeed: 12
   barFrequencyHueSpread: 0.42
   rhythmWaveSpeed: 1.2
-  rhythmBeatHueShift: 0.2
+  rhythmHarmonyHueRange: 0.06
+  rhythmBeatHueShift: 0.04
   kickHueInfluence: 0.12
   synthHueInfluence: 0.2
   energyHistorySize: 200
