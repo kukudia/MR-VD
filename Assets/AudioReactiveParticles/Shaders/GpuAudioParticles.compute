@@ -1,0 +1,283 @@
+#pragma kernel InitializeParticles
+#pragma kernel UpdateParticles
+#pragma target 4.5
+
+#define THREAD_GROUP_SIZE 64
+#define PI 3.14159265359
+#define TWO_PI 6.28318530718
+
+struct Particle
+{
+    float3 position;
+    float life;
+    float3 velocity;
+    float size;
+    float4 color;
+    float seed;
+    float kind;
+    float spectrumT;
+    float beatId;
+};
+
+RWStructuredBuffer<Particle> _Particles;
+StructuredBuffer<float> _Spectrum;
+
+int _ParticleCount;
+int _SpectrumParticleCount;
+int _BeatParticleCount;
+int _SpectrumBinCount;
+int _BeatId;
+
+float _DeltaTime;
+float _SimulationTime;
+float _BeatTrigger;
+float _BeatEnvelope;
+float _Kick;
+float _Bass;
+float _Synth;
+float _Energy;
+
+float _SpectrumRadius;
+float _SpectrumHeight;
+float _SpectrumDepth;
+float _SpectrumDisplacement;
+float _BeatExpansion;
+float3 _BackgroundExtents;
+float _BeatSpeed;
+float _BeatLifetime;
+float _SwirlSpeed;
+float _BackgroundSpeed;
+
+float4 _BassColor;
+float4 _MidColor;
+float4 _TrebleColor;
+float4 _BackgroundColor;
+float4 _BeatColor;
+
+uint Hash(uint value)
+{
+    value ^= value >> 16;
+    value *= 0x7feb352d;
+    value ^= value >> 15;
+    value *= 0x846ca68b;
+    value ^= value >> 16;
+    return value;
+}
+
+float Random01(uint value)
+{
+    return (Hash(value) & 0x00ffffff) / 16777216.0;
+}
+
+float3 RandomDirection(uint value)
+{
+    float z = Random01(value) * 2.0 - 1.0;
+    float angle = Random01(value + 17u) * TWO_PI;
+    float radius = sqrt(max(0.0, 1.0 - z * z));
+    return float3(cos(angle) * radius, sin(angle) * radius, z);
+}
+
+float3 SpectrumColor(float t)
+{
+    float4 lowToMid = lerp(_BassColor, _MidColor, saturate(t * 2.0));
+    float4 midToHigh = lerp(_MidColor, _TrebleColor, saturate(t * 2.0 - 1.0));
+    return lerp(lowToMid.rgb, midToHigh.rgb, step(0.5, t));
+}
+
+float WrapCoordinate(float value, float extent)
+{
+    float width = max(0.001, extent * 2.0);
+    return frac((value + extent) / width) * width - extent;
+}
+
+void InitializeSpectrumParticle(uint index, inout Particle particle)
+{
+    float seed = Random01(index * 19u + 3u);
+    float t = (index + seed) / max(1.0, (float)_SpectrumParticleCount);
+    float angle = t * TWO_PI;
+    float radiusJitter = lerp(0.92, 1.08, Random01(index * 23u + 5u));
+
+    particle.position = float3(
+        cos(angle) * _SpectrumRadius * radiusJitter,
+        sin(angle) * _SpectrumHeight * radiusJitter,
+        (Random01(index * 29u + 7u) * 2.0 - 1.0) * _SpectrumDepth);
+    particle.velocity = 0.0;
+    particle.life = 1.0;
+    particle.size = lerp(0.72, 1.22, Random01(index * 31u + 11u));
+    particle.color = float4(SpectrumColor(t), 0.7);
+    particle.seed = seed;
+    particle.kind = 0.0;
+    particle.spectrumT = t;
+    particle.beatId = -1.0;
+}
+
+void InitializeBeatParticle(uint index, inout Particle particle)
+{
+    uint localIndex = index - _SpectrumParticleCount;
+    float3 direction = RandomDirection(localIndex * 37u + 13u);
+    direction.z *= 0.42;
+    direction = normalize(direction);
+
+    particle.position = direction * lerp(0.08, 0.28, Random01(localIndex * 41u + 17u));
+    particle.velocity = direction * _BeatSpeed * lerp(0.72, 1.28, Random01(localIndex * 43u + 19u));
+    particle.life = 0.0;
+    particle.size = lerp(0.8, 1.35, Random01(localIndex * 47u + 23u));
+    particle.color = float4(_BeatColor.rgb, 0.0);
+    particle.seed = Random01(localIndex * 53u + 29u);
+    particle.kind = 1.0;
+    particle.spectrumT = Random01(localIndex * 59u + 31u);
+    particle.beatId = -1.0;
+}
+
+void InitializeBackgroundParticle(uint index, inout Particle particle)
+{
+    uint localIndex = index - _SpectrumParticleCount - _BeatParticleCount;
+    float3 randomPosition = float3(
+        Random01(localIndex * 61u + 37u),
+        Random01(localIndex * 67u + 41u),
+        Random01(localIndex * 71u + 43u));
+    float3 direction = RandomDirection(localIndex * 73u + 47u);
+
+    particle.position = (randomPosition * 2.0 - 1.0) * _BackgroundExtents;
+    particle.velocity = direction * _BackgroundSpeed * lerp(0.35, 1.0, Random01(localIndex * 79u + 53u));
+    particle.life = 1.0;
+    particle.size = lerp(0.45, 1.15, Random01(localIndex * 83u + 59u));
+    particle.color = float4(_BackgroundColor.rgb, 0.25);
+    particle.seed = Random01(localIndex * 89u + 61u);
+    particle.kind = 2.0;
+    particle.spectrumT = Random01(localIndex * 97u + 67u);
+    particle.beatId = -1.0;
+}
+
+[numthreads(THREAD_GROUP_SIZE, 1, 1)]
+void InitializeParticles(uint3 dispatchId : SV_DispatchThreadID)
+{
+    uint index = dispatchId.x;
+    if (index >= (uint)_ParticleCount)
+    {
+        return;
+    }
+
+    Particle particle;
+    if (index < (uint)_SpectrumParticleCount)
+    {
+        InitializeSpectrumParticle(index, particle);
+    }
+    else if (index < (uint)(_SpectrumParticleCount + _BeatParticleCount))
+    {
+        InitializeBeatParticle(index, particle);
+    }
+    else
+    {
+        InitializeBackgroundParticle(index, particle);
+    }
+
+    _Particles[index] = particle;
+}
+
+void UpdateSpectrumParticle(uint index, inout Particle particle)
+{
+    uint spectrumIndex = min((uint)(particle.spectrumT * _SpectrumBinCount), (uint)(_SpectrumBinCount - 1));
+    float amplitude = _Spectrum[spectrumIndex];
+    float angle = particle.spectrumT * TWO_PI + _SimulationTime * _SwirlSpeed;
+    float harmonic = sin(angle * 3.0 + _SimulationTime * (0.8 + particle.seed)) * 0.04;
+    float radius = _SpectrumRadius + amplitude * _SpectrumDisplacement + _BeatEnvelope * _BeatExpansion;
+    radius *= lerp(0.94, 1.06, particle.seed);
+
+    float3 target = float3(
+        cos(angle) * radius,
+        sin(angle) * (_SpectrumHeight + amplitude * _SpectrumDisplacement * 0.62),
+        sin(angle * 2.0 + particle.seed * TWO_PI) * _SpectrumDepth + harmonic + amplitude * 0.08);
+    float follow = 1.0 - exp(-_DeltaTime * (8.0 + amplitude * 12.0));
+    particle.velocity = (target - particle.position) / max(_DeltaTime, 0.0001);
+    particle.position = lerp(particle.position, target, follow);
+
+    float3 color = SpectrumColor(particle.spectrumT);
+    color = lerp(color, _BeatColor.rgb, _BeatEnvelope * 0.32);
+    float brightness = 0.22 + amplitude * 1.35 + _Energy * 0.45 + _BeatEnvelope * 0.55;
+    particle.color = float4(color * brightness, saturate(0.22 + amplitude * 0.78));
+    particle.life = 1.0;
+}
+
+void RespawnBeatParticle(uint index, inout Particle particle)
+{
+    uint localIndex = index - _SpectrumParticleCount;
+    uint sequenceSeed = localIndex * 101u + (uint)_BeatId * 8191u;
+    float3 direction = RandomDirection(sequenceSeed);
+    direction.z *= 0.38;
+    direction = normalize(direction);
+
+    particle.position = direction * lerp(0.06, 0.24, Random01(sequenceSeed + 5u));
+    particle.velocity = direction * _BeatSpeed * lerp(0.7, 1.35, Random01(sequenceSeed + 11u));
+    particle.life = 1.0;
+    particle.color = float4(lerp(_BeatColor.rgb, SpectrumColor(particle.spectrumT), 0.25), 1.0);
+    particle.beatId = (float)_BeatId;
+}
+
+void UpdateBeatParticle(uint index, inout Particle particle)
+{
+    if (_BeatTrigger > 0.5 && abs(particle.beatId - (float)_BeatId) > 0.1)
+    {
+        RespawnBeatParticle(index, particle);
+    }
+
+    if (particle.life <= 0.0)
+    {
+        particle.color.a = 0.0;
+        return;
+    }
+
+    float drag = exp(-_DeltaTime * 0.65);
+    particle.velocity *= drag;
+    particle.velocity.z += sin(_SimulationTime * 2.0 + particle.seed * TWO_PI) * _DeltaTime * 0.08;
+    particle.position += particle.velocity * _DeltaTime;
+    particle.life = max(0.0, particle.life - _DeltaTime / max(0.01, _BeatLifetime));
+    particle.color.rgb = lerp(SpectrumColor(particle.spectrumT), _BeatColor.rgb, particle.life);
+    particle.color.a = particle.life * particle.life;
+}
+
+void UpdateBackgroundParticle(inout Particle particle)
+{
+    float3 curl = float3(
+        sin(_SimulationTime * 0.31 + particle.position.y * 1.7 + particle.seed * TWO_PI),
+        cos(_SimulationTime * 0.27 + particle.position.x * 1.3),
+        sin(_SimulationTime * 0.23 + particle.position.x - particle.position.y));
+    particle.velocity = lerp(particle.velocity, normalize(curl + 0.001) * _BackgroundSpeed, 1.0 - exp(-_DeltaTime * 0.7));
+    particle.position += particle.velocity * _DeltaTime * (0.7 + _Synth * 1.4);
+    particle.position.x = WrapCoordinate(particle.position.x, _BackgroundExtents.x);
+    particle.position.y = WrapCoordinate(particle.position.y, _BackgroundExtents.y);
+    particle.position.z = WrapCoordinate(particle.position.z, _BackgroundExtents.z);
+
+    uint spectrumIndex = min((uint)(particle.spectrumT * _SpectrumBinCount), (uint)(_SpectrumBinCount - 1));
+    float amplitude = _Spectrum[spectrumIndex];
+    float twinkle = sin(_SimulationTime * lerp(1.2, 4.2, particle.seed) + particle.seed * 31.0) * 0.5 + 0.5;
+    float response = 0.08 + twinkle * 0.2 + amplitude * 0.55 + _Synth * 0.5 + _BeatEnvelope * 0.18;
+    float3 accent = lerp(_BackgroundColor.rgb, SpectrumColor(particle.spectrumT), 0.18 + _Synth * 0.28);
+    particle.color = float4(accent * response, saturate(response));
+}
+
+[numthreads(THREAD_GROUP_SIZE, 1, 1)]
+void UpdateParticles(uint3 dispatchId : SV_DispatchThreadID)
+{
+    uint index = dispatchId.x;
+    if (index >= (uint)_ParticleCount)
+    {
+        return;
+    }
+
+    Particle particle = _Particles[index];
+    if (particle.kind < 0.5)
+    {
+        UpdateSpectrumParticle(index, particle);
+    }
+    else if (particle.kind < 1.5)
+    {
+        UpdateBeatParticle(index, particle);
+    }
+    else
+    {
+        UpdateBackgroundParticle(particle);
+    }
+
+    _Particles[index] = particle;
+}
