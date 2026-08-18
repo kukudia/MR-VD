@@ -1,4 +1,4 @@
-Shader "MR-VD/Audio Reactive GPU Particles"
+Shader "MR-VD/Audio Reactive GPU Stardust"
 {
     SubShader
     {
@@ -32,21 +32,19 @@ Shader "MR-VD/Audio Reactive GPU Particles"
             struct Particle
             {
                 float3 position;
-                float life;
-                float3 velocity;
                 float size;
-                float4 color;
+                float3 velocity;
                 float seed;
-                float kind;
-                float spectrumT;
-                float beatId;
+                float4 color;
             };
 
             StructuredBuffer<Particle> _Particles;
-            float4x4 _LocalToWorld;
+            float3 _ParticleCenterWS;
+            float3 _CameraPositionWS;
+            float4x4 _OcclusionWorldToLocal;
+            float4 _OcclusionHalfSize;
+            float _OcclusionEnabled;
             float _ParticleSize;
-            float _BackgroundSizeScale;
-            float _BeatSizeScale;
             float _Emission;
             float _Opacity;
 
@@ -61,6 +59,7 @@ Shader "MR-VD/Audio Reactive GPU Particles"
                 float4 positionCS : SV_POSITION;
                 float2 uv : TEXCOORD0;
                 float4 color : COLOR0;
+                nointerpolation float occluded : TEXCOORD1;
                 UNITY_VERTEX_OUTPUT_STEREO
             };
 
@@ -78,6 +77,36 @@ Shader "MR-VD/Audio Reactive GPU Particles"
                 return corners[vertexID];
             }
 
+            float IsScreenOccluded(float3 particlePositionWS)
+            {
+                if (_OcclusionEnabled < 0.5)
+                {
+                    return 0.0;
+                }
+
+                float3 cameraPositionLS = mul(_OcclusionWorldToLocal,
+                    float4(_CameraPositionWS, 1.0)).xyz;
+                float3 particlePositionLS = mul(_OcclusionWorldToLocal,
+                    float4(particlePositionWS, 1.0)).xyz;
+                float denominator = particlePositionLS.z - cameraPositionLS.z;
+                if (abs(denominator) < 0.0001)
+                {
+                    return 0.0;
+                }
+
+                float intersectionT = -cameraPositionLS.z / denominator;
+                if (intersectionT <= 0.0 || intersectionT >= 1.0)
+                {
+                    return 0.0;
+                }
+
+                float2 intersectionXY = lerp(cameraPositionLS.xy, particlePositionLS.xy, intersectionT);
+                return abs(intersectionXY.x) <= _OcclusionHalfSize.x
+                    && abs(intersectionXY.y) <= _OcclusionHalfSize.y
+                    ? 1.0
+                    : 0.0;
+            }
+
             Varyings Vert(Attributes input)
             {
                 uint particleIndex = input.rawInstanceID;
@@ -91,12 +120,8 @@ Shader "MR-VD/Audio Reactive GPU Particles"
 
                 Particle particle = _Particles[particleIndex];
                 float2 corner = GetQuadCorner(input.vertexID);
-                float sizeScale = particle.kind < 0.5
-                    ? 1.0
-                    : (particle.kind < 1.5 ? _BeatSizeScale : _BackgroundSizeScale);
-                float size = _ParticleSize * particle.size * sizeScale;
-
-                float3 centerWS = mul(_LocalToWorld, float4(particle.position, 1.0)).xyz;
+                float size = _ParticleSize * particle.size;
+                float3 centerWS = _ParticleCenterWS + particle.position;
                 float3 cameraRightWS = normalize(float3(
                     UNITY_MATRIX_I_V[0].x,
                     UNITY_MATRIX_I_V[1].x,
@@ -110,12 +135,14 @@ Shader "MR-VD/Audio Reactive GPU Particles"
                 output.positionCS = TransformWorldToHClip(positionWS);
                 output.uv = corner * 0.5 + 0.5;
                 output.color = particle.color;
+                output.occluded = IsScreenOccluded(centerWS);
                 return output;
             }
 
             half4 Frag(Varyings input) : SV_Target
             {
                 UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
+                clip(0.5 - input.occluded);
 
                 float2 centered = input.uv * 2.0 - 1.0;
                 float radiusSquared = dot(centered, centered);

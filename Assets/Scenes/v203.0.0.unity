@@ -29631,7 +29631,7 @@ Transform:
   m_GameObject: {fileID: 1425118810}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: -0.08, z: 0.22}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -29649,42 +29649,25 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 571c2ebb34b58d44ca8c54787ac6aecd, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::GpuAudioParticleVisualizer
-  audioCapture: {fileID: 72239940}
   audioVisualizer: {fileID: 1675917931}
-  particleCompute: {fileID: 7200000, guid: 77fae7d4a87cf8c4f988c90e66f91b61, type: 3}
-  particleShader: {fileID: 4800000, guid: 03257f2c7b9f62d42b2e902a789fe468, type: 3}
-  spectrumParticleCount: 3072
-  beatParticleCount: 1024
-  backgroundParticleCount: 3072
-  spectrumBinCount: 128
-  spectrumRadius: 0.78
-  spectrumHeight: 0.46
-  spectrumDepth: 0.18
-  spectrumDisplacement: 0.58
-  beatExpansion: 0.32
-  backgroundExtents: {x: 2.6, y: 1.55, z: 0.75}
-  beatSpeed: 1.8
-  beatLifetime: 0.85
-  swirlSpeed: 0.18
-  backgroundSpeed: 0.08
-  spectrumGain: 70
-  kickGain: 12
+  targetCamera: {fileID: 1686432642}
+  occlusionScreen: {fileID: 1310335638}
+  particleCount: 3072
+  volumeRadius: 6
+  minimumDistance: 0.35
+  backgroundSpeed: 0.12
+  motionSmoothing: 0.7
   bassGain: 10
   synthGain: 9
-  spectrumAttack: 18
-  spectrumRelease: 6
-  beatDecay: 0.42
   silentBackgroundLevel: 0.035
-  bassColor: {r: 0.02, g: 0.72, b: 1, a: 1}
-  midColor: {r: 1, g: 0.16, b: 0.58, a: 1}
-  trebleColor: {r: 1, g: 0.72, b: 0.12, a: 1}
   backgroundColor: {r: 0.14, g: 0.3, b: 0.62, a: 1}
-  beatColor: {r: 0.65, g: 0.95, b: 1, a: 1}
-  particleSize: 0.018
-  backgroundSizeScale: 0.46
-  beatSizeScale: 1.45
+  accentColor: {r: 0.65, g: 0.95, b: 1, a: 1}
+  particleSize: 0.014
   emission: 1.8
   opacity: 0.82
+  occlusionPadding: 0.02
+  particleCompute: {fileID: 7200000, guid: 77fae7d4a87cf8c4f988c90e66f91b61, type: 3}
+  particleShader: {fileID: 4800000, guid: 03257f2c7b9f62d42b2e902a789fe468, type: 3}
 --- !u!1 &1425398706
 GameObject:
   m_ObjectHideFlags: 0
