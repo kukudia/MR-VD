@@ -23082,7 +23082,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!54 &1135648481
 Rigidbody:
   m_ObjectHideFlags: 0
@@ -29647,7 +29647,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 571c2ebb34b58d44ca8c54787ac6aecd, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::GpuAudioParticleVisualizer
   audioCapture: {fileID: 72239940}
   audioVisualizer: {fileID: 1675917931}
@@ -41340,7 +41340,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   isFollowedCamera: 0
-  positionOffset: {x: 0, y: 0, z: 0.5}
+  positionOffset: {x: 0, y: 0.1, z: 0.8}
   followSmoothing: 8
   cameraOverride: {fileID: 0}
   recenterOnStart: 0
