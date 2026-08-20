@@ -33879,8 +33879,8 @@ MonoBehaviour:
   bottomBand: {fileID: 1312780871}
   leftBand: {fileID: 272131615}
   rightBand: {fileID: 776690474}
-  primaryAccent: {r: 0.98, g: 0.72, b: 0.27, a: 1}
-  secondaryAccent: {r: 0.35, g: 0.84, b: 0.72, a: 1}
+  primaryAccent: {r: 0, g: 0, b: 0, a: 1}
+  secondaryAccent: {r: 0.3160377, g: 0.3160377, b: 0.3160377, a: 1}
 --- !u!114 &1692331310
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -38643,8 +38643,8 @@ MonoBehaviour:
   bottomBand: {fileID: 579750981}
   leftBand: {fileID: 1939450070}
   rightBand: {fileID: 248668140}
-  primaryAccent: {r: 0.2, g: 0.82, b: 0.75, a: 1}
-  secondaryAccent: {r: 0.96, g: 0.63, b: 0.25, a: 1}
+  primaryAccent: {r: 0, g: 0, b: 0, a: 1}
+  secondaryAccent: {r: 0.3160377, g: 0.3160377, b: 0.3160377, a: 1}
 --- !u!114 &1864930375
 MonoBehaviour:
   m_ObjectHideFlags: 0
