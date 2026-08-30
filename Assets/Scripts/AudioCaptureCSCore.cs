@@ -1062,9 +1062,7 @@ public class AudioCaptureCSCore : MonoBehaviour
         ScreenCanvasArtTheme.ApplyPanelArt(
             _screenCanvasContent,
             ScreenCanvasArtTheme.AudioPanelBase,
-            ScreenCanvasArtTheme.AudioPrimaryAccent,
-            ScreenCanvasArtTheme.AudioSecondaryAccent,
-            true);
+            ScreenCanvasArtTheme.AudioPrimaryAccent);
 
         _screenModeText = FindOrCreateText("ModeText", _screenCanvasContent, string.Empty, 13, FontStyle.Bold, TextAnchor.MiddleLeft, 24f);
         _screenDeviceText = FindOrCreateText("DeviceText", _screenCanvasContent, string.Empty, 11, FontStyle.Normal, TextAnchor.UpperLeft, 42f);
@@ -1118,9 +1116,7 @@ public class AudioCaptureCSCore : MonoBehaviour
         ScreenCanvasArtTheme.ApplyPanelArt(
             deviceList,
             ScreenCanvasArtTheme.DeviceListBase,
-            ScreenCanvasArtTheme.AudioPrimaryAccent,
-            ScreenCanvasArtTheme.AudioSecondaryAccent,
-            false);
+            ScreenCanvasArtTheme.AudioSecondaryAccent);
 
         for (int i = deviceList.childCount - 1; i >= 0; i--)
         {

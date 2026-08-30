@@ -47,7 +47,7 @@ public static class ScreenCanvasPanelSceneBuilder
 
         EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
         EditorSceneManager.SaveOpenScenes();
-        Debug.Log("[ScreenCanvasPanelSceneBuilder] Rebuilt transparent AudioPanel and InfoPanel under Screen/Canvas in " + ScenePath);
+        Debug.Log("[ScreenCanvasPanelSceneBuilder] Rebuilt minimalist black-gray AudioPanel and InfoPanel under Screen/Canvas in " + ScenePath);
     }
 
     [MenuItem("Tools/MR-VD/Validate Screen Canvas Dashboard")]
@@ -113,13 +113,21 @@ public static class ScreenCanvasPanelSceneBuilder
 
         ValidateTransparentPanel(audioPanel);
         ValidateTransparentPanel(infoPanel);
-        ValidateTransparentPanel(audioContent);
-        ValidateTransparentPanel(dashboard);
-        ValidateTransparentPanel(RequireChild(audioContent, "DeviceList"));
-        ValidateTransparentPanel(RequireChild(dashboard, "TimeCard"));
-        ValidateTransparentPanel(RequireChild(dashboard, "SettingsModule"));
-        ValidateTransparentPanel(RequireChild(dashboard, "WeatherModule"));
-        ValidateTransparentPanel(RequireChild(dashboard, "SystemModule"));
+        ValidateThemedPanel(audioContent);
+        ValidateThemedPanel(dashboard);
+        ValidateThemedPanel(RequireChild(audioContent, "DeviceList"));
+        ValidateThemedPanel(RequireChild(dashboard, "TimeCard"));
+        ValidateThemedPanel(RequireChild(dashboard, "SettingsModule"));
+        ValidateThemedPanel(RequireChild(dashboard, "WeatherModule"));
+        ValidateThemedPanel(RequireChild(dashboard, "SystemModule"));
+
+        foreach (Transform child in Object.FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+        {
+            if (child.name == "ArtScanline")
+            {
+                throw new System.InvalidOperationException("ArtScanline remains in the scene under " + child.parent.name + ".");
+            }
+        }
 
         ScreenCanvasPanelAnimator audioAnimator = audioContent.GetComponent<ScreenCanvasPanelAnimator>();
         if (audioAnimator == null || (audioAnimator.VisibleScale - audioContent.localScale).sqrMagnitude > 0.000001f)
@@ -127,7 +135,7 @@ public static class ScreenCanvasPanelSceneBuilder
             throw new System.InvalidOperationException("Audio panel animator does not preserve its authored scale.");
         }
 
-        Debug.Log("[ScreenCanvasPanelSceneBuilder] Validation passed: stable audio scale, transparent panels, 21 weather visuals, no mail UI, and layout budget " + maximumLayoutHeight + "/" + dashboard.rect.height + ".");
+        Debug.Log("[ScreenCanvasPanelSceneBuilder] Validation passed: stable audio scale, black-gray panels, no scanline, 21 weather visuals, no mail UI, and layout budget " + maximumLayoutHeight + "/" + dashboard.rect.height + ".");
     }
 
     private static void WireSceneComponents(RectTransform audioPanel, RectTransform infoPanel)
@@ -183,9 +191,7 @@ public static class ScreenCanvasPanelSceneBuilder
         ScreenCanvasArtTheme.ApplyPanelArt(
             content,
             ScreenCanvasArtTheme.AudioPanelBase,
-            ScreenCanvasArtTheme.AudioPrimaryAccent,
-            ScreenCanvasArtTheme.AudioSecondaryAccent,
-            true);
+            ScreenCanvasArtTheme.AudioPrimaryAccent);
 
         CanvasGroup audioGroup = content.gameObject.AddComponent<CanvasGroup>();
         ScreenCanvasPanelAnimator audioAnimator = content.gameObject.AddComponent<ScreenCanvasPanelAnimator>();
@@ -223,9 +229,7 @@ public static class ScreenCanvasPanelSceneBuilder
         ScreenCanvasArtTheme.ApplyPanelArt(
             deviceList,
             ScreenCanvasArtTheme.DeviceListBase,
-            ScreenCanvasArtTheme.AudioPrimaryAccent,
-            ScreenCanvasArtTheme.AudioSecondaryAccent,
-            false);
+            ScreenCanvasArtTheme.AudioSecondaryAccent);
 
         VerticalLayoutGroup deviceLayout = deviceList.gameObject.AddComponent<VerticalLayoutGroup>();
         deviceLayout.spacing = 3f;
@@ -257,10 +261,8 @@ public static class ScreenCanvasPanelSceneBuilder
 
         ScreenCanvasArtTheme.ApplyPanelArt(
             dashboard,
-            ScreenCanvasArtTheme.InfoPanelBase,
-            ScreenCanvasArtTheme.InfoPrimaryAccent,
-            ScreenCanvasArtTheme.InfoSecondaryAccent,
-            true);
+            ScreenCanvasArtTheme.AudioPanelBase,
+            ScreenCanvasArtTheme.AudioPrimaryAccent);
 
         CanvasGroup dashboardGroup = dashboard.gameObject.AddComponent<CanvasGroup>();
         ScreenCanvasPanelAnimator dashboardAnimator = dashboard.gameObject.AddComponent<ScreenCanvasPanelAnimator>();
@@ -282,7 +284,7 @@ public static class ScreenCanvasPanelSceneBuilder
         timeLayout.childForceExpandHeight = false;
 
         Text timeEyebrow = CreateText("TimeEyebrowText", timeCard, "LOCAL TIME", font, 8, FontStyle.Bold, TextAnchor.MiddleLeft, 14f, contentWidth - 20f);
-        timeEyebrow.color = ScreenCanvasArtTheme.InfoPrimaryAccent;
+        timeEyebrow.color = ScreenCanvasArtTheme.AudioPrimaryAccent;
         Text timeText = CreateText("TimeText", timeCard, "00:00:00", font, 32, FontStyle.Bold, TextAnchor.MiddleLeft, 42f, contentWidth - 20f);
         timeText.color = Color.white;
         Text dateText = CreateText("DateText", timeCard, "Monday, 01 January 2026", font, 11, FontStyle.Normal, TextAnchor.MiddleLeft, 20f, contentWidth - 20f);
@@ -316,7 +318,7 @@ public static class ScreenCanvasPanelSceneBuilder
 
         RectTransform weatherHeader = CreateRow("WeatherHeader", weatherModule, 30f, contentWidth - 12f);
         Text weatherLabel = CreateText("WeatherLabel", weatherHeader, "WEATHER", font, 11, FontStyle.Bold, TextAnchor.MiddleLeft, 28f, 108f);
-        weatherLabel.color = ScreenCanvasArtTheme.InfoSecondaryAccent;
+        weatherLabel.color = ScreenCanvasArtTheme.AudioSecondaryAccent;
         CreateButton("WeatherRefreshButton", weatherHeader, "REFRESH", font, 70f, 26f, 8);
         CreateButton("WeatherExpandButton", weatherHeader, "HIDE", font, 58f, 26f, 8);
 
@@ -335,7 +337,7 @@ public static class ScreenCanvasPanelSceneBuilder
         condition.color = ScreenCanvasArtTheme.MutedText;
         CreateText("WeatherDetailsText", weatherBody, "Waiting for current conditions.", font, 9, FontStyle.Normal, TextAnchor.UpperLeft, 35f, contentWidth - 16f);
         Text weatherStatus = CreateText("WeatherStatusText", weatherBody, "NOT YET UPDATED", font, 8, FontStyle.Bold, TextAnchor.MiddleLeft, 15f, contentWidth - 16f);
-        weatherStatus.color = ScreenCanvasArtTheme.InfoPrimaryAccent;
+        weatherStatus.color = ScreenCanvasArtTheme.AudioPrimaryAccent;
         ScreenCanvasModuleAnimator weatherAnimator = weatherModule.gameObject.AddComponent<ScreenCanvasModuleAnimator>();
         weatherAnimator.Configure(weatherModule.GetComponent<LayoutElement>(), weatherGroup, weatherBodyGroup, 40f, 176f, true, true);
 
@@ -352,7 +354,7 @@ public static class ScreenCanvasPanelSceneBuilder
 
         RectTransform systemHeader = CreateRow("SystemHeader", systemModule, 30f, contentWidth - 12f);
         Text systemLabel = CreateText("SystemLabel", systemHeader, "SYSTEM", font, 11, FontStyle.Bold, TextAnchor.MiddleLeft, 28f, 182f);
-        systemLabel.color = ScreenCanvasArtTheme.InfoSecondaryAccent;
+        systemLabel.color = ScreenCanvasArtTheme.AudioSecondaryAccent;
         CreateButton("SystemExpandButton", systemHeader, "HIDE", font, 58f, 26f, 8);
         RectTransform systemBody = CreateVerticalBody("SystemBody", systemModule, contentWidth - 12f, 42f, 0f, new RectOffset(2, 2, 0, 0));
         CanvasGroup systemBodyGroup = systemBody.gameObject.AddComponent<CanvasGroup>();
@@ -523,6 +525,22 @@ public static class ScreenCanvasPanelSceneBuilder
         if (image == null || image.color.a > 0.0001f)
         {
             throw new System.InvalidOperationException(panel.name + " must have a transparent background.");
+        }
+    }
+
+    private static void ValidateThemedPanel(RectTransform panel)
+    {
+        Image image = panel.GetComponent<Image>();
+        if (image == null || image.color.a < 0.85f)
+        {
+            throw new System.InvalidOperationException(panel.name + " must have a visible black-gray background.");
+        }
+
+        float channelSpread = Mathf.Max(image.color.r, Mathf.Max(image.color.g, image.color.b))
+            - Mathf.Min(image.color.r, Mathf.Min(image.color.g, image.color.b));
+        if (channelSpread > 0.025f)
+        {
+            throw new System.InvalidOperationException(panel.name + " background must remain neutral gray.");
         }
     }
 

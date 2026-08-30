@@ -4,18 +4,15 @@ using UnityEngine.UI;
 
 public static class ScreenCanvasArtTheme
 {
-    public static readonly Color AudioPanelBase = new Color(0.035f, 0.045f, 0.055f, 0f);
-    public static readonly Color InfoPanelBase = new Color(0.045f, 0.047f, 0.052f, 0f);
-    public static readonly Color DeviceListBase = new Color(0.025f, 0.035f, 0.04f, 0f);
-    public static readonly Color AudioPrimaryAccent = new Color(0.20f, 0.82f, 0.75f, 1f);
-    public static readonly Color AudioSecondaryAccent = new Color(0.96f, 0.63f, 0.25f, 1f);
-    public static readonly Color InfoPrimaryAccent = new Color(0.98f, 0.72f, 0.27f, 1f);
-    public static readonly Color InfoSecondaryAccent = new Color(0.35f, 0.84f, 0.72f, 1f);
-    public static readonly Color CardBase = new Color(0.09f, 0.10f, 0.11f, 0f);
-    public static readonly Color CardRaised = new Color(0.12f, 0.13f, 0.14f, 0f);
-    public static readonly Color MutedText = new Color(0.74f, 0.78f, 0.80f, 0.88f);
+    public static readonly Color AudioPanelBase = new Color(0.025f, 0.027f, 0.03f, 0.94f);
+    public static readonly Color DeviceListBase = new Color(0.055f, 0.058f, 0.062f, 0.92f);
+    public static readonly Color AudioPrimaryAccent = new Color(0.72f, 0.74f, 0.76f, 1f);
+    public static readonly Color AudioSecondaryAccent = new Color(0.42f, 0.44f, 0.46f, 1f);
+    public static readonly Color CardBase = new Color(0.075f, 0.078f, 0.082f, 0.96f);
+    public static readonly Color CardRaised = new Color(0.105f, 0.108f, 0.112f, 0.98f);
+    public static readonly Color MutedText = new Color(0.70f, 0.71f, 0.72f, 0.90f);
 
-    public static void ApplyPanelArt(RectTransform root, Color baseColor, Color primaryAccent, Color secondaryAccent, bool animated)
+    public static void ApplyPanelArt(RectTransform root, Color baseColor, Color borderColor)
     {
         if (root == null)
         {
@@ -26,30 +23,15 @@ public static class ScreenCanvasArtTheme
         background.color = baseColor;
         background.raycastTarget = false;
 
-        Image topBand = EnsureBand(root, "ArtTopBand", primaryAccent, 0.45f, new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(0f, -3f), new Vector2(0f, 0f));
-        Image bottomBand = EnsureBand(root, "ArtBottomBand", secondaryAccent, 0.25f, new Vector2(0f, 0f), new Vector2(1f, 0f), new Vector2(0f, 0f), new Vector2(0f, 3f));
-        Image leftBand = EnsureBand(root, "ArtLeftBand", primaryAccent, 0.22f, new Vector2(0f, 0f), new Vector2(0f, 1f), new Vector2(0f, 0f), new Vector2(2f, 0f));
-        Image rightBand = EnsureBand(root, "ArtRightBand", secondaryAccent, 0.14f, new Vector2(1f, 0f), new Vector2(1f, 1f), new Vector2(-2f, 0f), new Vector2(0f, 0f));
+        EnsureBand(root, "ArtTopBand", borderColor, 0.55f, new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(0f, -1f), new Vector2(0f, 0f));
+        EnsureBand(root, "ArtBottomBand", borderColor, 0.38f, new Vector2(0f, 0f), new Vector2(1f, 0f), new Vector2(0f, 0f), new Vector2(0f, 1f));
+        EnsureBand(root, "ArtLeftBand", borderColor, 0.38f, new Vector2(0f, 0f), new Vector2(0f, 1f), new Vector2(0f, 0f), new Vector2(1f, 0f));
+        EnsureBand(root, "ArtRightBand", borderColor, 0.38f, new Vector2(1f, 0f), new Vector2(1f, 1f), new Vector2(-1f, 0f), new Vector2(0f, 0f));
 
-        if (animated)
+        Transform scanline = root.Find("ArtScanline");
+        if (scanline != null)
         {
-            Image scanline = EnsureBand(root, "ArtScanline", primaryAccent, 0.10f, new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(0f, -18f), new Vector2(0f, -15f));
-            ScreenCanvasArtAnimator animator = Ensure<ScreenCanvasArtAnimator>(root.gameObject);
-            animator.Configure(root, scanline, topBand, bottomBand, leftBand, rightBand, primaryAccent, secondaryAccent);
-        }
-        else
-        {
-            Transform scanline = root.Find("ArtScanline");
-            if (scanline != null)
-            {
-                DestroyObject(scanline.gameObject);
-            }
-
-            ScreenCanvasArtAnimator animator = root.GetComponent<ScreenCanvasArtAnimator>();
-            if (animator != null)
-            {
-                DestroyObject(animator);
-            }
+            DestroyObject(scanline.gameObject);
         }
 
         SendPanelArtToBack(root);
@@ -104,8 +86,7 @@ public static class ScreenCanvasArtTheme
         return child.name == "ArtTopBand"
             || child.name == "ArtBottomBand"
             || child.name == "ArtLeftBand"
-            || child.name == "ArtRightBand"
-            || child.name == "ArtScanline";
+            || child.name == "ArtRightBand";
     }
 
     public static void StyleText(Text text, string name, int fontSize, FontStyle fontStyle)
@@ -126,24 +107,20 @@ public static class ScreenCanvasArtTheme
         bool muted = name == "NoDevicesText" || name == "DeviceText" || name == "SystemText";
 
         text.color = muted
-            ? new Color(0.86f, 0.91f, 0.96f, 0.78f)
+            ? new Color(0.69f, 0.70f, 0.72f, 0.88f)
             : title
-                ? new Color(0.98f, 0.99f, 1f, 1f)
-                : new Color(0.93f, 0.96f, 0.98f, 0.93f);
+                ? new Color(0.95f, 0.95f, 0.96f, 1f)
+                : new Color(0.84f, 0.85f, 0.86f, 0.96f);
 
         Shadow shadow = Ensure<Shadow>(text.gameObject);
-        shadow.effectColor = new Color(0f, 0f, 0f, 0.64f);
-        shadow.effectDistance = title ? new Vector2(1.1f, -1.1f) : new Vector2(0.8f, -0.8f);
+        shadow.effectColor = new Color(0f, 0f, 0f, 0.42f);
+        shadow.effectDistance = new Vector2(0.7f, -0.7f);
         shadow.useGraphicAlpha = true;
 
-        if (title || controlLabel)
+        Outline outline = text.GetComponent<Outline>();
+        if (outline != null)
         {
-            Outline outline = Ensure<Outline>(text.gameObject);
-            outline.effectColor = controlLabel
-                ? new Color(AudioPrimaryAccent.r, AudioPrimaryAccent.g, AudioPrimaryAccent.b, 0.55f)
-                : new Color(AudioSecondaryAccent.r, AudioSecondaryAccent.g, AudioSecondaryAccent.b, 0.35f);
-            outline.effectDistance = new Vector2(1f, -1f);
-            outline.useGraphicAlpha = true;
+            DestroyObject(outline);
         }
     }
 
@@ -157,18 +134,18 @@ public static class ScreenCanvasArtTheme
         if (image != null)
         {
             image.color = buttonLike
-                ? new Color(0.15f, 0.21f, 0.27f, 0.95f)
-                : new Color(0.16f, 0.23f, 0.29f, 0.94f);
+                ? new Color(0.16f, 0.165f, 0.17f, 0.98f)
+                : new Color(0.13f, 0.135f, 0.14f, 0.98f);
             image.raycastTarget = true;
         }
 
         selectable.transition = Selectable.Transition.ColorTint;
         ColorBlock colors = selectable.colors;
         colors.normalColor = Color.white;
-        colors.highlightedColor = new Color(0.92f, 0.98f, 0.97f, 1f);
-        colors.pressedColor = new Color(0.76f, 0.84f, 0.90f, 1f);
-        colors.selectedColor = new Color(0.80f, 0.96f, 0.90f, 1f);
-        colors.disabledColor = new Color(0.53f, 0.56f, 0.60f, 0.55f);
+        colors.highlightedColor = new Color(0.82f, 0.83f, 0.84f, 1f);
+        colors.pressedColor = new Color(0.64f, 0.65f, 0.66f, 1f);
+        colors.selectedColor = new Color(0.74f, 0.75f, 0.76f, 1f);
+        colors.disabledColor = new Color(0.45f, 0.46f, 0.47f, 0.55f);
         colors.colorMultiplier = 1f;
         colors.fadeDuration = 0.10f;
         selectable.colors = colors;
@@ -240,75 +217,6 @@ public static class ScreenCanvasArtTheme
         else
         {
             UnityEngine.Object.DestroyImmediate(obj);
-        }
-    }
-}
-
-public sealed class ScreenCanvasArtAnimator : MonoBehaviour
-{
-    [SerializeField] private RectTransform root;
-    [SerializeField] private Image scanline;
-    [SerializeField] private Image topBand;
-    [SerializeField] private Image bottomBand;
-    [SerializeField] private Image leftBand;
-    [SerializeField] private Image rightBand;
-    [SerializeField] private Color primaryAccent;
-    [SerializeField] private Color secondaryAccent;
-
-    public void Configure(RectTransform rootRect, Image scanlineImage, Image top, Image bottom, Image left, Image right, Color primary, Color secondary)
-    {
-        root = rootRect;
-        scanline = scanlineImage;
-        topBand = top;
-        bottomBand = bottom;
-        leftBand = left;
-        rightBand = right;
-        primaryAccent = primary;
-        secondaryAccent = secondary;
-    }
-
-    private void Update()
-    {
-        if (root == null)
-        {
-            root = transform as RectTransform;
-            if (root == null)
-            {
-                return;
-            }
-        }
-
-        float t = Time.unscaledTime;
-        float pulse = 0.5f + 0.5f * Mathf.Sin(t * 1.25f);
-
-        if (scanline != null)
-        {
-            RectTransform scanlineRect = scanline.rectTransform;
-            float height = Mathf.Max(24f, root.rect.height);
-            float travel = Mathf.Max(32f, height - 24f);
-            float y = -12f - Mathf.Repeat(t * 28f, travel);
-            scanlineRect.anchoredPosition = new Vector2(scanlineRect.anchoredPosition.x, y);
-            scanline.color = new Color(primaryAccent.r, primaryAccent.g, primaryAccent.b, 0.04f + 0.06f * pulse);
-        }
-
-        if (topBand != null)
-        {
-            topBand.color = new Color(primaryAccent.r, primaryAccent.g, primaryAccent.b, 0.30f + 0.15f * pulse);
-        }
-
-        if (bottomBand != null)
-        {
-            bottomBand.color = new Color(secondaryAccent.r, secondaryAccent.g, secondaryAccent.b, 0.18f + 0.08f * (1f - pulse));
-        }
-
-        if (leftBand != null)
-        {
-            leftBand.color = new Color(primaryAccent.r, primaryAccent.g, primaryAccent.b, 0.12f + 0.08f * pulse);
-        }
-
-        if (rightBand != null)
-        {
-            rightBand.color = new Color(secondaryAccent.r, secondaryAccent.g, secondaryAccent.b, 0.08f + 0.05f * pulse);
         }
     }
 }

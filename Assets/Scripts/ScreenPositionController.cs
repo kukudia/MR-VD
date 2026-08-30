@@ -71,10 +71,10 @@ public class ScreenPositionController : MonoBehaviour
 
     private void Update()
     {
-        if (Input.GetKeyDown(KeyCode.Space))
-        {
-            isFollowedCamera = !isFollowedCamera;
-        }
+        //if (Input.GetKeyDown(KeyCode.Space))
+        //{
+        //    isFollowedCamera = !isFollowedCamera;
+        //}
 
         if (ShouldRecenter())
         {
