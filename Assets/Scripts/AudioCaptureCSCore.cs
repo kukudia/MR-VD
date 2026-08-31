@@ -1035,112 +1035,67 @@ public class AudioCaptureCSCore : MonoBehaviour
             return true;
         }
 
-        _screenCanvasFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-        if (_screenCanvasFont == null)
+        _screenCanvasContent = screenCanvasPanelRoot.Find("AudioCaptureCanvasContent") as RectTransform;
+        if (_screenCanvasContent == null)
         {
-            Debug.LogError("[AudioCaptureCSCore] LegacyRuntime.ttf built-in font was not found. Screen canvas panel cannot be created.");
+            Debug.LogError("[AudioCaptureCSCore] AudioCaptureCanvasContent is missing under Screen/Canvas/AudioPanel.");
             return false;
         }
 
-        _screenCanvasContent = FindOrCreateRect("AudioCaptureCanvasContent", screenCanvasPanelRoot, new Vector2(ScreenCanvasContentWidth, ScreenCanvasContentHeight));
-        _screenCanvasContent.localScale = Vector3.one * 0.1f;
-        EnsureLayoutElement(_screenCanvasContent.gameObject, ScreenCanvasContentHeight, ScreenCanvasContentHeight, 0f, ScreenCanvasContentWidth, ScreenCanvasContentWidth);
+        _screenCanvasFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        _screenModeText = FindScreenComponent<Text>("CaptureModule/ModeText");
+        _screenDeviceText = FindScreenComponent<Text>("CaptureModule/DeviceText");
+        _screenDeviceHeaderText = FindScreenComponent<Text>("DeviceModule/DeviceHeaderRow/DeviceHeaderText");
+        _screenVisualizerText = FindScreenComponent<Text>("VisualizerModule/VisualizerText");
 
-        VerticalLayoutGroup layout = _screenCanvasContent.GetComponent<VerticalLayoutGroup>();
-        if (layout == null)
+        Button inputButton = FindScreenComponent<Button>("CaptureModule/ModeButtons/InputButton");
+        Button loopbackButton = FindScreenComponent<Button>("CaptureModule/ModeButtons/LoopbackButton");
+        Button refreshButton = FindScreenComponent<Button>("DeviceModule/DeviceHeaderRow/RefreshButton");
+        Button previousButton = FindScreenComponent<Button>("DeviceModule/NavigationButtons/PreviousButton");
+        Button nextButton = FindScreenComponent<Button>("DeviceModule/NavigationButtons/NextButton");
+
+        if (_screenCanvasFont == null
+            || _screenModeText == null
+            || _screenDeviceText == null
+            || _screenDeviceHeaderText == null
+            || _screenVisualizerText == null
+            || inputButton == null
+            || loopbackButton == null
+            || refreshButton == null
+            || previousButton == null
+            || nextButton == null
+            || EnsureScreenDeviceList() == null)
         {
-            layout = _screenCanvasContent.gameObject.AddComponent<VerticalLayoutGroup>();
+            Debug.LogError("[AudioCaptureCSCore] Audio panel modules are incomplete. Check the serialized hierarchy under Screen/Canvas/AudioPanel.");
+            return false;
         }
-        layout.padding = new RectOffset(10, 10, 10, 10);
-        layout.spacing = 5f;
-        layout.childAlignment = TextAnchor.UpperLeft;
-        layout.childControlWidth = true;
-        layout.childControlHeight = true;
-        layout.childForceExpandWidth = true;
-        layout.childForceExpandHeight = false;
 
-        ScreenCanvasArtTheme.ApplyPanelArt(
-            _screenCanvasContent,
-            ScreenCanvasArtTheme.AudioPanelBase,
-            ScreenCanvasArtTheme.AudioPrimaryAccent);
-
-        _screenModeText = FindOrCreateText("ModeText", _screenCanvasContent, string.Empty, 13, FontStyle.Bold, TextAnchor.MiddleLeft, 24f);
-        _screenDeviceText = FindOrCreateText("DeviceText", _screenCanvasContent, string.Empty, 11, FontStyle.Normal, TextAnchor.UpperLeft, 42f);
-
-        RectTransform modeRow = FindOrCreateRow("ModeButtons", _screenCanvasContent, 30f);
-        Button inputButton = FindOrCreateButton("InputButton", modeRow, "Input");
         inputButton.onClick.RemoveAllListeners();
         inputButton.onClick.AddListener(() => SwitchCaptureMode(CaptureMode.Input));
-        Button loopbackButton = FindOrCreateButton("LoopbackButton", modeRow, "Loopback");
         loopbackButton.onClick.RemoveAllListeners();
         loopbackButton.onClick.AddListener(() => SwitchCaptureMode(CaptureMode.Loopback));
-
-        RectTransform actionRow = FindOrCreateRow("ActionButtons", _screenCanvasContent, 30f);
-        Button refreshButton = FindOrCreateButton("RefreshButton", actionRow, "Refresh");
         refreshButton.onClick.RemoveAllListeners();
         refreshButton.onClick.AddListener(RefreshDeviceListAndRestartCapture);
-        Button previousButton = FindOrCreateButton("PreviousButton", actionRow, "Prev");
         previousButton.onClick.RemoveAllListeners();
         previousButton.onClick.AddListener(SwitchToPreviousDevice);
-        Button nextButton = FindOrCreateButton("NextButton", actionRow, "Next");
         nextButton.onClick.RemoveAllListeners();
         nextButton.onClick.AddListener(SwitchToNextDevice);
-
-        _screenDeviceHeaderText = FindOrCreateText("DeviceHeaderText", _screenCanvasContent, string.Empty, 12, FontStyle.Bold, TextAnchor.MiddleLeft, 22f);
-        EnsureScreenDeviceList();
-        _screenVisualizerText = FindOrCreateText("VisualizerText", _screenCanvasContent, string.Empty, 10, FontStyle.Normal, TextAnchor.UpperLeft, 185f);
 
         UpdateScreenCanvasPanel(true);
         return true;
     }
 
+    private T FindScreenComponent<T>(string path) where T : Component
+    {
+        Transform target = _screenCanvasContent != null ? _screenCanvasContent.Find(path) : null;
+        return target != null ? target.GetComponent<T>() : null;
+    }
+
     private RectTransform EnsureScreenDeviceList()
     {
-        RectTransform deviceList = FindOrCreateRect("DeviceList", _screenCanvasContent, new Vector2(ScreenCanvasChildWidth, 150f));
-        deviceList.sizeDelta = new Vector2(ScreenCanvasChildWidth, 150f);
-
-        ScrollRect legacyScrollRect = deviceList.GetComponent<ScrollRect>();
-        if (legacyScrollRect != null)
-        {
-            legacyScrollRect.enabled = false;
-            Destroy(legacyScrollRect);
-        }
-
-        EnsureLayoutElement(deviceList.gameObject, 120f, 150f, 0f, ScreenCanvasChildWidth, ScreenCanvasChildWidth);
-
-        Image background = deviceList.GetComponent<Image>();
-        if (background == null)
-        {
-            background = deviceList.gameObject.AddComponent<Image>();
-        }
-        ScreenCanvasArtTheme.ApplyPanelArt(
-            deviceList,
-            ScreenCanvasArtTheme.DeviceListBase,
-            ScreenCanvasArtTheme.AudioSecondaryAccent);
-
-        for (int i = deviceList.childCount - 1; i >= 0; i--)
-        {
-            Transform child = deviceList.GetChild(i);
-            if (child.name == "Viewport")
-            {
-                Destroy(child.gameObject);
-            }
-        }
-
-        VerticalLayoutGroup layout = deviceList.GetComponent<VerticalLayoutGroup>();
-        if (layout == null)
-        {
-            layout = deviceList.gameObject.AddComponent<VerticalLayoutGroup>();
-        }
-        layout.padding = new RectOffset(0, 0, 0, 0);
-        layout.spacing = 3f;
-        layout.childAlignment = TextAnchor.UpperLeft;
-        layout.childControlWidth = true;
-        layout.childControlHeight = true;
-        layout.childForceExpandWidth = true;
-        layout.childForceExpandHeight = false;
-
-        return deviceList;
+        return _screenCanvasContent != null
+            ? _screenCanvasContent.Find("DeviceModule/DeviceList") as RectTransform
+            : null;
     }
 
     private void RebuildScreenDeviceButtons()

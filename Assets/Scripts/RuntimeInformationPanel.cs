@@ -296,9 +296,9 @@ public sealed class RuntimeInformationPanel : MonoBehaviour
 
     private bool BindDashboard()
     {
-        timeText = Find<Text>(dashboard, "TimeCard/TimeText");
-        dateText = Find<Text>(dashboard, "TimeCard/DateText");
-        timeZoneText = Find<Text>(dashboard, "TimeCard/TimeZoneText");
+        timeText = Find<Text>(dashboard, "TimeFooter/TimeText");
+        dateText = Find<Text>(dashboard, "TimeFooter/TimeMeta/DateText");
+        timeZoneText = Find<Text>(dashboard, "TimeFooter/TimeMeta/TimeZoneText");
         weatherTemperatureText = Find<Text>(dashboard, "WeatherModule/WeatherBody/WeatherSummary/WeatherCopy/WeatherTemperatureText");
         weatherConditionText = Find<Text>(dashboard, "WeatherModule/WeatherBody/WeatherSummary/WeatherCopy/WeatherConditionText");
         weatherDetailsText = Find<Text>(dashboard, "WeatherModule/WeatherBody/WeatherDetailsText");
@@ -347,7 +347,7 @@ public sealed class RuntimeInformationPanel : MonoBehaviour
 
         if (!complete)
         {
-            Debug.LogError("[RuntimeInformationPanel] RuntimeDashboard is incomplete. Rebuild it from Tools/MR-VD/Rebuild Screen Canvas Panels.");
+            Debug.LogError("[RuntimeInformationPanel] RuntimeDashboard is incomplete. Check the serialized modules under Screen/Canvas/InfoPanel.");
             return false;
         }
 
