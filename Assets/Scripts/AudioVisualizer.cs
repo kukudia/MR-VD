@@ -222,10 +222,6 @@ public class AudioVisualizer : MonoBehaviour
     private float playStartTime = 0f;
     private float silenceStartTime = 0f;
 
-    [Header("Debug Display")]
-    [Tooltip("Shows a standalone AudioVisualizer status overlay when AudioCaptureCSCore is not displaying a combined debug panel.")]
-    public bool showStandaloneStatusOverlay = true;
-
     [Header("Silence Detection")]
     [Tooltip("Broadband energy must stay below this threshold before entering silence.")]
     public float silenceEnterThreshold = 0.001f;
@@ -1697,40 +1693,6 @@ public class AudioVisualizer : MonoBehaviour
         return sum / (imax - imin + 1);
     }
 
-    public void DrawStatusGui(int fontSize = 18)
-    {
-        GUIStyle style = new GUIStyle(GUI.skin.label);
-        style.fontSize = fontSize;
-        style.wordWrap = false;
-        style.normal.textColor = Color.green;
-
-        GUILayout.Label($"BPM: {limitedBPM:F1}", style);
-        GUILayout.Label($"Key: {currentKey} {currentMode}", style);
-
-        if (showBeatText)
-        {
-            GUILayout.Label("** BEAT **", style);
-        }
-
-        GUILayout.Label($"Kick: {kickEnergy:F3} (T: {dynamicKickThreshold:F3})", style);
-        GUILayout.Label($"Confidence: {(beatConfidences.Count > 0 ? beatConfidences.Last() : 0):F2}", style);
-        GUILayout.Label($"Variance: {bpmVariance:F3}", style);
-
-        // Display silence state.
-        style.normal.textColor = Color.yellow;
-        GUILayout.Label(GetPlaybackStatusText(), style);
-        GUILayout.Label($"Silence Energy: {smoothedSilenceEnergy:F5}", style);
-        style.normal.textColor = Color.green;
-
-        // Display log compression debug values.
-        if (enableDynamicRange)
-        {
-            GUILayout.Label($"Dynamic Scale: {dynamicScaleFactor:F2} | Max Amplitude: {maxRecentAmplitude:F3}", style);
-        }
-
-        GUILayout.Label($"Raw BPM: {detectedBPM:F1} | Variance: {bpmVariance:F3}", style);
-    }
-
     public void BuildStatusLines(List<string> lines)
     {
         if (lines == null)
@@ -1759,6 +1721,20 @@ public class AudioVisualizer : MonoBehaviour
         lines.Add($"Raw BPM: {detectedBPM:F1} | Variance: {bpmVariance:F3}");
     }
 
+    public void BuildCompactStatusLines(List<string> lines)
+    {
+        if (lines == null)
+        {
+            return;
+        }
+
+        lines.Add($"BPM  {limitedBPM:F1}");
+        lines.Add($"KEY  {currentKey} {currentMode}");
+        lines.Add(GetPlaybackStatusText().ToUpperInvariant());
+        lines.Add($"BEAT {((showBeatText) ? "DETECTED" : "WAITING")}");
+        lines.Add($"KICK {kickEnergy:F3}   CONF {(beatConfidences.Count > 0 ? beatConfidences.Last() : 0):F2}");
+    }
+
     private string GetPlaybackStatusText()
     {
         if (wasSilent)
@@ -1779,17 +1755,4 @@ public class AudioVisualizer : MonoBehaviour
         return $"{minutes:00}:{seconds:00}";
     }
 
-    void OnGUI()
-    {
-        AudioCaptureCSCore capture = AudioCaptureCSCore.instance;
-        bool mergedPanelVisible = capture != null && capture.showManualControlPanel;
-        if (!showStandaloneStatusOverlay || mergedPanelVisible)
-        {
-            return;
-        }
-
-        GUILayout.BeginArea(new Rect(Screen.width - 420, 20, 400, 360));
-        DrawStatusGui(24);
-        GUILayout.EndArea();
-    }
 }

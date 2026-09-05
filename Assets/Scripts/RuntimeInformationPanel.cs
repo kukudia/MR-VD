@@ -321,7 +321,7 @@ public sealed class RuntimeInformationPanel : MonoBehaviour
         RectTransform audioPanel = FindSiblingPanel("AudioPanel/AudioCaptureCanvasContent");
         if (audioPanel != null)
         {
-            audioPanelAnimator = audioPanel.GetComponent<ScreenCanvasPanelAnimator>();
+        audioPanelAnimator = audioPanel.GetComponent<ScreenCanvasPanelAnimator>();
         }
 
         bool complete = timeText != null

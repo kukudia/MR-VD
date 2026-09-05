@@ -110,21 +110,13 @@ public class AudioCaptureCSCore : MonoBehaviour
     private float[] _sampleReadBuffer = Array.Empty<float>();
     private int _lastManualFftUpdateFrame = -1;
 
-    [Header("Manual Runtime Controls")]
-    [Tooltip("Shows a runtime debug panel for manually switching capture modes and devices.")]
+    [Header("Runtime Controls")]
+    [Tooltip("Shows the Screen/Canvas audio routing module.")]
     public bool showManualControlPanel = true;
-
-    [Tooltip("Position and size of the manual runtime control panel.")]
-    public Rect manualControlPanelRect = new Rect(16f, 16f, 420f, 560f);
 
     [Tooltip("Optional visualizer used to merge BPM, key, and silence status into the capture panel.")]
     public AudioVisualizer audioVisualizer;
 
-    [Tooltip("Height of the scrollable device list in the manual runtime panel.")]
-    [Range(80f, 360f)]
-    public float manualDeviceListHeight = 180f;
-
-    private Vector2 _manualDeviceListScrollPosition;
 
     [Header("Screen Canvas Panel")]
     [Tooltip("Renders the manual audio panel inside Screen/Canvas/AudioPanel instead of the legacy IMGUI overlay.")]
@@ -142,6 +134,7 @@ public class AudioCaptureCSCore : MonoBehaviour
     private Text _screenDeviceText;
     private Text _screenDeviceHeaderText;
     private Text _screenVisualizerText;
+    private Button _screenHideButton;
     private string _screenDeviceListSignature = string.Empty;
     private float _nextScreenCanvasRefreshTime;
     private Font _screenCanvasFont;
@@ -860,122 +853,6 @@ public class AudioCaptureCSCore : MonoBehaviour
         }
     }
 
-    private void OnGUI()
-    {
-        if (useScreenCanvasPanel && EnsureScreenCanvasPanel(false))
-        {
-            return;
-        }
-
-        if (!showManualControlPanel)
-        {
-            return;
-        }
-
-        manualControlPanelRect.width = Mathf.Max(manualControlPanelRect.width, 420f);
-        manualControlPanelRect.height = Mathf.Max(manualControlPanelRect.height, 560f);
-        manualControlPanelRect = GUILayout.Window(
-            GetInstanceID(),
-            manualControlPanelRect,
-            DrawManualControlPanel,
-            "Audio Capture");
-    }
-
-    private void DrawManualControlPanel(int windowId)
-    {
-        GUILayout.Label($"Mode: {captureMode}");
-        GUILayout.Label($"Device: {currentDeviceName}");
-
-        GUILayout.BeginHorizontal();
-        DrawModeButton("Input", CaptureMode.Input);
-        DrawModeButton("Loopback", CaptureMode.Loopback);
-        GUILayout.EndHorizontal();
-
-        if (GUILayout.Button("Toggle Mode"))
-        {
-            ToggleCaptureMode();
-        }
-
-        GUILayout.Space(8f);
-        GUILayout.BeginHorizontal();
-        if (GUILayout.Button("Refresh"))
-        {
-            RefreshDeviceListAndRestartCapture();
-        }
-
-        if (GUILayout.Button("Previous"))
-        {
-            SwitchToPreviousDevice();
-        }
-
-        if (GUILayout.Button("Next"))
-        {
-            SwitchToNextDevice();
-        }
-        GUILayout.EndHorizontal();
-
-        GUILayout.Space(6f);
-        GUILayout.Label($"{captureMode} Devices");
-
-        if (deviceNames.Count == 0)
-        {
-            GUILayout.Label("No active devices");
-        }
-        else
-        {
-            _manualDeviceListScrollPosition = GUILayout.BeginScrollView(
-                _manualDeviceListScrollPosition,
-                GUILayout.Height(manualDeviceListHeight));
-
-            for (int i = 0; i < deviceNames.Count; i++)
-            {
-                string prefix = (i == selectedDeviceIndex) ? "* " : string.Empty;
-                if (GUILayout.Button($"{prefix}{i}: {deviceNames[i]}"))
-                {
-                    SwitchDevice(i);
-                }
-            }
-
-            GUILayout.EndScrollView();
-        }
-
-        DrawVisualizerStatusSection();
-
-        GUI.DragWindow(new Rect(0f, 0f, 10000f, 24f));
-    }
-
-    private void DrawVisualizerStatusSection()
-    {
-        if (audioVisualizer == null)
-        {
-            audioVisualizer = FindFirstObjectByType<AudioVisualizer>();
-        }
-
-        GUILayout.Space(8f);
-        GUILayout.Label("Audio Visualizer");
-
-        if (audioVisualizer == null)
-        {
-            GUILayout.Label("AudioVisualizer not found");
-            return;
-        }
-
-        audioVisualizer.DrawStatusGui();
-    }
-
-    private void DrawModeButton(string label, CaptureMode mode)
-    {
-        bool wasEnabled = GUI.enabled;
-        GUI.enabled = wasEnabled && captureMode != mode;
-
-        if (GUILayout.Button(label))
-        {
-            SwitchCaptureMode(mode);
-        }
-
-        GUI.enabled = wasEnabled;
-    }
-
     private void UpdateScreenCanvasPanel(bool force)
     {
         if (!useScreenCanvasPanel || !EnsureScreenCanvasPanel(false))
@@ -1043,16 +920,19 @@ public class AudioCaptureCSCore : MonoBehaviour
         }
 
         _screenCanvasFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-        _screenModeText = FindScreenComponent<Text>("CaptureModule/ModeText");
-        _screenDeviceText = FindScreenComponent<Text>("CaptureModule/DeviceText");
-        _screenDeviceHeaderText = FindScreenComponent<Text>("DeviceModule/DeviceHeaderRow/DeviceHeaderText");
-        _screenVisualizerText = FindScreenComponent<Text>("VisualizerModule/VisualizerText");
+        _screenModeText = FindScreenComponent<Text>("AudioRoutingModule/ModeText");
+        _screenDeviceText = FindScreenComponent<Text>("AudioRoutingModule/DeviceText");
+        _screenDeviceHeaderText = FindScreenComponent<Text>("AudioRoutingModule/DeviceModule/DeviceHeaderRow/DeviceHeaderText");
+        _screenVisualizerText = FindScreenComponent<Text>("AudioStatusModule/AudioStatusText");
 
-        Button inputButton = FindScreenComponent<Button>("CaptureModule/ModeButtons/InputButton");
-        Button loopbackButton = FindScreenComponent<Button>("CaptureModule/ModeButtons/LoopbackButton");
-        Button refreshButton = FindScreenComponent<Button>("DeviceModule/DeviceHeaderRow/RefreshButton");
-        Button previousButton = FindScreenComponent<Button>("DeviceModule/NavigationButtons/PreviousButton");
-        Button nextButton = FindScreenComponent<Button>("DeviceModule/NavigationButtons/NextButton");
+        Button inputButton = FindScreenComponent<Button>("AudioRoutingModule/ModeButtons/InputButton");
+        Button loopbackButton = FindScreenComponent<Button>("AudioRoutingModule/ModeButtons/LoopbackButton");
+        Button refreshButton = FindScreenComponent<Button>("AudioRoutingModule/DeviceModule/DeviceHeaderRow/RefreshButton");
+        Button previousButton = FindScreenComponent<Button>("AudioRoutingModule/DeviceModule/NavigationButtons/PreviousButton");
+        Button nextButton = FindScreenComponent<Button>("AudioRoutingModule/DeviceModule/NavigationButtons/NextButton");
+        _screenHideButton = screenCanvasPanelRoot.Find("AudioPanelControls/HideButton") != null
+            ? screenCanvasPanelRoot.Find("AudioPanelControls/HideButton").GetComponent<Button>()
+            : null;
 
         if (_screenCanvasFont == null
             || _screenModeText == null
@@ -1064,6 +944,7 @@ public class AudioCaptureCSCore : MonoBehaviour
             || refreshButton == null
             || previousButton == null
             || nextButton == null
+            || _screenHideButton == null
             || EnsureScreenDeviceList() == null)
         {
             Debug.LogError("[AudioCaptureCSCore] Audio panel modules are incomplete. Check the serialized hierarchy under Screen/Canvas/AudioPanel.");
@@ -1080,9 +961,22 @@ public class AudioCaptureCSCore : MonoBehaviour
         previousButton.onClick.AddListener(SwitchToPreviousDevice);
         nextButton.onClick.RemoveAllListeners();
         nextButton.onClick.AddListener(SwitchToNextDevice);
+        _screenHideButton.onClick.RemoveAllListeners();
+        _screenHideButton.onClick.AddListener(() => SetAudioPanelVisible(!_screenCanvasContent.gameObject.activeSelf));
 
         UpdateScreenCanvasPanel(true);
         return true;
+    }
+
+    private void SetAudioPanelVisible(bool visible)
+    {
+        showManualControlPanel = visible;
+        _screenCanvasContent.gameObject.SetActive(visible);
+        Text label = _screenHideButton != null ? _screenHideButton.GetComponentInChildren<Text>(true) : null;
+        if (label != null)
+        {
+            label.text = visible ? "HIDE" : "SHOW";
+        }
     }
 
     private T FindScreenComponent<T>(string path) where T : Component
@@ -1094,7 +988,7 @@ public class AudioCaptureCSCore : MonoBehaviour
     private RectTransform EnsureScreenDeviceList()
     {
         return _screenCanvasContent != null
-            ? _screenCanvasContent.Find("DeviceModule/DeviceList") as RectTransform
+            ? _screenCanvasContent.Find("AudioRoutingModule/DeviceModule/DeviceList") as RectTransform
             : null;
     }
 
@@ -1175,8 +1069,8 @@ public class AudioCaptureCSCore : MonoBehaviour
             return;
         }
 
-        List<string> lines = new List<string> { "Audio Visualizer" };
-        audioVisualizer.BuildStatusLines(lines);
+        List<string> lines = new List<string> { "AUDIO ANALYSIS" };
+        audioVisualizer.BuildCompactStatusLines(lines);
         _screenVisualizerText.text = string.Join("\n", lines);
     }
 
