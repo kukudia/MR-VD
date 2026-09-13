@@ -226,7 +226,7 @@ public sealed class RuntimeInformationPanel : MonoBehaviour
         GUILayout.BeginArea(new Rect(16f, 16f, 420f, 300f), GUI.skin.box);
         DateTime now = DateTime.Now;
         GUILayout.Label(now.ToString("HH:mm:ss", CultureInfo.CurrentCulture));
-        GUILayout.Label(now.ToString("yyyy-MM-dd dddd", CultureInfo.CurrentCulture));
+        GUILayout.Label(now.ToString("yyMMdd", CultureInfo.CurrentCulture));
         GUILayout.Space(8f);
         GUILayout.Label(BuildWeatherFallbackText());
         GUILayout.Space(8f);
@@ -249,7 +249,7 @@ public sealed class RuntimeInformationPanel : MonoBehaviour
         nextScreenCanvasRefreshTime = Time.unscaledTime + Mathf.Max(0.05f, screenCanvasRefreshInterval);
         DateTime now = DateTime.Now;
         timeText.text = now.ToString("HH:mm:ss", CultureInfo.CurrentCulture);
-        dateText.text = now.ToString("dddd, dd MMMM yyyy", CultureInfo.CurrentCulture);
+        dateText.text = now.ToString("yyMMdd", CultureInfo.CurrentCulture);
         timeZoneText.text = TimeZoneInfo.Local.StandardName;
         UpdateWeatherPresentation();
         systemText.text = BuildSystemText();
@@ -459,7 +459,7 @@ public sealed class RuntimeInformationPanel : MonoBehaviour
         weatherRefreshButton.interactable = !weatherRefreshInProgress;
         if (weatherSnapshot == null)
         {
-            weatherTemperatureText.text = "-- C";
+            weatherTemperatureText.text = "-- °C";
             weatherConditionText.text = "Weather unavailable";
             weatherDetailsText.text = "Waiting for location and current conditions.";
             weatherArtwork.texture = null;
@@ -467,11 +467,11 @@ public sealed class RuntimeInformationPanel : MonoBehaviour
         }
         else
         {
-            weatherTemperatureText.text = string.Format(CultureInfo.CurrentCulture, "{0:0.#} C", weatherSnapshot.TemperatureCelsius);
+            weatherTemperatureText.text = string.Format(CultureInfo.CurrentCulture, "{0:0.#} °C", weatherSnapshot.TemperatureCelsius);
             weatherConditionText.text = weatherSnapshot.Condition + "  |  " + weatherSnapshot.LocationLabel;
             weatherDetailsText.text = string.Format(
                 CultureInfo.CurrentCulture,
-                "Feels {0:0.#} C    Humidity {1:0}%\nWind {2:0.#} km/h    Rain {3:0.#} mm",
+                "Feels {0:0.#} °C    Humidity {1:0}%\nWind {2:0.#} km/h    Rain {3:0.#} mm",
                 weatherSnapshot.ApparentTemperatureCelsius,
                 weatherSnapshot.RelativeHumidity,
                 weatherSnapshot.WindSpeedKmh,
@@ -573,7 +573,7 @@ public sealed class RuntimeInformationPanel : MonoBehaviour
 
         return string.Format(
             CultureInfo.CurrentCulture,
-            "{0}: {1:0.#} C, {2}",
+            "{0}: {1:0.#} °C, {2}",
             weatherSnapshot.LocationLabel,
             weatherSnapshot.TemperatureCelsius,
             weatherSnapshot.Condition);
