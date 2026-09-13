@@ -129,6 +129,13 @@ public class AudioCaptureCSCore : MonoBehaviour
     [Range(0.05f, 1f)]
     public float screenCanvasRefreshInterval = 0.2f;
 
+    [Tooltip("Editable heading shown above the realtime audio metrics.")]
+    public string screenVisualizerHeader = "REALTIME AUDIO ANALYSIS";
+
+    [Tooltip("Font size used for the primary BPM and key metrics in the audio status block.")]
+    [Range(9, 32)]
+    public int screenVisualizerPrimaryFontSize = 14;
+
     private RectTransform _screenCanvasContent;
     private Text _screenModeText;
     private Text _screenDeviceText;
@@ -1069,8 +1076,13 @@ public class AudioCaptureCSCore : MonoBehaviour
             return;
         }
 
-        List<string> lines = new List<string> { "AUDIO ANALYSIS" };
+        List<string> lines = new List<string> { screenVisualizerHeader };
         audioVisualizer.BuildCompactStatusLines(lines);
+        if (lines.Count > 2)
+        {
+            lines[1] = $"<size={screenVisualizerPrimaryFontSize}>{lines[1]}</size>";
+            lines[2] = $"<size={screenVisualizerPrimaryFontSize}>{lines[2]}</size>";
+        }
         _screenVisualizerText.text = string.Join("\n", lines);
     }
 

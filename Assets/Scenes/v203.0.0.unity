@@ -1730,6 +1730,8 @@ MonoBehaviour:
   useScreenCanvasPanel: 1
   screenCanvasPanelRoot: {fileID: 1121251162}
   screenCanvasRefreshInterval: 0.2
+  screenVisualizerHeader: REALTIME AUDIO ANALYSIS
+  screenVisualizerPrimaryFontSize: 14
 --- !u!1 &73622533
 GameObject:
   m_ObjectHideFlags: 0
@@ -30952,9 +30954,12 @@ MonoBehaviour:
     m_HorizontalOverflow: 0
     m_VerticalOverflow: 0
     m_LineSpacing: 1
-  m_Text: 'Audio Visualizer
-
-    AudioVisualizer not found'
+  m_Text: 'REALTIME AUDIO ANALYSIS
+BPM  --
+KEY  --
+PLAYING --
+BEAT --
+KICK --   CONF --'
 --- !u!222 &1477664151
 CanvasRenderer:
   m_ObjectHideFlags: 0
