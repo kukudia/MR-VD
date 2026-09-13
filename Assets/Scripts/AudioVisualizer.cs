@@ -289,6 +289,26 @@ public class AudioVisualizer : MonoBehaviour
     [Tooltip("Current key detection confidence, measured as the score gap between the best and second-best templates.")]
     public float currentKeyConfidence = 0f;
 
+    [Tooltip("Minimum confidence required before accepting the first key result. Lower values respond faster but are less reliable.")]
+    [Range(0f, 1f)]
+    public float keyMinimumConfidence = 0.025f;
+
+    [Tooltip("Minimum Pearson score required before accepting the first key result. Prevents silence/noise from producing a key.")]
+    [Range(-1f, 1f)]
+    public float keyMinimumScore = 0.12f;
+
+    [Tooltip("Lowest frequency included in chroma analysis. Frequencies below this are mostly rhythm/transient content.")]
+    [Min(20f)]
+    public float keyMinFrequencyHz = 55f;
+
+    [Tooltip("Highest frequency included in chroma analysis. Very high bins are more likely to be noise or overtones.")]
+    [Min(1000f)]
+    public float keyMaxFrequencyHz = 5000f;
+
+    [Tooltip("Chroma energy compression. Higher values reduce the dominance of a single loud spectral peak.")]
+    [Range(0.1f, 4f)]
+    public float keyEnergyCompression = 1.2f;
+
     private float lastKeyUpdateTime = 0f;
     private readonly double[] smoothedChroma = new double[12];
     private bool hasSmoothedChroma = false;
@@ -384,12 +404,11 @@ public class AudioVisualizer : MonoBehaviour
             return;
         }
 
-        if (limitedBPM <= 0)
+        if (Time.time - lastKeyUpdateTime >= keyUpdateInterval)
         {
-            if (Time.time - lastKeyUpdateTime >= keyUpdateInterval)
-            {
-                DetectKeyFromFft(fftBuffer);
-            }
+            // Use the smoothed spectrum continuously. Key estimation benefits from
+            // sustained harmonic evidence and should not depend on beat/BPM state.
+            DetectKeyFromFft(smoothedFftData);
         }
 
         // Count down the transient beat overlay.
@@ -925,12 +944,6 @@ public class AudioVisualizer : MonoBehaviour
             // Trigger the transient beat display.
             showBeatText = true;
             beatTimer = beatDisplayTime;
-
-            // Optionally update key detection on the beat.
-            if (limitedBPM > 0)
-            {
-                DetectKeyFromFft(AudioCaptureCSCore.instance.frequencyData);
-            }
 
             Debug.Log($"[Beat] Triggered beat - confidence: {totalConfidence:F2}, Kick: {kickEnergy:F3}, Snare: {snareEnergy:F3}");
         }
@@ -1518,8 +1531,8 @@ public class AudioVisualizer : MonoBehaviour
         int sampleRate = AudioCaptureCSCore.instance.waveSource.WaveFormat.SampleRate;
         double freqRes = (double)sampleRate / fft.Length;
 
-        int minBin = Mathf.Max(1, (int)(80.0 / freqRes));
-        int maxBin = Mathf.Min(fft.Length - 1, (int)(4000.0 / freqRes));
+        int minBin = Mathf.Max(1, (int)(keyMinFrequencyHz / freqRes));
+        int maxBin = Mathf.Min((fft.Length / 2) - 1, (int)(keyMaxFrequencyHz / freqRes));
 
         for (int i = minBin; i <= maxBin; i++)
         {
@@ -1529,7 +1542,9 @@ public class AudioVisualizer : MonoBehaviour
             double midiNote = 12.0 * Math.Log(freq / 440.0, 2.0) + 69.0;
             int lowerNote = (int)Math.Floor(midiNote);
             int noteClass = (lowerNote % 12 + 12) % 12;
-            double weight = Math.Sqrt(fft[i]) * GetChromaFrequencyWeight(freq);
+            // Log compression makes the profile robust to loud single notes and drums.
+            double magnitude = Math.Max(0.0, fft[i]);
+            double weight = Math.Log(1.0 + keyEnergyCompression * magnitude) * GetChromaFrequencyWeight(freq);
 
             // Spread energy into neighboring semitones to reduce frequency quantization error.
             double frac = midiNote - lowerNote;
@@ -1542,10 +1557,11 @@ public class AudioVisualizer : MonoBehaviour
 
     private double GetChromaFrequencyWeight(double freq)
     {
-        if (freq < 120.0) return 0.65;
-        if (freq < 1000.0) return 1.25;
-        if (freq < 2500.0) return 1.0;
-        return 0.75;
+        if (freq < 90.0) return 0.35;
+        if (freq < 180.0) return 0.75;
+        if (freq < 1200.0) return 1.35;
+        if (freq < 3000.0) return 1.0;
+        return 0.65;
     }
 
     private double[] SmoothChroma(double[] chroma)
@@ -1594,8 +1610,29 @@ public class AudioVisualizer : MonoBehaviour
 
     private bool ShouldAcceptKeyCandidate(string bestKey, string bestMode, double bestScore, double[] chroma)
     {
+        if (bestScore < keyMinimumScore || currentKeyConfidence < keyMinimumConfidence)
+        {
+            pendingKey = "Unknown";
+            pendingMode = "Unknown";
+            pendingKeyFrames = 0;
+            return false;
+        }
+
         if (currentKey == "Unknown" || currentMode == "Unknown")
-            return true;
+        {
+            if (bestKey == pendingKey && bestMode == pendingMode)
+            {
+                pendingKeyFrames++;
+            }
+            else
+            {
+                pendingKey = bestKey;
+                pendingMode = bestMode;
+                pendingKeyFrames = 1;
+            }
+
+            return pendingKeyFrames >= Mathf.Max(1, keyStableFrameThreshold);
+        }
 
         if (bestKey == currentKey && bestMode == currentMode)
         {
