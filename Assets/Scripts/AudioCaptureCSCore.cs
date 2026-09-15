@@ -1086,42 +1086,42 @@ public class AudioCaptureCSCore : MonoBehaviour
         _screenVisualizerText.text = string.Join("\n", lines);
     }
 
-    private RectTransform FindOrCreateRow(string name, RectTransform parent, float height)
-    {
-        RectTransform row = FindOrCreateRect(name, parent, new Vector2(ScreenCanvasChildWidth, height));
-        EnsureLayoutElement(row.gameObject, height, height, 0f, ScreenCanvasChildWidth, ScreenCanvasChildWidth);
-        HorizontalLayoutGroup layout = row.GetComponent<HorizontalLayoutGroup>();
-        if (layout == null)
-        {
-            layout = row.gameObject.AddComponent<HorizontalLayoutGroup>();
-        }
-        layout.spacing = 4f;
-        layout.childControlWidth = true;
-        layout.childControlHeight = true;
-        layout.childForceExpandWidth = true;
-        layout.childForceExpandHeight = true;
-        return row;
-    }
+    //private RectTransform FindOrCreateRow(string name, RectTransform parent, float height)
+    //{
+    //    RectTransform row = FindOrCreateRect(name, parent, new Vector2(ScreenCanvasChildWidth, height));
+    //    EnsureLayoutElement(row.gameObject, height, height, 0f, ScreenCanvasChildWidth, ScreenCanvasChildWidth);
+    //    HorizontalLayoutGroup layout = row.GetComponent<HorizontalLayoutGroup>();
+    //    if (layout == null)
+    //    {
+    //        layout = row.gameObject.AddComponent<HorizontalLayoutGroup>();
+    //    }
+    //    layout.spacing = 4f;
+    //    layout.childControlWidth = true;
+    //    layout.childControlHeight = true;
+    //    layout.childForceExpandWidth = true;
+    //    layout.childForceExpandHeight = true;
+    //    return row;
+    //}
 
-    private RectTransform FindOrCreateRect(string name, RectTransform parent, Vector2 size)
-    {
-        Transform existing = parent.Find(name);
-        GameObject obj = existing != null ? existing.gameObject : new GameObject(name, typeof(RectTransform));
-        obj.layer = parent.gameObject.layer;
-        RectTransform rectTransform = obj.GetComponent<RectTransform>();
-        if (rectTransform == null)
-        {
-            rectTransform = obj.AddComponent<RectTransform>();
-        }
+    //private RectTransform FindOrCreateRect(string name, RectTransform parent, Vector2 size)
+    //{
+    //    Transform existing = parent.Find(name);
+    //    GameObject obj = existing != null ? existing.gameObject : new GameObject(name, typeof(RectTransform));
+    //    obj.layer = parent.gameObject.layer;
+    //    RectTransform rectTransform = obj.GetComponent<RectTransform>();
+    //    if (rectTransform == null)
+    //    {
+    //        rectTransform = obj.AddComponent<RectTransform>();
+    //    }
 
-        rectTransform.SetParent(parent, false);
-        rectTransform.anchorMin = new Vector2(0.5f, 0.5f);
-        rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
-        rectTransform.pivot = new Vector2(0.5f, 0.5f);
-        rectTransform.sizeDelta = size;
-        rectTransform.localScale = Vector3.one;
-        return rectTransform;
-    }
+    //    rectTransform.SetParent(parent, false);
+    //    rectTransform.anchorMin = new Vector2(0.5f, 0.5f);
+    //    rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
+    //    rectTransform.pivot = new Vector2(0.5f, 0.5f);
+    //    rectTransform.sizeDelta = size;
+    //    rectTransform.localScale = Vector3.one;
+    //    return rectTransform;
+    //}
 
     private Text FindOrCreateText(string name, RectTransform parent, string text, int fontSize, FontStyle fontStyle, TextAnchor alignment, float height)
     {
