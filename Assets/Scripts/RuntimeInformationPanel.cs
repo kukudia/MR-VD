@@ -69,6 +69,8 @@ public sealed class RuntimeInformationPanel : MonoBehaviour
     private Toggle weatherModuleToggle;
     private Toggle systemModuleToggle;
     private Toggle weatherAutoToggle;
+    private Toggle audioAnalysisPageToggle;
+    private AudioCaptureCSCore audioCapture;
     private ScreenCanvasModuleAnimator settingsAnimator;
     private ScreenCanvasModuleAnimator weatherAnimator;
     private ScreenCanvasModuleAnimator systemAnimator;
@@ -313,6 +315,7 @@ public sealed class RuntimeInformationPanel : MonoBehaviour
         weatherModuleToggle = Find<Toggle>(dashboard, "SettingsModule/SettingsBody/SettingsRowOne/WeatherModuleToggle");
         systemModuleToggle = Find<Toggle>(dashboard, "SettingsModule/SettingsBody/SettingsRowTwo/SystemModuleToggle");
         weatherAutoToggle = Find<Toggle>(dashboard, "SettingsModule/SettingsBody/SettingsRowTwo/WeatherAutoToggle");
+        audioAnalysisPageToggle = Find<Toggle>(dashboard, "SettingsModule/SettingsBody/SettingsRowThree/AudioAnalysisPageToggle");
         settingsAnimator = Find<ScreenCanvasModuleAnimator>(dashboard, "SettingsModule");
         weatherAnimator = Find<ScreenCanvasModuleAnimator>(dashboard, "WeatherModule");
         systemAnimator = Find<ScreenCanvasModuleAnimator>(dashboard, "SystemModule");
@@ -341,6 +344,7 @@ public sealed class RuntimeInformationPanel : MonoBehaviour
             && weatherModuleToggle != null
             && systemModuleToggle != null
             && weatherAutoToggle != null
+            && audioAnalysisPageToggle != null
             && settingsAnimator != null
             && weatherAnimator != null
             && systemAnimator != null;
@@ -364,6 +368,7 @@ public sealed class RuntimeInformationPanel : MonoBehaviour
         ConfigureToggle(weatherModuleToggle, showWeatherModule, SetWeatherModuleVisible);
         ConfigureToggle(systemModuleToggle, showSystemModule, SetSystemModuleVisible);
         ConfigureToggle(weatherAutoToggle, autoRefreshWeather, value => autoRefreshWeather = value);
+        ConfigureToggle(audioAnalysisPageToggle, false, SetAudioAnalysisPageVisible);
 
         SetSettingsExpanded(false, true);
         SetWeatherModuleVisible(showWeatherModule, true);
@@ -371,6 +376,19 @@ public sealed class RuntimeInformationPanel : MonoBehaviour
         SetAudioModuleVisible(showAudioModule, true);
         ApplyDashboardVisibility(true);
         return true;
+    }
+
+    private void SetAudioAnalysisPageVisible(bool visible)
+    {
+        if (audioCapture == null)
+        {
+            audioCapture = FindFirstObjectByType<AudioCaptureCSCore>();
+        }
+
+        if (audioCapture != null)
+        {
+            audioCapture.SetScreenAnalysisPageVisible(visible);
+        }
     }
 
     private void ConfigureToggle(Toggle toggle, bool value, UnityEngine.Events.UnityAction<bool> listener)

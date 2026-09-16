@@ -140,9 +140,6 @@ public class AudioCaptureCSCore : MonoBehaviour
     [Tooltip("Creates a second page at the AudioRoutingModule position with energy bars and a 12-note chroma wheel.")]
     public bool enableAudioAnalysisPage = true;
 
-    [Tooltip("Label used by the page-switch button.")]
-    public string screenAnalysisPageButtonLabel = "ANALYSIS";
-
     [Range(10, 32)]
     [Tooltip("Font size for the BPM and playback values on the compact status page.")]
     public int screenCompactPrimaryFontSize = 18;
@@ -169,7 +166,6 @@ public class AudioCaptureCSCore : MonoBehaviour
     private Text _screenDeviceHeaderText;
     private Text _screenVisualizerText;
     private Button _screenHideButton;
-    private Button _screenAnalysisPageButton;
     private RectTransform _screenRoutingModule;
     private RectTransform _screenAnalysisPage;
     private Text _screenAnalysisKeyText;
@@ -1010,7 +1006,6 @@ public class AudioCaptureCSCore : MonoBehaviour
         if (enableAudioAnalysisPage)
         {
             EnsureScreenAnalysisPage();
-            EnsureScreenAnalysisPageButton();
         }
 
         UpdateScreenCanvasPanel(true);
@@ -1116,51 +1111,22 @@ public class AudioCaptureCSCore : MonoBehaviour
         {
             _screenVisualizerText.text = string.Join("\n",
                 $"<size={screenCompactPrimaryFontSize}>BPM  --</size>",
-                $"<size={screenCompactPrimaryFontSize}>PLAY  00:00</size>");
+                $"<size={screenCompactPrimaryFontSize}>MUTE</size>");
             return;
         }
 
         _screenVisualizerText.text = string.Join("\n",
             $"<size={screenCompactPrimaryFontSize}>BPM  {audioVisualizer.limitedBPM:F1}</size>",
-            $"<size={screenCompactPrimaryFontSize}>PLAY  {audioVisualizer.GetPlaybackDurationText()}</size>");
+            $"<size={screenCompactPrimaryFontSize}>{(audioVisualizer.wasSilent ? "MUTE" : "PLAY")}</size>");
     }
 
-    private void EnsureScreenAnalysisPageButton()
+    public void SetScreenAnalysisPageVisible(bool visible)
     {
-        RectTransform controls = screenCanvasPanelRoot.Find("AudioPanelControls") as RectTransform;
-        if (controls == null)
+        if ((_screenRoutingModule == null || _screenAnalysisPage == null) && !EnsureScreenCanvasPanel(false))
         {
             return;
         }
 
-        _screenAnalysisPageButton = FindOrCreateButton("AnalysisPageButton", controls, screenAnalysisPageButtonLabel, 30f, 9);
-        RectTransform buttonRect = _screenAnalysisPageButton.GetComponent<RectTransform>();
-        buttonRect.anchorMin = new Vector2(0.5f, 0.5f);
-        buttonRect.anchorMax = new Vector2(0.5f, 0.5f);
-        buttonRect.pivot = new Vector2(0.5f, 0.5f);
-        buttonRect.anchoredPosition = new Vector2(-96f, 0f);
-        buttonRect.sizeDelta = new Vector2(82f, 30f);
-        _screenAnalysisPageButton.onClick.RemoveAllListeners();
-        _screenAnalysisPageButton.onClick.AddListener(() => SetScreenAnalysisPageVisible(!_screenAnalysisPageVisible));
-        UpdateScreenAnalysisPageButtonLabel();
-    }
-
-    private void UpdateScreenAnalysisPageButtonLabel()
-    {
-        if (_screenAnalysisPageButton == null)
-        {
-            return;
-        }
-
-        Text label = _screenAnalysisPageButton.GetComponentInChildren<Text>(true);
-        if (label != null)
-        {
-            label.text = _screenAnalysisPageVisible ? "ROUTING" : screenAnalysisPageButtonLabel;
-        }
-    }
-
-    private void SetScreenAnalysisPageVisible(bool visible)
-    {
         _screenAnalysisPageVisible = visible;
         if (_screenRoutingModule != null)
         {
@@ -1172,7 +1138,6 @@ public class AudioCaptureCSCore : MonoBehaviour
             _screenAnalysisPage.gameObject.SetActive(visible);
         }
 
-        UpdateScreenAnalysisPageButtonLabel();
         UpdateScreenAnalysisPage();
     }
 
@@ -1268,14 +1233,8 @@ public class AudioCaptureCSCore : MonoBehaviour
         Text compactStatus = _screenCanvasContent.Find("AudioStatusModule/AudioStatusText")?.GetComponent<Text>();
         if (compactStatus != null)
         {
-            compactStatus.text = "BPM  --\nPLAY  00:00";
+            compactStatus.text = "BPM  --\nMUTE";
             compactStatus.fontSize = screenCompactPrimaryFontSize;
-        }
-
-        Transform existingPage = _screenCanvasContent.Find("AudioAnalysisPage");
-        if (existingPage != null)
-        {
-            DestroyImmediate(existingPage.gameObject);
         }
 
         Transform controls = screenCanvasPanelRoot.Find("AudioPanelControls");
@@ -1286,9 +1245,7 @@ public class AudioCaptureCSCore : MonoBehaviour
         }
 
         _screenAnalysisPage = null;
-        _screenAnalysisPageButton = null;
         EnsureScreenAnalysisPage();
-        EnsureScreenAnalysisPageButton();
         SetScreenAnalysisPageVisible(false);
         UnityEditor.EditorUtility.SetDirty(this);
         UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(gameObject.scene);
