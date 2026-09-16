@@ -1784,6 +1784,21 @@ public class AudioVisualizer : MonoBehaviour
         return $"Playing {FormatDuration(Time.time - playTime)}";
     }
 
+    /// <summary>
+    /// Returns the elapsed playback time for compact UI displays.
+    /// Silence is represented as 00:00 so the status page does not show the
+    /// duration of the inactive interval as if it were audio playback.
+    /// </summary>
+    public string GetPlaybackDurationText()
+    {
+        if (wasSilent || playStartTime <= 0f)
+        {
+            return "00:00";
+        }
+
+        return FormatDuration(Time.time - playStartTime);
+    }
+
     private string FormatDuration(float duration)
     {
         int totalSeconds = Mathf.Max(0, Mathf.FloorToInt(duration));

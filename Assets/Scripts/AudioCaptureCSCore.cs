@@ -136,12 +136,46 @@ public class AudioCaptureCSCore : MonoBehaviour
     [Range(9, 32)]
     public int screenVisualizerPrimaryFontSize = 14;
 
+    [Header("Audio Analysis Page")]
+    [Tooltip("Creates a second page at the AudioRoutingModule position with energy bars and a 12-note chroma wheel.")]
+    public bool enableAudioAnalysisPage = true;
+
+    [Tooltip("Label used by the page-switch button.")]
+    public string screenAnalysisPageButtonLabel = "ANALYSIS";
+
+    [Range(10, 32)]
+    [Tooltip("Font size for the BPM and playback values on the compact status page.")]
+    public int screenCompactPrimaryFontSize = 18;
+
+    [Range(8, 24)]
+    [Tooltip("Font size for energy labels and chroma note labels.")]
+    public int screenAnalysisBodyFontSize = 10;
+
+    [Tooltip("Visual gain applied to kick energy before filling its meter.")]
+    [Min(0.1f)]
+    public float screenKickEnergyGain = 8f;
+
+    [Tooltip("Visual gain applied to bass energy before filling its meter.")]
+    [Min(0.1f)]
+    public float screenBassEnergyGain = 4f;
+
+    [Tooltip("Visual gain applied to synth energy before filling its meter.")]
+    [Min(0.1f)]
+    public float screenSynthEnergyGain = 4f;
+
     private RectTransform _screenCanvasContent;
     private Text _screenModeText;
     private Text _screenDeviceText;
     private Text _screenDeviceHeaderText;
     private Text _screenVisualizerText;
     private Button _screenHideButton;
+    private Button _screenAnalysisPageButton;
+    private RectTransform _screenRoutingModule;
+    private RectTransform _screenAnalysisPage;
+    private Text _screenAnalysisKeyText;
+    private AudioChromaWheelGraphic _screenChromaWheel;
+    private readonly Image[] _screenEnergyFills = new Image[3];
+    private bool _screenAnalysisPageVisible;
     private string _screenDeviceListSignature = string.Empty;
     private float _nextScreenCanvasRefreshTime;
     private Font _screenCanvasFont;
@@ -891,6 +925,7 @@ public class AudioCaptureCSCore : MonoBehaviour
         }
 
         UpdateScreenVisualizerStatus();
+        UpdateScreenAnalysisPage();
     }
 
     private bool EnsureScreenCanvasPanel(bool forceRebuild)
@@ -931,6 +966,7 @@ public class AudioCaptureCSCore : MonoBehaviour
         _screenDeviceText = FindScreenComponent<Text>("AudioRoutingModule/DeviceText");
         _screenDeviceHeaderText = FindScreenComponent<Text>("AudioRoutingModule/DeviceModule/DeviceHeaderRow/DeviceHeaderText");
         _screenVisualizerText = FindScreenComponent<Text>("AudioStatusModule/AudioStatusText");
+        _screenRoutingModule = _screenCanvasContent.Find("AudioRoutingModule") as RectTransform;
 
         Button inputButton = FindScreenComponent<Button>("AudioRoutingModule/ModeButtons/InputButton");
         Button loopbackButton = FindScreenComponent<Button>("AudioRoutingModule/ModeButtons/LoopbackButton");
@@ -970,6 +1006,12 @@ public class AudioCaptureCSCore : MonoBehaviour
         nextButton.onClick.AddListener(SwitchToNextDevice);
         _screenHideButton.onClick.RemoveAllListeners();
         _screenHideButton.onClick.AddListener(() => SetAudioPanelVisible(!_screenCanvasContent.gameObject.activeSelf));
+
+        if (enableAudioAnalysisPage)
+        {
+            EnsureScreenAnalysisPage();
+            EnsureScreenAnalysisPageButton();
+        }
 
         UpdateScreenCanvasPanel(true);
         return true;
@@ -1072,18 +1114,329 @@ public class AudioCaptureCSCore : MonoBehaviour
 
         if (audioVisualizer == null)
         {
-            _screenVisualizerText.text = "Audio Visualizer\nAudioVisualizer not found";
+            _screenVisualizerText.text = string.Join("\n",
+                $"<size={screenCompactPrimaryFontSize}>BPM  --</size>",
+                $"<size={screenCompactPrimaryFontSize}>PLAY  00:00</size>");
             return;
         }
 
-        List<string> lines = new List<string> { screenVisualizerHeader };
-        audioVisualizer.BuildCompactStatusLines(lines);
-        if (lines.Count > 2)
+        _screenVisualizerText.text = string.Join("\n",
+            $"<size={screenCompactPrimaryFontSize}>BPM  {audioVisualizer.limitedBPM:F1}</size>",
+            $"<size={screenCompactPrimaryFontSize}>PLAY  {audioVisualizer.GetPlaybackDurationText()}</size>");
+    }
+
+    private void EnsureScreenAnalysisPageButton()
+    {
+        RectTransform controls = screenCanvasPanelRoot.Find("AudioPanelControls") as RectTransform;
+        if (controls == null)
         {
-            lines[1] = $"<size={screenVisualizerPrimaryFontSize}>{lines[1]}</size>";
-            lines[2] = $"<size={screenVisualizerPrimaryFontSize}>{lines[2]}</size>";
+            return;
         }
-        _screenVisualizerText.text = string.Join("\n", lines);
+
+        _screenAnalysisPageButton = FindOrCreateButton("AnalysisPageButton", controls, screenAnalysisPageButtonLabel, 30f, 9);
+        RectTransform buttonRect = _screenAnalysisPageButton.GetComponent<RectTransform>();
+        buttonRect.anchorMin = new Vector2(0.5f, 0.5f);
+        buttonRect.anchorMax = new Vector2(0.5f, 0.5f);
+        buttonRect.pivot = new Vector2(0.5f, 0.5f);
+        buttonRect.anchoredPosition = new Vector2(-96f, 0f);
+        buttonRect.sizeDelta = new Vector2(82f, 30f);
+        _screenAnalysisPageButton.onClick.RemoveAllListeners();
+        _screenAnalysisPageButton.onClick.AddListener(() => SetScreenAnalysisPageVisible(!_screenAnalysisPageVisible));
+        UpdateScreenAnalysisPageButtonLabel();
+    }
+
+    private void UpdateScreenAnalysisPageButtonLabel()
+    {
+        if (_screenAnalysisPageButton == null)
+        {
+            return;
+        }
+
+        Text label = _screenAnalysisPageButton.GetComponentInChildren<Text>(true);
+        if (label != null)
+        {
+            label.text = _screenAnalysisPageVisible ? "ROUTING" : screenAnalysisPageButtonLabel;
+        }
+    }
+
+    private void SetScreenAnalysisPageVisible(bool visible)
+    {
+        _screenAnalysisPageVisible = visible;
+        if (_screenRoutingModule != null)
+        {
+            _screenRoutingModule.gameObject.SetActive(!visible);
+        }
+
+        if (_screenAnalysisPage != null)
+        {
+            _screenAnalysisPage.gameObject.SetActive(visible);
+        }
+
+        UpdateScreenAnalysisPageButtonLabel();
+        UpdateScreenAnalysisPage();
+    }
+
+    private void EnsureScreenAnalysisPage()
+    {
+        if (_screenAnalysisPage != null || _screenCanvasContent == null || _screenRoutingModule == null)
+        {
+            return;
+        }
+
+        Transform existingPage = _screenCanvasContent.Find("AudioAnalysisPage");
+        if (existingPage != null)
+        {
+            BindScreenAnalysisPage(existingPage as RectTransform);
+            return;
+        }
+
+        GameObject pageObject = new GameObject("AudioAnalysisPage", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        pageObject.layer = _screenCanvasContent.gameObject.layer;
+        _screenAnalysisPage = pageObject.GetComponent<RectTransform>();
+        _screenAnalysisPage.SetParent(_screenCanvasContent, false);
+        _screenAnalysisPage.anchorMin = new Vector2(0.5f, 0.5f);
+        _screenAnalysisPage.anchorMax = new Vector2(0.5f, 0.5f);
+        _screenAnalysisPage.pivot = new Vector2(0.5f, 0.5f);
+        _screenAnalysisPage.anchoredPosition = _screenRoutingModule.anchoredPosition;
+        _screenAnalysisPage.sizeDelta = _screenRoutingModule.sizeDelta;
+        _screenAnalysisPage.SetSiblingIndex(_screenRoutingModule.GetSiblingIndex() + 1);
+
+        EnsureLayoutElement(pageObject, _screenRoutingModule.sizeDelta.y, _screenRoutingModule.sizeDelta.y, 0f, _screenRoutingModule.sizeDelta.x, _screenRoutingModule.sizeDelta.x);
+        pageObject.GetComponent<Image>().color = new Color(0.055f, 0.057f, 0.06f, 0.99f);
+        pageObject.GetComponent<Image>().raycastTarget = true;
+
+        VerticalLayoutGroup layout = pageObject.AddComponent<VerticalLayoutGroup>();
+        layout.padding = new RectOffset(9, 9, 7, 7);
+        layout.spacing = 3f;
+        layout.childControlWidth = true;
+        layout.childControlHeight = true;
+        layout.childForceExpandWidth = true;
+        layout.childForceExpandHeight = false;
+
+        FindOrCreateText("AnalysisPageTitle", _screenAnalysisPage, screenVisualizerHeader, 11, FontStyle.Bold, TextAnchor.MiddleLeft, 24f);
+        CreateChromaWheel(_screenAnalysisPage);
+        CreateEnergyBars(_screenAnalysisPage);
+        SetScreenAnalysisPageVisible(false);
+    }
+
+    private void BindScreenAnalysisPage(RectTransform page)
+    {
+        _screenAnalysisPage = page;
+        if (_screenAnalysisPage == null)
+        {
+            return;
+        }
+
+        Transform wheel = _screenAnalysisPage.Find("ChromaWheel");
+        _screenChromaWheel = wheel != null ? wheel.GetComponentInChildren<AudioChromaWheelGraphic>(true) : null;
+        _screenAnalysisKeyText = wheel != null && wheel.Find("CurrentKey") != null
+            ? wheel.Find("CurrentKey").GetComponent<Text>()
+            : null;
+
+        string[] energyNames = { "KICK", "BASS", "SYNTH" };
+        for (int i = 0; i < energyNames.Length; i++)
+        {
+            Transform fill = _screenAnalysisPage.Find($"EnergyBars/{energyNames[i]}Row/Bar/Fill");
+            _screenEnergyFills[i] = fill != null ? fill.GetComponent<Image>() : null;
+        }
+    }
+
+#if UNITY_EDITOR
+    public void RebuildScreenAnalysisPageInEditor()
+    {
+        if (screenCanvasPanelRoot == null)
+        {
+            GameObject panelObject = GameObject.Find("Screen/Canvas/AudioPanel");
+            screenCanvasPanelRoot = panelObject != null ? panelObject.GetComponent<RectTransform>() : null;
+        }
+
+        if (screenCanvasPanelRoot == null)
+        {
+            throw new InvalidOperationException("Screen/Canvas/AudioPanel was not found.");
+        }
+
+        _screenCanvasContent = screenCanvasPanelRoot.Find("AudioCaptureCanvasContent") as RectTransform;
+        _screenRoutingModule = _screenCanvasContent != null
+            ? _screenCanvasContent.Find("AudioRoutingModule") as RectTransform
+            : null;
+        if (_screenCanvasContent == null || _screenRoutingModule == null)
+        {
+            throw new InvalidOperationException("AudioCaptureCanvasContent/AudioRoutingModule is incomplete.");
+        }
+
+        _screenCanvasFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        Text compactStatus = _screenCanvasContent.Find("AudioStatusModule/AudioStatusText")?.GetComponent<Text>();
+        if (compactStatus != null)
+        {
+            compactStatus.text = "BPM  --\nPLAY  00:00";
+            compactStatus.fontSize = screenCompactPrimaryFontSize;
+        }
+
+        Transform existingPage = _screenCanvasContent.Find("AudioAnalysisPage");
+        if (existingPage != null)
+        {
+            DestroyImmediate(existingPage.gameObject);
+        }
+
+        Transform controls = screenCanvasPanelRoot.Find("AudioPanelControls");
+        Transform existingButton = controls != null ? controls.Find("AnalysisPageButton") : null;
+        if (existingButton != null)
+        {
+            DestroyImmediate(existingButton.gameObject);
+        }
+
+        _screenAnalysisPage = null;
+        _screenAnalysisPageButton = null;
+        EnsureScreenAnalysisPage();
+        EnsureScreenAnalysisPageButton();
+        SetScreenAnalysisPageVisible(false);
+        UnityEditor.EditorUtility.SetDirty(this);
+        UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(gameObject.scene);
+    }
+#endif
+
+    private void CreateChromaWheel(RectTransform parent)
+    {
+        GameObject wheelObject = new GameObject("ChromaWheel", typeof(RectTransform));
+        wheelObject.layer = parent.gameObject.layer;
+        RectTransform wheelRect = wheelObject.GetComponent<RectTransform>();
+        wheelRect.SetParent(parent, false);
+        wheelRect.sizeDelta = new Vector2(250f, 214f);
+        EnsureLayoutElement(wheelObject, 214f, 214f, 0f, 250f, 250f);
+
+        GameObject graphicObject = new GameObject("Segments", typeof(RectTransform), typeof(AudioChromaWheelGraphic));
+        graphicObject.layer = parent.gameObject.layer;
+        RectTransform graphicRect = graphicObject.GetComponent<RectTransform>();
+        graphicRect.SetParent(wheelRect, false);
+        graphicRect.anchorMin = Vector2.zero;
+        graphicRect.anchorMax = Vector2.one;
+        graphicRect.offsetMin = Vector2.zero;
+        graphicRect.offsetMax = Vector2.zero;
+        _screenChromaWheel = graphicObject.GetComponent<AudioChromaWheelGraphic>();
+
+        _screenAnalysisKeyText = FindOrCreateText("CurrentKey", wheelRect, "Unknown", 18, FontStyle.Bold, TextAnchor.MiddleCenter, 60f);
+        RectTransform keyRect = _screenAnalysisKeyText.GetComponent<RectTransform>();
+        keyRect.anchorMin = new Vector2(0.5f, 0.5f);
+        keyRect.anchorMax = new Vector2(0.5f, 0.5f);
+        keyRect.pivot = new Vector2(0.5f, 0.5f);
+        keyRect.anchoredPosition = Vector2.zero;
+        keyRect.sizeDelta = new Vector2(100f, 60f);
+        _screenAnalysisKeyText.color = Color.white;
+
+        string[] notes = { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" };
+        for (int i = 0; i < notes.Length; i++)
+        {
+            Text note = FindOrCreateText("ChromaNote" + i, wheelRect, notes[i], screenAnalysisBodyFontSize, FontStyle.Bold, TextAnchor.MiddleCenter, 18f);
+            RectTransform noteRect = note.GetComponent<RectTransform>();
+            noteRect.anchorMin = new Vector2(0.5f, 0.5f);
+            noteRect.anchorMax = new Vector2(0.5f, 0.5f);
+            noteRect.pivot = new Vector2(0.5f, 0.5f);
+            float angle = ((i + 0.5f) / 12f) * Mathf.PI * 2f - Mathf.PI * 0.5f;
+            noteRect.anchoredPosition = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * 83f;
+            noteRect.sizeDelta = new Vector2(32f, 18f);
+            note.color = new Color(0.08f, 0.1f, 0.12f, 0.95f);
+        }
+    }
+
+    private void CreateEnergyBars(RectTransform parent)
+    {
+        GameObject containerObject = new GameObject("EnergyBars", typeof(RectTransform));
+        containerObject.layer = parent.gameObject.layer;
+        RectTransform container = containerObject.GetComponent<RectTransform>();
+        container.SetParent(parent, false);
+        container.sizeDelta = new Vector2(250f, 78f);
+        EnsureLayoutElement(containerObject, 78f, 78f, 0f, 250f, 250f);
+        VerticalLayoutGroup layout = containerObject.AddComponent<VerticalLayoutGroup>();
+        layout.spacing = 2f;
+        layout.childControlWidth = true;
+        layout.childControlHeight = true;
+        layout.childForceExpandWidth = true;
+        layout.childForceExpandHeight = false;
+
+        string[] names = { "KICK", "BASS", "SYNTH" };
+        Color[] colors = { new Color(1f, 0.32f, 0.28f), new Color(0.25f, 0.75f, 1f), new Color(0.7f, 0.4f, 1f) };
+        for (int i = 0; i < names.Length; i++)
+        {
+            GameObject rowObject = new GameObject(names[i] + "Row", typeof(RectTransform));
+            rowObject.layer = parent.gameObject.layer;
+            RectTransform row = rowObject.GetComponent<RectTransform>();
+            row.SetParent(container, false);
+            EnsureLayoutElement(rowObject, 24f, 24f, 0f, 250f, 250f);
+            HorizontalLayoutGroup rowLayout = rowObject.AddComponent<HorizontalLayoutGroup>();
+            rowLayout.spacing = 4f;
+            rowLayout.childControlWidth = true;
+            rowLayout.childControlHeight = true;
+            rowLayout.childForceExpandHeight = true;
+            rowLayout.childForceExpandWidth = false;
+
+            Text label = FindOrCreateText("Label", row, names[i], screenAnalysisBodyFontSize, FontStyle.Bold, TextAnchor.MiddleLeft, 24f);
+            EnsureLayoutElement(label.gameObject, 24f, 24f, 0f, 46f, 46f);
+            GameObject barObject = new GameObject("Bar", typeof(RectTransform), typeof(Image));
+            barObject.layer = parent.gameObject.layer;
+            RectTransform barRect = barObject.GetComponent<RectTransform>();
+            barRect.SetParent(row, false);
+            EnsureLayoutElement(barObject, 18f, 18f, 0f, 196f, 196f);
+            Image background = barObject.GetComponent<Image>();
+            background.color = new Color(0.12f, 0.14f, 0.16f, 0.95f);
+            GameObject fillObject = new GameObject("Fill", typeof(RectTransform), typeof(Image));
+            fillObject.layer = parent.gameObject.layer;
+            RectTransform fillRect = fillObject.GetComponent<RectTransform>();
+            fillRect.SetParent(barRect, false);
+            fillRect.anchorMin = Vector2.zero;
+            fillRect.anchorMax = Vector2.one;
+            fillRect.offsetMin = Vector2.zero;
+            fillRect.offsetMax = Vector2.zero;
+            Image fill = fillObject.GetComponent<Image>();
+            fill.color = colors[i];
+            fill.type = Image.Type.Filled;
+            fill.fillMethod = Image.FillMethod.Horizontal;
+            fill.fillOrigin = 0;
+            fill.fillAmount = 0f;
+            _screenEnergyFills[i] = fill;
+        }
+    }
+
+    private void UpdateScreenAnalysisPage()
+    {
+        if (_screenAnalysisPage == null || audioVisualizer == null)
+        {
+            return;
+        }
+
+        float[] energies =
+        {
+            audioVisualizer.smoothedKickEnergy * screenKickEnergyGain,
+            audioVisualizer.smoothedBassEnergy * screenBassEnergyGain,
+            audioVisualizer.smoothedSynthEnergy * screenSynthEnergyGain
+        };
+        for (int i = 0; i < _screenEnergyFills.Length; i++)
+        {
+            if (_screenEnergyFills[i] != null)
+            {
+                _screenEnergyFills[i].fillAmount = Mathf.Clamp01(energies[i]);
+            }
+        }
+
+        int keyIndex = GetChromaKeyIndex(audioVisualizer.currentKey);
+        if (_screenChromaWheel != null)
+        {
+            _screenChromaWheel.highlightedSegment = keyIndex;
+            _screenChromaWheel.beatPulse = audioVisualizer.showBeatText ? 1f : 0f;
+            _screenChromaWheel.SetVerticesDirty();
+        }
+
+        if (_screenAnalysisKeyText != null)
+        {
+            _screenAnalysisKeyText.text = string.IsNullOrWhiteSpace(audioVisualizer.currentKey) || audioVisualizer.currentKey == "Unknown"
+                ? "UNKNOWN"
+                : $"{audioVisualizer.currentKey}\n{audioVisualizer.currentMode}";
+        }
+    }
+
+    private int GetChromaKeyIndex(string key)
+    {
+        string[] keyNames = { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" };
+        return Array.IndexOf(keyNames, key);
     }
 
     //private RectTransform FindOrCreateRow(string name, RectTransform parent, float height)
