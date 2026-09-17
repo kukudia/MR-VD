@@ -39,7 +39,10 @@ public static class AudioAnalysisPanelBuilder
 
         GameObject externalButton = GameObject.Find("Screen/Canvas/AudioPanel/AudioPanelControls/AnalysisPageButton");
         GameObject settingsToggle = GameObject.Find("Screen/Canvas/InfoPanel/RuntimeDashboard/SettingsModule/SettingsBody/SettingsRowThree/AudioAnalysisPageToggle");
-        if (externalButton == null && settingsToggle != null)
+        GameObject chromaSegments = GameObject.Find("Screen/Canvas/AudioPanel/AudioCaptureCanvasContent/AudioAnalysisPage/ChromaWheel/Segments");
+        bool hasChromaCanvasRenderer = chromaSegments != null && chromaSegments.GetComponent<CanvasRenderer>() != null;
+        bool navigationUpgradeComplete = externalButton == null && settingsToggle != null;
+        if (navigationUpgradeComplete && hasChromaCanvasRenderer)
         {
             return;
         }
@@ -47,6 +50,15 @@ public static class AudioAnalysisPanelBuilder
         if (scene.isDirty)
         {
             Debug.LogWarning("[AudioAnalysisPanelBuilder] Scene upgrade skipped because v203.0.0 has unsaved changes. Save it, then use Tools/MR-VD/Rebuild Audio Analysis Page.");
+            return;
+        }
+
+        if (navigationUpgradeComplete && chromaSegments != null)
+        {
+            Undo.AddComponent<CanvasRenderer>(chromaSegments);
+            EditorSceneManager.MarkSceneDirty(scene);
+            EditorSceneManager.SaveScene(scene);
+            Debug.Log("[AudioAnalysisPanelBuilder] Added the missing chroma CanvasRenderer and saved v203.0.0.");
             return;
         }
 

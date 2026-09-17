@@ -1246,6 +1246,12 @@ public class AudioCaptureCSCore : MonoBehaviour
 
         _screenAnalysisPage = null;
         EnsureScreenAnalysisPage();
+        Transform chromaSegments = _screenCanvasContent.Find("AudioAnalysisPage/ChromaWheel/Segments");
+        if (chromaSegments != null && chromaSegments.GetComponent<CanvasRenderer>() == null)
+        {
+            UnityEditor.Undo.AddComponent<CanvasRenderer>(chromaSegments.gameObject);
+        }
+
         SetScreenAnalysisPageVisible(false);
         UnityEditor.EditorUtility.SetDirty(this);
         UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(gameObject.scene);
@@ -1261,7 +1267,7 @@ public class AudioCaptureCSCore : MonoBehaviour
         wheelRect.sizeDelta = new Vector2(250f, 214f);
         EnsureLayoutElement(wheelObject, 214f, 214f, 0f, 250f, 250f);
 
-        GameObject graphicObject = new GameObject("Segments", typeof(RectTransform), typeof(AudioChromaWheelGraphic));
+        GameObject graphicObject = new GameObject("Segments", typeof(RectTransform), typeof(CanvasRenderer), typeof(AudioChromaWheelGraphic));
         graphicObject.layer = parent.gameObject.layer;
         RectTransform graphicRect = graphicObject.GetComponent<RectTransform>();
         graphicRect.SetParent(wheelRect, false);

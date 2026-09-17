@@ -4,6 +4,7 @@ using UnityEngine.UI;
 /// <summary>
 /// Draws a twelve-segment chroma wheel and emphasizes the detected pitch class.
 /// </summary>
+[RequireComponent(typeof(CanvasRenderer))]
 public sealed class AudioChromaWheelGraphic : MaskableGraphic
 {
     [Range(-1, 11)]
@@ -19,6 +20,18 @@ public sealed class AudioChromaWheelGraphic : MaskableGraphic
         new Color(1f, 0.38f, 0.5f), new Color(0.95f, 0.3f, 0.7f), new Color(0.72f, 0.35f, 0.95f),
         new Color(0.45f, 0.43f, 0.95f), new Color(0.35f, 0.62f, 1f), new Color(0.35f, 0.78f, 1f)
     };
+
+    protected override void Awake()
+    {
+        // Existing serialized instances may predate the explicit CanvasRenderer requirement.
+        // Repair them before UGUI initializes and registers this Graphic.
+        if (Application.isPlaying && !TryGetComponent<CanvasRenderer>(out _))
+        {
+            gameObject.AddComponent<CanvasRenderer>();
+        }
+
+        base.Awake();
+    }
 
     protected override void OnPopulateMesh(VertexHelper vh)
     {

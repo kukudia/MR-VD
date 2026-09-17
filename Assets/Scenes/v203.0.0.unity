@@ -1402,6 +1402,7 @@ GameObject:
   m_Component:
   - component: {fileID: 52697058}
   - component: {fileID: 52697059}
+  - component: {fileID: 52697060}
   m_Layer: 5
   m_Name: Segments
   m_TagString: Untagged
@@ -1450,6 +1451,14 @@ MonoBehaviour:
       m_Calls: []
   highlightedSegment: -1
   beatPulse: 0
+--- !u!222 &52697060
+CanvasRenderer:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 52697057}
+  m_CullTransparentMesh: 1
 --- !u!1 &54719893
 GameObject:
   m_ObjectHideFlags: 0
