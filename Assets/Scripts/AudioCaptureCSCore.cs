@@ -969,24 +969,24 @@ public class AudioCaptureCSCore : MonoBehaviour
         Button refreshButton = FindScreenComponent<Button>("AudioRoutingModule/DeviceModule/DeviceHeaderRow/RefreshButton");
         Button previousButton = FindScreenComponent<Button>("AudioRoutingModule/DeviceModule/NavigationButtons/PreviousButton");
         Button nextButton = FindScreenComponent<Button>("AudioRoutingModule/DeviceModule/NavigationButtons/NextButton");
-        _screenHideButton = screenCanvasPanelRoot.Find("AudioPanelControls/HideButton") != null
-            ? screenCanvasPanelRoot.Find("AudioPanelControls/HideButton").GetComponent<Button>()
-            : null;
+        Transform hideButtonTransform = screenCanvasPanelRoot.Find("AudioPanelControls/HideButton");
+        _screenHideButton = hideButtonTransform != null ? hideButtonTransform.GetComponent<Button>() : null;
 
-        if (_screenCanvasFont == null
-            || _screenModeText == null
-            || _screenDeviceText == null
-            || _screenDeviceHeaderText == null
-            || _screenVisualizerText == null
-            || inputButton == null
-            || loopbackButton == null
-            || refreshButton == null
-            || previousButton == null
-            || nextButton == null
-            || _screenHideButton == null
-            || EnsureScreenDeviceList() == null)
+        List<string> missingModules = new List<string>();
+        AddMissingScreenModule(missingModules, _screenCanvasFont, "LegacyRuntime.ttf");
+        AddMissingScreenModule(missingModules, _screenModeText, "AudioRoutingModule/ModeText");
+        AddMissingScreenModule(missingModules, _screenDeviceText, "AudioRoutingModule/DeviceText");
+        AddMissingScreenModule(missingModules, _screenDeviceHeaderText, "AudioRoutingModule/DeviceModule/DeviceHeaderRow/DeviceHeaderText");
+        AddMissingScreenModule(missingModules, _screenVisualizerText, "AudioStatusModule/AudioStatusText");
+        AddMissingScreenModule(missingModules, inputButton, "AudioRoutingModule/ModeButtons/InputButton");
+        AddMissingScreenModule(missingModules, loopbackButton, "AudioRoutingModule/ModeButtons/LoopbackButton");
+        AddMissingScreenModule(missingModules, refreshButton, "AudioRoutingModule/DeviceModule/DeviceHeaderRow/RefreshButton");
+        AddMissingScreenModule(missingModules, previousButton, "AudioRoutingModule/DeviceModule/NavigationButtons/PreviousButton");
+        AddMissingScreenModule(missingModules, nextButton, "AudioRoutingModule/DeviceModule/NavigationButtons/NextButton");
+        AddMissingScreenModule(missingModules, EnsureScreenDeviceList(), "AudioRoutingModule/DeviceModule/DeviceList");
+        if (missingModules.Count > 0)
         {
-            Debug.LogError("[AudioCaptureCSCore] Audio panel modules are incomplete. Check the serialized hierarchy under Screen/Canvas/AudioPanel.");
+            Debug.LogError($"[AudioCaptureCSCore] Audio panel modules are incomplete. Missing: {string.Join(", ", missingModules)}.");
             return false;
         }
 
@@ -1000,8 +1000,13 @@ public class AudioCaptureCSCore : MonoBehaviour
         previousButton.onClick.AddListener(SwitchToPreviousDevice);
         nextButton.onClick.RemoveAllListeners();
         nextButton.onClick.AddListener(SwitchToNextDevice);
-        _screenHideButton.onClick.RemoveAllListeners();
-        _screenHideButton.onClick.AddListener(() => SetAudioPanelVisible(!_screenCanvasContent.gameObject.activeSelf));
+        // Older scene versions exposed a separate Hide button. Current navigation lives in Settings,
+        // so keep the legacy control functional when present without requiring it in the hierarchy.
+        if (_screenHideButton != null)
+        {
+            _screenHideButton.onClick.RemoveAllListeners();
+            _screenHideButton.onClick.AddListener(() => SetAudioPanelVisible(!_screenCanvasContent.gameObject.activeSelf));
+        }
 
         if (enableAudioAnalysisPage)
         {
@@ -1027,6 +1032,14 @@ public class AudioCaptureCSCore : MonoBehaviour
     {
         Transform target = _screenCanvasContent != null ? _screenCanvasContent.Find(path) : null;
         return target != null ? target.GetComponent<T>() : null;
+    }
+
+    private static void AddMissingScreenModule(List<string> missingModules, UnityEngine.Object module, string path)
+    {
+        if (module == null)
+        {
+            missingModules.Add(path);
+        }
     }
 
     private RectTransform EnsureScreenDeviceList()
