@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using Oculus.Interaction;
 using Oculus.Interaction.Input;
+using Oculus.Interaction.Locomotion;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -42,13 +43,13 @@ public static class ControllerRayInteractionSetup
                 "[ControllerRayInteraction] The configured OVR comprehensive interaction rig was not found.");
         }
 
-        int controllerRayCount = interactionRig
+        RayInteractor[] controllerRays = interactionRig
             .GetComponentsInChildren<RayInteractor>(true)
-            .Count(interactor => interactor.GetComponent<ControllerRef>() != null);
-        if (controllerRayCount < 2)
+            .Where(interactor => interactor.GetComponent<ControllerRef>() != null).ToArray();
+        if (controllerRays.Length < 2)
         {
             throw new InvalidOperationException(
-                $"[ControllerRayInteraction] Expected left and right controller rays, but found {controllerRayCount}.");
+                $"[ControllerRayInteraction] Expected left and right controller rays, but found {controllerRays.Length}.");
         }
 
         GameObject screen = FindSceneObject(scene, "Screen");
@@ -60,12 +61,16 @@ public static class ControllerRayInteractionSetup
         }
 
         EnsureRayCanvasInteraction(canvas, registerUndo);
+        LocomotionEventsConnection[] locomotion = interactionRig.GetComponentsInChildren<LocomotionEventsConnection>(true)
+            .Where(connection => connection.name == "LocomotionControllerInteractorGroup").ToArray();
+        EnsureScreenManipulation(screen, canvas, controllerRays, locomotion, registerUndo);
+        ExpandCanvasToContent(canvas, registerUndo);
         EnsurePointableCanvasModule(scene, registerUndo);
 
         EditorSceneManager.MarkSceneDirty(scene);
         EditorSceneManager.SaveScene(scene);
         Debug.Log(
-            $"[ControllerRayInteraction] Configured {controllerRayCount} controller rays for {canvas.transform.GetHierarchyPath()}.",
+            $"[ControllerRayInteraction] Configured {controllerRays.Length} controller rays for {canvas.transform.GetHierarchyPath()}, bounds {((RectTransform)canvas.transform).rect.size}.",
             canvas);
     }
 
@@ -74,27 +79,20 @@ public static class ControllerRayInteractionSetup
         PointableCanvas existing = canvas
             .GetComponentsInChildren<PointableCanvas>(true)
             .FirstOrDefault(pointableCanvas => pointableCanvas.Canvas == canvas);
-        if (existing != null)
+        GameObject instance = existing != null ? existing.gameObject : null;
+        if (instance == null)
         {
-            return;
-        }
-
-        string prefabPath = AssetDatabase.GUIDToAssetPath(RayCanvasPrefabGuid);
-        GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(prefabPath);
-        if (prefab == null)
-        {
-            throw new InvalidOperationException(
-                "[ControllerRayInteraction] Meta Interaction SDK Ray Canvas template is unavailable.");
-        }
-
-        GameObject instance = (GameObject)PrefabUtility.InstantiatePrefab(prefab, canvas.transform);
-        instance.name = InteractionObjectName;
-        if (registerUndo)
-        {
-            Undo.RegisterCreatedObjectUndo(instance, "Setup Controller Ray Interaction");
+            string prefabPath = AssetDatabase.GUIDToAssetPath(RayCanvasPrefabGuid);
+            GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(prefabPath);
+            if (prefab == null)
+                throw new InvalidOperationException("[ControllerRayInteraction] Meta Interaction SDK Ray Canvas template is unavailable.");
+            instance = (GameObject)PrefabUtility.InstantiatePrefab(prefab, canvas.transform);
+            instance.name = InteractionObjectName;
+            if (registerUndo) Undo.RegisterCreatedObjectUndo(instance, "Setup Controller Ray Interaction");
         }
 
         RectTransform rectTransform = instance.GetComponent<RectTransform>();
+        Record(rectTransform, registerUndo);
         rectTransform.localPosition = Vector3.zero;
         rectTransform.localRotation = Quaternion.identity;
         rectTransform.localScale = Vector3.one;
@@ -102,6 +100,7 @@ public static class ControllerRayInteractionSetup
         rectTransform.anchorMax = Vector2.one;
         rectTransform.pivot = new Vector2(0.5f, 0.5f);
         rectTransform.sizeDelta = Vector2.zero;
+        PrefabUtility.RecordPrefabInstancePropertyModifications(rectTransform);
 
         if (canvas.GetComponent<GraphicRaycaster>() == null)
         {
@@ -109,8 +108,109 @@ public static class ControllerRayInteractionSetup
         }
 
         PointableCanvas pointableCanvas = instance.GetComponent<PointableCanvas>();
+        Record(pointableCanvas, registerUndo);
         pointableCanvas.InjectCanvas(canvas);
         EditorUtility.SetDirty(pointableCanvas);
+        PrefabUtility.RecordPrefabInstancePropertyModifications(pointableCanvas);
+    }
+
+    private static void EnsureScreenManipulation(GameObject screen, Canvas canvas, RayInteractor[] rays,
+        LocomotionEventsConnection[] locomotion, bool undo)
+    {
+        ScreenPositionController position = screen.GetComponent<ScreenPositionController>();
+        if (position == null) position = AddComponent<ScreenPositionController>(screen, undo);
+        CanvasGroup group = canvas.GetComponent<CanvasGroup>();
+        if (group == null) group = AddComponent<CanvasGroup>(canvas.gameObject, undo);
+        ScreenRayManipulator manipulator = screen.GetComponent<ScreenRayManipulator>();
+        bool firstSetup = manipulator == null;
+        if (firstSetup) manipulator = AddComponent<ScreenRayManipulator>(screen, undo);
+
+        Text hint = canvas.transform.Find("ScreenInteractionHint")?.GetComponent<Text>();
+        if (hint == null)
+        {
+            GameObject hintObject = new GameObject("ScreenInteractionHint", typeof(RectTransform), typeof(CanvasRenderer), typeof(Text));
+            if (undo) Undo.RegisterCreatedObjectUndo(hintObject, "Create Screen Interaction Hint");
+            RectTransform rect = (RectTransform)hintObject.transform;
+            rect.SetParent(canvas.transform, false);
+            rect.sizeDelta = new Vector2(1560f, 32f);
+            rect.localScale = Vector3.one * 0.001f;
+            rect.localPosition = new Vector3(0f, -0.34f, -0.002f);
+            hint = hintObject.GetComponent<Text>();
+            hint.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            hint.fontSize = 18;
+            hint.alignment = TextAnchor.MiddleCenter;
+            hint.raycastTarget = false;
+            hint.color = new Color(0.7f, 0.8f, 0.85f);
+            hint.text = "Point + hold GRIP: move screen  |  Stick: distance / size  |  A / R: recenter";
+        }
+
+        Record(manipulator, undo);
+        SerializedObject serialized = new SerializedObject(manipulator);
+        serialized.FindProperty("canvasInteractable").objectReferenceValue = canvas.GetComponentInChildren<PointableCanvas>(true).GetComponent<RayInteractable>();
+        serialized.FindProperty("canvasInputGroup").objectReferenceValue = group;
+        serialized.FindProperty("interactionHint").objectReferenceValue = hint;
+        SerializedProperty rayArray = serialized.FindProperty("controllerRays");
+        rayArray.arraySize = rays.Length;
+        for (int i = 0; i < rays.Length; i++) rayArray.GetArrayElementAtIndex(i).objectReferenceValue = rays[i];
+        SerializedProperty locomotionArray = serialized.FindProperty("controllerLocomotion");
+        locomotionArray.arraySize = locomotion.Length;
+        for (int i = 0; i < locomotion.Length; i++) locomotionArray.GetArrayElementAtIndex(i).objectReferenceValue = locomotion[i];
+        serialized.ApplyModifiedProperties();
+
+        // Enable only on Screen, not on the unrelated cube using the same position component.
+        // Subsequent setup runs preserve the user's platform and startup choices.
+        if (firstSetup)
+        {
+            Record(position, undo);
+            SerializedObject settings = new SerializedObject(position);
+            settings.FindProperty("applyPlatformPositionOnStart").boolValue = true;
+            settings.ApplyModifiedProperties();
+        }
+    }
+
+    private static void ExpandCanvasToContent(Canvas canvas, bool undo)
+    {
+        Canvas.ForceUpdateCanvases();
+        RectTransform root = (RectTransform)canvas.transform;
+        Transform rayRoot = canvas.GetComponentInChildren<PointableCanvas>(true).transform;
+        RectTransform[] children = root.Cast<Transform>().OfType<RectTransform>().Where(t => t != rayRoot).ToArray();
+        Vector3[] positions = children.Select(t => t.localPosition).ToArray();
+        Vector2[] sizes = children.Select(t => t.rect.size).ToArray();
+        Vector2 extent = root.rect.size * 0.5f;
+        Vector3[] corners = new Vector3[4];
+        foreach (RectTransform child in root.GetComponentsInChildren<RectTransform>(true))
+        {
+            if (child == root || child.IsChildOf(rayRoot)) continue;
+            child.GetWorldCorners(corners);
+            foreach (Vector3 worldCorner in corners)
+            {
+                Vector3 local = root.InverseTransformPoint(worldCorner);
+                extent.x = Mathf.Max(extent.x, Mathf.Abs(local.x) + 0.02f);
+                extent.y = Mathf.Max(extent.y, Mathf.Abs(local.y) + 0.02f);
+            }
+        }
+
+        Record(root, undo);
+        foreach (RectTransform child in children) Record(child, undo);
+        root.pivot = new Vector2(0.5f, 0.5f);
+        root.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, extent.x * 2f);
+        root.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, extent.y * 2f);
+        for (int i = 0; i < children.Length; i++)
+        {
+            // Root expansion must not stretch, shift, or rescale the authored panels.
+            children[i].SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, sizes[i].x);
+            children[i].SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, sizes[i].y);
+            children[i].localPosition = positions[i];
+            PrefabUtility.RecordPrefabInstancePropertyModifications(children[i]);
+        }
+        PrefabUtility.RecordPrefabInstancePropertyModifications(root);
+        Canvas.ForceUpdateCanvases();
+    }
+
+    private static void Record(UnityEngine.Object target, bool undo)
+    {
+        if (undo) Undo.RecordObject(target, "Setup Controller Ray Interaction");
+        EditorUtility.SetDirty(target);
     }
 
     private static void EnsurePointableCanvasModule(Scene scene, bool registerUndo)
@@ -130,6 +230,7 @@ public static class ControllerRayInteractionSetup
             module = AddComponent<PointableCanvasModule>(eventSystem.gameObject, registerUndo);
         }
 
+        Record(module, registerUndo);
         // ISDK owns UI pointer dispatch in headset builds; this avoids two input modules
         // competing for hover, selection, and drag state on the same EventSystem.
         module.ExclusiveMode = true;

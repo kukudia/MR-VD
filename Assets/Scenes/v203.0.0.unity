@@ -9344,6 +9344,15 @@ MonoBehaviour:
     e32: 0
     e33: 1
   SceneSettings:
+    <TrackerConfiguration>k__BackingField:
+      <KeyboardTrackingEnabled>k__BackingField: 0
+      <QRCodeTrackingEnabled>k__BackingField: 0
+    <TrackableAdded>k__BackingField:
+      m_PersistentCalls:
+        m_Calls: []
+    <TrackableRemoved>k__BackingField:
+      m_PersistentCalls:
+        m_Calls: []
     DataSource: 2
     RoomIndex: -1
     RoomPrefabs:
@@ -9362,15 +9371,6 @@ MonoBehaviour:
     EnableHighFidelityScene: 0
     SeatWidth: 0.6
     SceneJson: 
-    <TrackerConfiguration>k__BackingField:
-      <KeyboardTrackingEnabled>k__BackingField: 0
-      <QRCodeTrackingEnabled>k__BackingField: 0
-    <TrackableAdded>k__BackingField:
-      m_PersistentCalls:
-        m_Calls: []
-    <TrackableRemoved>k__BackingField:
-      m_PersistentCalls:
-        m_Calls: []
   _immersiveSceneDebuggerPrefab: {fileID: 7641788235762528044, guid: 950d12aea00a70449b5b7b746f142acf, type: 3}
 --- !u!114 &425076546
 MonoBehaviour:
@@ -25045,6 +25045,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 05777370a0b1ea340af8055d680d3ced, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  platform: 0
+  applyPlatformPositionOnStart: 0
+  desktopDistance: 1.5
+  desktopHeightOffset: 0
+  desktopFollowOffset: {x: 0, y: 0, z: 1.5}
+  startupTrackingWait: 3
   isFollowedCamera: 0
   positionOffset: {x: 0, y: -0.25, z: 0.5}
   followSmoothing: 8
@@ -27662,6 +27668,28 @@ Transform:
   - {fileID: 793107750}
   m_Father: {fileID: 617003968}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1246135095 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 2614773159253311454, guid: 0a7d2469f24041c4284c66706f84c45e, type: 3}
+  m_PrefabInstance: {fileID: 1292967005}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d4ad4f1ddee798f45a20be4efda35c8c, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+--- !u!114 &1246135096 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 2148673767922673074, guid: 0a7d2469f24041c4284c66706f84c45e, type: 3}
+  m_PrefabInstance: {fileID: 1292967005}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d4ad4f1ddee798f45a20be4efda35c8c, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
 --- !u!1 &1246680580
 GameObject:
   m_ObjectHideFlags: 0
@@ -29016,6 +29044,28 @@ MonoBehaviour:
   installationRoutineCheckpoint:
     _installationRoutineId: 2063f481-1b63-4eda-9ee8-a00df98536bc
     _installationVariants: []
+--- !u!114 &1292967009 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 87850325270913972, guid: 0a7d2469f24041c4284c66706f84c45e, type: 3}
+  m_PrefabInstance: {fileID: 1292967005}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4733c5f009d26ad49b3685117b8d3eb4, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+--- !u!114 &1292967010 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 4080277042268158424, guid: 0a7d2469f24041c4284c66706f84c45e, type: 3}
+  m_PrefabInstance: {fileID: 1292967005}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4733c5f009d26ad49b3685117b8d3eb4, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
 --- !u!1 &1295527992
 GameObject:
   m_ObjectHideFlags: 0
@@ -29513,6 +29563,7 @@ GameObject:
   - component: {fileID: 1310335641}
   - component: {fileID: 1310335640}
   - component: {fileID: 1310335639}
+  - component: {fileID: 1310335642}
   m_Layer: 5
   m_Name: Canvas
   m_TagString: Untagged
@@ -29536,12 +29587,13 @@ RectTransform:
   - {fileID: 1121251162}
   - {fileID: 1074582609}
   - {fileID: 1414455202}
+  - {fileID: 1859268360}
   m_Father: {fileID: 1972249493}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 1, y: 1}
+  m_SizeDelta: {x: 1.6, y: 1}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1310335639
 MonoBehaviour:
@@ -29606,6 +29658,18 @@ Canvas:
   m_SortingLayerID: 0
   m_SortingOrder: 0
   m_TargetDisplay: 0
+--- !u!225 &1310335642
+CanvasGroup:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1310335637}
+  m_Enabled: 1
+  m_Alpha: 1
+  m_Interactable: 1
+  m_BlocksRaycasts: 1
+  m_IgnoreParentGroups: 0
 --- !u!1 &1318269170
 GameObject:
   m_ObjectHideFlags: 0
@@ -31490,6 +31554,17 @@ RectTransform:
   m_CorrespondingSourceObject: {fileID: 5508436294406923358, guid: 8369d93f7b6b99742bbea0649a41b7b1, type: 3}
   m_PrefabInstance: {fileID: 1414455201}
   m_PrefabAsset: {fileID: 0}
+--- !u!114 &1414455203 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 746453002869494175, guid: 8369d93f7b6b99742bbea0649a41b7b1, type: 3}
+  m_PrefabInstance: {fileID: 1414455201}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bb86ba9d4c5126e48bfef9b0c9550e9d, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
 --- !u!1 &1415107636
 GameObject:
   m_ObjectHideFlags: 0
@@ -41790,6 +41865,85 @@ MonoBehaviour:
   installationRoutineCheckpoint:
     _installationRoutineId: 
     _installationVariants: []
+--- !u!1 &1859268359
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1859268360}
+  - component: {fileID: 1859268362}
+  - component: {fileID: 1859268361}
+  m_Layer: 0
+  m_Name: ScreenInteractionHint
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!224 &1859268360
+RectTransform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1859268359}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: -0.002}
+  m_LocalScale: {x: 0.001, y: 0.001, z: 0.001}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1310335638}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_AnchorMin: {x: 0.5, y: 0.5}
+  m_AnchorMax: {x: 0.5, y: 0.5}
+  m_AnchoredPosition: {x: 0, y: -0.34}
+  m_SizeDelta: {x: 1560, y: 32}
+  m_Pivot: {x: 0.5, y: 0.5}
+--- !u!114 &1859268361
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1859268359}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5f7201a12d95ffc409449d95f23cf332, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Text
+  m_Material: {fileID: 0}
+  m_Color: {r: 0.7, g: 0.8, b: 0.85, a: 1}
+  m_RaycastTarget: 0
+  m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
+  m_Maskable: 1
+  m_OnCullStateChanged:
+    m_PersistentCalls:
+      m_Calls: []
+  m_FontData:
+    m_Font: {fileID: 10102, guid: 0000000000000000e000000000000000, type: 0}
+    m_FontSize: 18
+    m_FontStyle: 0
+    m_BestFit: 0
+    m_MinSize: 10
+    m_MaxSize: 40
+    m_Alignment: 4
+    m_AlignByGeometry: 0
+    m_RichText: 1
+    m_HorizontalOverflow: 0
+    m_VerticalOverflow: 0
+    m_LineSpacing: 1
+  m_Text: 'Point + hold GRIP: move screen  |  Stick: distance / size  |  A / R: recenter'
+--- !u!222 &1859268362
+CanvasRenderer:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1859268359}
+  m_CullTransparentMesh: 1
 --- !u!1 &1859460034
 GameObject:
   m_ObjectHideFlags: 0
@@ -45336,6 +45490,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1972249493}
   - component: {fileID: 1972249494}
+  - component: {fileID: 1972249495}
   m_Layer: 0
   m_Name: Screen
   m_TagString: Untagged
@@ -45380,6 +45535,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 05777370a0b1ea340af8055d680d3ced, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  platform: 0
+  applyPlatformPositionOnStart: 1
+  desktopDistance: 1.5
+  desktopHeightOffset: 0
+  desktopFollowOffset: {x: 0, y: 0, z: 1.5}
+  startupTrackingWait: 3
   isFollowedCamera: 0
   positionOffset: {x: 0, y: 0.1, z: 0.8}
   followSmoothing: 8
@@ -45395,6 +45556,34 @@ MonoBehaviour:
   minPitchAngle: -15
   maxPitchAngle: 30
   rotateToCameraForward: 1
+--- !u!114 &1972249495
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1972249492}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f17d594d0d678f0418d419dd9619ce8a, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::ScreenRayManipulator
+  canvasInteractable: {fileID: 1414455203}
+  controllerRays:
+  - {fileID: 1292967009}
+  - {fileID: 1292967010}
+  canvasInputGroup: {fileID: 1310335642}
+  interactionHint: {fileID: 1859268361}
+  controllerLocomotion:
+  - {fileID: 1246135095}
+  - {fileID: 1246135096}
+  minimumDistance: 0.25
+  maximumDistance: 4
+  distanceSpeed: 1
+  minimumScale: 0.35
+  maximumScale: 3
+  scaleSpeed: 0.8
+  stickDeadZone: 0.2
 --- !u!1 &1973676869
 GameObject:
   m_ObjectHideFlags: 0
