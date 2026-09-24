@@ -70,6 +70,9 @@ public sealed class RuntimeInformationPanel : MonoBehaviour
     private Toggle systemModuleToggle;
     private Toggle weatherAutoToggle;
     private Toggle audioAnalysisPageToggle;
+    private Toggle performancePageToggle;
+    private GameObject performancePage;
+    private bool performancePageVisible;
     private AudioCaptureCSCore audioCapture;
     private ScreenCanvasModuleAnimator settingsAnimator;
     private ScreenCanvasModuleAnimator weatherAnimator;
@@ -316,6 +319,9 @@ public sealed class RuntimeInformationPanel : MonoBehaviour
         systemModuleToggle = Find<Toggle>(dashboard, "SettingsModule/SettingsBody/SettingsRowTwo/SystemModuleToggle");
         weatherAutoToggle = Find<Toggle>(dashboard, "SettingsModule/SettingsBody/SettingsRowTwo/WeatherAutoToggle");
         audioAnalysisPageToggle = Find<Toggle>(dashboard, "SettingsModule/SettingsBody/SettingsRowThree/AudioAnalysisPageToggle");
+        performancePageToggle = Find<Toggle>(dashboard, "SettingsModule/SettingsBody/SettingsRowFour/PerformancePageToggle");
+        Transform performanceTransform = dashboard.Find("PerformancePage");
+        performancePage = performanceTransform != null ? performanceTransform.gameObject : null;
         settingsAnimator = Find<ScreenCanvasModuleAnimator>(dashboard, "SettingsModule");
         weatherAnimator = Find<ScreenCanvasModuleAnimator>(dashboard, "WeatherModule");
         systemAnimator = Find<ScreenCanvasModuleAnimator>(dashboard, "SystemModule");
@@ -345,6 +351,8 @@ public sealed class RuntimeInformationPanel : MonoBehaviour
             && systemModuleToggle != null
             && weatherAutoToggle != null
             && audioAnalysisPageToggle != null
+            && performancePageToggle != null
+            && performancePage != null
             && settingsAnimator != null
             && weatherAnimator != null
             && systemAnimator != null;
@@ -369,6 +377,8 @@ public sealed class RuntimeInformationPanel : MonoBehaviour
         ConfigureToggle(systemModuleToggle, showSystemModule, SetSystemModuleVisible);
         ConfigureToggle(weatherAutoToggle, autoRefreshWeather, value => autoRefreshWeather = value);
         ConfigureToggle(audioAnalysisPageToggle, false, SetAudioAnalysisPageVisible);
+        ConfigureToggle(performancePageToggle, false, SetPerformancePageVisible);
+        performancePage.SetActive(false);
 
         SetSettingsExpanded(false, true);
         SetWeatherModuleVisible(showWeatherModule, true);
@@ -380,6 +390,12 @@ public sealed class RuntimeInformationPanel : MonoBehaviour
 
     private void SetAudioAnalysisPageVisible(bool visible)
     {
+        if (visible && performancePageVisible)
+        {
+            performancePageToggle.SetIsOnWithoutNotify(false);
+            SetPerformancePageVisible(false);
+        }
+
         if (audioCapture == null)
         {
             audioCapture = FindFirstObjectByType<AudioCaptureCSCore>();
@@ -389,6 +405,20 @@ public sealed class RuntimeInformationPanel : MonoBehaviour
         {
             audioCapture.SetScreenAnalysisPageVisible(visible);
         }
+    }
+
+    private void SetPerformancePageVisible(bool visible)
+    {
+        performancePageVisible = visible;
+        if (visible && audioAnalysisPageToggle.isOn)
+        {
+            audioAnalysisPageToggle.SetIsOnWithoutNotify(false);
+            SetAudioAnalysisPageVisible(false);
+        }
+
+        performancePage.SetActive(visible);
+        weatherAnimator.SetState(showWeatherModule && !visible, weatherModuleExpanded, false, transitionDuration);
+        systemAnimator.SetState(showSystemModule && !visible, systemModuleExpanded, false, transitionDuration);
     }
 
     private void ConfigureToggle(Toggle toggle, bool value, UnityEngine.Events.UnityAction<bool> listener)
@@ -427,7 +457,7 @@ public sealed class RuntimeInformationPanel : MonoBehaviour
     private void SetWeatherModuleVisible(bool visible, bool immediate)
     {
         showWeatherModule = visible;
-        weatherAnimator.SetState(visible, weatherModuleExpanded, immediate, transitionDuration);
+        weatherAnimator.SetState(visible && !performancePageVisible, weatherModuleExpanded, immediate, transitionDuration);
     }
 
     private void SetSystemModuleVisible(bool visible)
@@ -438,7 +468,7 @@ public sealed class RuntimeInformationPanel : MonoBehaviour
     private void SetSystemModuleVisible(bool visible, bool immediate)
     {
         showSystemModule = visible;
-        systemAnimator.SetState(visible, systemModuleExpanded, immediate, transitionDuration);
+        systemAnimator.SetState(visible && !performancePageVisible, systemModuleExpanded, immediate, transitionDuration);
     }
 
     private void SetWeatherExpanded(bool expanded, bool immediate)
