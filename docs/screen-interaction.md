@@ -4,6 +4,7 @@
 
 ## 操作
 
+- PC 鼠标：直接点击 AudioPanel、InfoPanel 的按钮、滑块等 Canvas UI。`InputSystemUIInputModule` 与 Meta 手柄射线共用 EventSystem；手柄处理后恢复 Canvas 的桌面事件相机。
 - 扳机：原有 UI 悬停、按钮点击、滑块和滚动区域拖动。
 - 指向 Screen / 左右面板，再按住侧握键：移动整个 Screen；屏幕保持当前朝向，避免手腕转动使桌面倾斜。
 - 保持侧握，摇杆上 / 下：推远 / 拉近；左 / 右：缩小 / 放大。以抓取点缩放，保持宽高比。

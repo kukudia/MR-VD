@@ -65,7 +65,7 @@ public static class ControllerRayInteractionSetup
             .Where(connection => connection.name == "LocomotionControllerInteractorGroup").ToArray();
         EnsureScreenManipulation(screen, canvas, controllerRays, locomotion, registerUndo);
         ExpandCanvasToContent(canvas, registerUndo);
-        EnsurePointableCanvasModule(scene, registerUndo);
+        EnsurePointableCanvasModule(scene, canvas, registerUndo);
 
         EditorSceneManager.MarkSceneDirty(scene);
         EditorSceneManager.SaveScene(scene);
@@ -213,7 +213,7 @@ public static class ControllerRayInteractionSetup
         EditorUtility.SetDirty(target);
     }
 
-    private static void EnsurePointableCanvasModule(Scene scene, bool registerUndo)
+    private static void EnsurePointableCanvasModule(Scene scene, Canvas canvas, bool registerUndo)
     {
         EventSystem eventSystem = scene
             .GetRootGameObjects()
@@ -231,10 +231,20 @@ public static class ControllerRayInteractionSetup
         }
 
         Record(module, registerUndo);
-        // ISDK owns UI pointer dispatch in headset builds; this avoids two input modules
-        // competing for hover, selection, and drag state on the same EventSystem.
-        module.ExclusiveMode = true;
+        // Keep Unity's InputSystemUIInputModule enabled so desktop mouse/keyboard input
+        // remains available alongside the Interaction SDK controller pointers.
+        module.ExclusiveMode = false;
         EditorUtility.SetDirty(module);
+
+        HybridCanvasInputModule hybrid = eventSystem.GetComponent<HybridCanvasInputModule>();
+        if (hybrid == null)
+        {
+            hybrid = AddComponent<HybridCanvasInputModule>(eventSystem.gameObject, registerUndo);
+        }
+        Record(hybrid, registerUndo);
+        SerializedObject hybridSettings = new SerializedObject(hybrid);
+        hybridSettings.FindProperty("desktopCanvas").objectReferenceValue = canvas;
+        hybridSettings.ApplyModifiedProperties();
     }
 
     private static T AddComponent<T>(GameObject gameObject, bool registerUndo) where T : Component

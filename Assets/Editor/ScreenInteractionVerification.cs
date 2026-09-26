@@ -32,6 +32,19 @@ public static class ScreenInteractionVerification
         RectTransform root = (RectTransform)canvas.transform;
         PointableCanvas pointable = canvas.GetComponentInChildren<PointableCanvas>();
         Require(pointable != null && pointable.Canvas == canvas, "PointableCanvas reference persisted");
+        EventSystem eventSystem = UnityEngine.Object.FindObjectsByType<EventSystem>(FindObjectsInactive.Include,
+            FindObjectsSortMode.None).FirstOrDefault(candidate => candidate.gameObject.activeInHierarchy);
+        PointableCanvasModule pointableModule = eventSystem != null
+            ? eventSystem.GetComponent<PointableCanvasModule>() : null;
+        Require(pointableModule != null && !pointableModule.ExclusiveMode,
+            "PointableCanvasModule does not disable desktop input modules");
+        Require(eventSystem != null && eventSystem.GetComponent<UnityEngine.InputSystem.UI.InputSystemUIInputModule>() != null,
+            "InputSystemUIInputModule is present for PC mouse input");
+        HybridCanvasInputModule hybrid = eventSystem.GetComponent<HybridCanvasInputModule>();
+        Require(hybrid != null,
+            "Meta ray pointers remain processed when the PC mouse module is active");
+        Require(new SerializedObject(hybrid).FindProperty("desktopCanvas").objectReferenceValue == canvas,
+            "Desktop event camera can be restored after Meta pointer processing");
         ClippedPlaneSurface surface = pointable.GetComponentInChildren<ClippedPlaneSurface>();
         surface.InjectClippers(surface.GetComponents<BoundsClipper>());
         Camera previousCamera = canvas.worldCamera;
@@ -64,7 +77,7 @@ public static class ScreenInteractionVerification
                 camera.transform.SetPositionAndRotation(center - root.forward, root.rotation);
                 // In Edit Mode, a newly loaded Canvas has depth=-1 until rendered; uGUI skips it.
                 camera.Render();
-                var data = new PointerEventData(EventSystem.current) { position = camera.WorldToScreenPoint(center) };
+                var data = new PointerEventData(eventSystem) { position = camera.WorldToScreenPoint(center) };
                 var hits = new List<RaycastResult>();
                 canvas.GetComponent<GraphicRaycaster>().Raycast(data, hits);
                 Require(hits.Any(h => h.gameObject.GetComponentInParent<Button>() == button), panelName + " button accepts uGUI raycast");
@@ -157,20 +170,19 @@ public static class ScreenInteractionVerification
             Vector3 unchangedPosition = screen.transform.position;
             Vector3 unchangedScale = screen.transform.localScale;
             controllers[0].Stick(new Vector2(0.1f, -0.1f));
-            Call(manipulator, "LateUpdate");
+            Call(manipulator, "UpdateManipulation", 0.1f);
             Require(screen.transform.position == unchangedPosition && screen.transform.localScale == unchangedScale, "Thumbstick dead zone prevents drift");
 
             RememberSet(manipulator, "scaleSpeed", 1000000f, restores);
             RememberSet(manipulator, "distanceSpeed", 1000000f, restores);
-            Require(Time.unscaledDeltaTime > 0f, "Editor supplies a nonzero delta for the probe");
             controllers[0].Stick(Vector2.one);
-            Call(manipulator, "LateUpdate");
+            Call(manipulator, "UpdateManipulation", 0.1f);
             Require(Vector3.Distance(screen.transform.localScale, oldScale * (float)Get(manipulator, "maximumScale")) < 0.0001f, "Maximum scale and aspect ratio");
             float distance = (float)Get(manipulator, "grabDistance");
             Require(Mathf.Abs(distance - (float)Get(manipulator, "maximumDistance")) < 0.0001f, "Maximum distance");
             Require(Vector3.Distance(screen.transform.TransformPoint(localHit), rays[0].Origin + rays[0].Forward * distance) < 0.0001f, "Off-center scaling keeps grab point anchored");
             controllers[0].Stick(-Vector2.one);
-            Call(manipulator, "LateUpdate");
+            Call(manipulator, "UpdateManipulation", 0.1f);
             Require(Vector3.Distance(screen.transform.localScale, oldScale * (float)Get(manipulator, "minimumScale")) < 0.0001f, "Minimum scale");
             Require(Mathf.Abs((float)Get(manipulator, "grabDistance") - (float)Get(manipulator, "minimumDistance")) < 0.0001f, "Minimum distance");
 

@@ -90,26 +90,7 @@ public sealed class ScreenRayManipulator : MonoBehaviour
 
         if (IsManipulating)
         {
-            int index = activeController;
-            if (!IsTracked(index) || !controllers[index].ControllerInput.GripButton)
-            {
-                EndManipulation();
-                return;
-            }
-
-            RayInteractor ray = controllerRays[index];
-            Vector2 stick = controllers[index].ControllerInput.Primary2DAxis;
-            float dt = Mathf.Min(Time.unscaledDeltaTime, 0.1f);
-            grabDistance = Mathf.Clamp(grabDistance + ApplyDeadZone(stick.y) * distanceSpeed * dt,
-                minimumDistance, Mathf.Min(maximumDistance, ray.MaxRayLength));
-            scaleMultiplier = Mathf.Clamp(scaleMultiplier * Mathf.Exp(ApplyDeadZone(stick.x) * scaleSpeed * dt),
-                minimumScale, maximumScale);
-
-            transform.localScale = authoredScale * scaleMultiplier;
-            // Keep the original hit point on the ray, including while scaling off-center.
-            // Rotation is deliberately retained so wrist roll does not tilt the whole desktop.
-            Vector3 target = ray.Origin + ray.Forward * grabDistance;
-            transform.position += target - transform.TransformPoint(localGrabPoint);
+            UpdateManipulation(Mathf.Min(Time.unscaledDeltaTime, 0.1f));
             return;
         }
 
@@ -152,6 +133,29 @@ public sealed class ScreenRayManipulator : MonoBehaviour
             UpdateHint();
             break;
         }
+    }
+
+    private void UpdateManipulation(float dt)
+    {
+        int index = activeController;
+        if (!IsTracked(index) || !controllers[index].ControllerInput.GripButton)
+        {
+            EndManipulation();
+            return;
+        }
+
+        RayInteractor ray = controllerRays[index];
+        Vector2 stick = controllers[index].ControllerInput.Primary2DAxis;
+        grabDistance = Mathf.Clamp(grabDistance + ApplyDeadZone(stick.y) * distanceSpeed * dt,
+            minimumDistance, Mathf.Min(maximumDistance, ray.MaxRayLength));
+        scaleMultiplier = Mathf.Clamp(scaleMultiplier * Mathf.Exp(ApplyDeadZone(stick.x) * scaleSpeed * dt),
+            minimumScale, maximumScale);
+
+        transform.localScale = authoredScale * scaleMultiplier;
+        // Keep the original hit point on the ray, including while scaling off-center.
+        // Rotation is deliberately retained so wrist roll does not tilt the whole desktop.
+        Vector3 target = ray.Origin + ray.Forward * grabDistance;
+        transform.position += target - transform.TransformPoint(localGrabPoint);
     }
 
     private bool IsTracked(int index)
