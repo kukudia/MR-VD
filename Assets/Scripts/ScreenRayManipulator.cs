@@ -14,7 +14,7 @@ public sealed class ScreenRayManipulator : MonoBehaviour
     [SerializeField] private RayInteractor[] controllerRays = new RayInteractor[0];
     [SerializeField] private CanvasGroup canvasInputGroup;
     [SerializeField] private Text interactionHint;
-    [SerializeField] private LineRenderer placementOutline;
+    [SerializeField] private GameObject placementOutline;
     [Tooltip("Temporarily suspend controller locomotion while the sticks place the screen.")]
     [SerializeField] private LocomotionEventsConnection[] controllerLocomotion = new LocomotionEventsConnection[0];
 
@@ -63,7 +63,7 @@ public sealed class ScreenRayManipulator : MonoBehaviour
     {
         positionController.BeforeRecenter += EndManipulation;
         if (interactionHint != null) interactionHint.gameObject.SetActive(false);
-        if (placementOutline != null) placementOutline.enabled = false;
+        if (placementOutline != null) placementOutline.SetActive(false);
     }
 
     private void OnDisable()
@@ -136,7 +136,7 @@ public sealed class ScreenRayManipulator : MonoBehaviour
                 locomotionWasEnabled[j] = controllerLocomotion[j].enabled;
                 controllerLocomotion[j].enabled = false;
             }
-            if (placementOutline != null) placementOutline.enabled = true;
+            if (placementOutline != null) placementOutline.SetActive(true);
             break;
         }
     }
@@ -192,7 +192,7 @@ public sealed class ScreenRayManipulator : MonoBehaviour
         }
         // Reconnection, recenter and a second hand all require a fresh grip, not a held button.
         if (gripArmed != null) System.Array.Clear(gripArmed, 0, gripArmed.Length);
-        if (placementOutline != null) placementOutline.enabled = false;
+        if (placementOutline != null) placementOutline.SetActive(false);
     }
 
     private void OnValidate()
