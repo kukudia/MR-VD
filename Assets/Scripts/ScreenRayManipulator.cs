@@ -14,6 +14,7 @@ public sealed class ScreenRayManipulator : MonoBehaviour
     [SerializeField] private RayInteractor[] controllerRays = new RayInteractor[0];
     [SerializeField] private CanvasGroup canvasInputGroup;
     [SerializeField] private Text interactionHint;
+    [SerializeField] private LineRenderer placementOutline;
     [Tooltip("Temporarily suspend controller locomotion while the sticks place the screen.")]
     [SerializeField] private LocomotionEventsConnection[] controllerLocomotion = new LocomotionEventsConnection[0];
 
@@ -28,6 +29,7 @@ public sealed class ScreenRayManipulator : MonoBehaviour
     [Tooltip("Exponential scale rate while holding grip and pushing the thumbstick right/left.")]
     [SerializeField, Min(0f)] private float scaleSpeed = 0.8f;
     [SerializeField, Range(0f, 0.9f)] private float stickDeadZone = 0.2f;
+    [SerializeField, Range(0.01f, 0.3f)] private float pointerSmoothingTime = 0.07f;
 
     private ScreenPositionController positionController;
     private ControllerRef[] controllers;
@@ -37,6 +39,8 @@ public sealed class ScreenRayManipulator : MonoBehaviour
     private Vector3 localGrabPoint;
     private float grabDistance;
     private float scaleMultiplier = 1f;
+    private float displayedScaleMultiplier = 1f;
+    private Vector3 smoothedTarget;
     private int activeController = -1;
     private bool previousBlocksRaycasts;
     private bool hasFocus = true;
@@ -58,7 +62,8 @@ public sealed class ScreenRayManipulator : MonoBehaviour
     private void OnEnable()
     {
         positionController.BeforeRecenter += EndManipulation;
-        UpdateHint();
+        if (interactionHint != null) interactionHint.gameObject.SetActive(false);
+        if (placementOutline != null) placementOutline.enabled = false;
     }
 
     private void OnDisable()
@@ -121,6 +126,7 @@ public sealed class ScreenRayManipulator : MonoBehaviour
             activeController = i;
             grabDistance = distance;
             localGrabPoint = transform.InverseTransformPoint(ray.CollisionInfo.Value.Point);
+            smoothedTarget = ray.CollisionInfo.Value.Point;
             positionController.BeginManualControl();
             previousBlocksRaycasts = canvasInputGroup.blocksRaycasts;
             canvasInputGroup.blocksRaycasts = false;
@@ -130,7 +136,7 @@ public sealed class ScreenRayManipulator : MonoBehaviour
                 locomotionWasEnabled[j] = controllerLocomotion[j].enabled;
                 controllerLocomotion[j].enabled = false;
             }
-            UpdateHint();
+            if (placementOutline != null) placementOutline.enabled = true;
             break;
         }
     }
@@ -151,11 +157,14 @@ public sealed class ScreenRayManipulator : MonoBehaviour
         scaleMultiplier = Mathf.Clamp(scaleMultiplier * Mathf.Exp(ApplyDeadZone(stick.x) * scaleSpeed * dt),
             minimumScale, maximumScale);
 
-        transform.localScale = authoredScale * scaleMultiplier;
+        float blend = 1f - Mathf.Exp(-dt / pointerSmoothingTime);
+        displayedScaleMultiplier = Mathf.Lerp(displayedScaleMultiplier, scaleMultiplier, blend);
+        transform.localScale = authoredScale * displayedScaleMultiplier;
         // Keep the original hit point on the ray, including while scaling off-center.
         // Rotation is deliberately retained so wrist roll does not tilt the whole desktop.
         Vector3 target = ray.Origin + ray.Forward * grabDistance;
-        transform.position += target - transform.TransformPoint(localGrabPoint);
+        smoothedTarget = Vector3.Lerp(smoothedTarget, target, blend);
+        transform.position += smoothedTarget - transform.TransformPoint(localGrabPoint);
     }
 
     private bool IsTracked(int index)
@@ -183,16 +192,7 @@ public sealed class ScreenRayManipulator : MonoBehaviour
         }
         // Reconnection, recenter and a second hand all require a fresh grip, not a held button.
         if (gripArmed != null) System.Array.Clear(gripArmed, 0, gripArmed.Length);
-        UpdateHint();
-    }
-
-    private void UpdateHint()
-    {
-        if (interactionHint == null) return;
-        interactionHint.text = IsManipulating
-            ? "MOVING SCREEN  |  Stick up/down: distance  |  left/right: size  |  Release grip: pin"
-            : "Point + hold GRIP: move screen  |  Stick: distance / size  |  A / R: recenter";
-        interactionHint.color = IsManipulating ? new Color(0.35f, 0.95f, 1f) : new Color(0.7f, 0.8f, 0.85f);
+        if (placementOutline != null) placementOutline.enabled = false;
     }
 
     private void OnValidate()

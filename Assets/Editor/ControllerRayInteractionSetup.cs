@@ -125,30 +125,18 @@ public static class ControllerRayInteractionSetup
         bool firstSetup = manipulator == null;
         if (firstSetup) manipulator = AddComponent<ScreenRayManipulator>(screen, undo);
 
-        Text hint = canvas.transform.Find("ScreenInteractionHint")?.GetComponent<Text>();
-        if (hint == null)
+        Transform hint = canvas.transform.Find("ScreenInteractionHint");
+        if (hint != null)
         {
-            GameObject hintObject = new GameObject("ScreenInteractionHint", typeof(RectTransform), typeof(CanvasRenderer), typeof(Text));
-            if (undo) Undo.RegisterCreatedObjectUndo(hintObject, "Create Screen Interaction Hint");
-            RectTransform rect = (RectTransform)hintObject.transform;
-            rect.SetParent(canvas.transform, false);
-            rect.sizeDelta = new Vector2(1560f, 32f);
-            rect.localScale = Vector3.one * 0.001f;
-            rect.localPosition = new Vector3(0f, -0.34f, -0.002f);
-            hint = hintObject.GetComponent<Text>();
-            hint.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            hint.fontSize = 18;
-            hint.alignment = TextAnchor.MiddleCenter;
-            hint.raycastTarget = false;
-            hint.color = new Color(0.7f, 0.8f, 0.85f);
-            hint.text = "Point + hold GRIP: move screen  |  Stick: distance / size  |  A / R: recenter";
+            if (undo) Undo.DestroyObjectImmediate(hint.gameObject);
+            else UnityEngine.Object.DestroyImmediate(hint.gameObject);
         }
 
         Record(manipulator, undo);
         SerializedObject serialized = new SerializedObject(manipulator);
         serialized.FindProperty("canvasInteractable").objectReferenceValue = canvas.GetComponentInChildren<PointableCanvas>(true).GetComponent<RayInteractable>();
         serialized.FindProperty("canvasInputGroup").objectReferenceValue = group;
-        serialized.FindProperty("interactionHint").objectReferenceValue = hint;
+        serialized.FindProperty("interactionHint").objectReferenceValue = null;
         SerializedProperty rayArray = serialized.FindProperty("controllerRays");
         rayArray.arraySize = rays.Length;
         for (int i = 0; i < rays.Length; i++) rayArray.GetArrayElementAtIndex(i).objectReferenceValue = rays[i];

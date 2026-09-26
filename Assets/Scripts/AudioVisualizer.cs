@@ -1772,16 +1772,16 @@ public class AudioVisualizer : MonoBehaviour
         lines.Add($"KICK {kickEnergy:F3}   CONF {(beatConfidences.Count > 0 ? beatConfidences.Last() : 0):F2}");
     }
 
-    private string GetPlaybackStatusText()
+    public string GetPlaybackStatusText()
     {
         if (wasSilent)
         {
             float startTime = silenceStartTime >= 0f ? silenceStartTime : Time.time;
-            return $"Silent {FormatDuration(Time.time - startTime)}";
+            return $"Mute {FormatDuration(Time.time - startTime)}";
         }
 
         float playTime = playStartTime > 0f ? playStartTime : Time.time;
-        return $"Playing {FormatDuration(Time.time - playTime)}";
+        return $"Play {FormatDuration(Time.time - playTime)}";
     }
 
     private string FormatDuration(float duration)

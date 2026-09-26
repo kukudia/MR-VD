@@ -147,6 +147,7 @@ public static class AudioAnalysisPanelBuilder
         LayoutElement bodyLayout = settingsBody.GetComponent<LayoutElement>();
         bodyLayout.minHeight = 91f;
         bodyLayout.preferredHeight = 91f;
+        settingsBody.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, 91f);
 
         ScreenCanvasModuleAnimator settingsAnimator = settingsBody.GetComponentInParent<ScreenCanvasModuleAnimator>();
         SerializedObject animatorObject = new SerializedObject(settingsAnimator);

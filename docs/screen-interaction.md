@@ -23,11 +23,12 @@
 - 原有 Recenter Distance / Height Offset / Position Offset：继续作为头显参数，保留场景中的 0.5 米回中距离及现有跟随偏移。
 - Startup Tracking Wait：默认等待最多 3 秒以获得有效头部追踪；桌面先显示，若初始化窗口内 PC VR 激活则重新按头显参数放置。手动移动或回中会取消启动重定位。
 
-`ScreenRayManipulator`：距离默认 0.25–4 米，且不会超过原射线长度；缩放默认相对场景初始大小的 0.35–3 倍，摇杆死区 0.2。速度、范围、射线、CanvasGroup 和提示文字均可在 Inspector 调整。运行时位置/大小不写入磁盘，下次启动按平台参数重新初始化。
+`ScreenRayManipulator`：距离默认 0.25–4 米，且不会超过原射线长度；缩放默认相对场景初始大小的 0.35–3 倍，摇杆死区 0.2。速度、范围、射线、CanvasGroup 和指针平滑时间均可在 Inspector 调整。握住侧键时亮起屏幕轮廓；操作提示文字已移除。运行时位置/大小不写入磁盘，下次启动按平台参数重新初始化。`RayCursorSmoother` 平滑光标与射线的显示，UI 命中仍使用 Meta 原始射线。
 
 ## 编辑器工具
 
-- `Tools/MR-VD/Setup Controller Ray Interaction`：保存当前场景的射线和操控引用，并按 UI 实际边界扩大 Canvas；保留各面板的尺寸与位置。反复执行不会重复添加组件/提示，已有操控参数和平台选项不会被重置。编辑面板范围后可重新执行。
+- `Tools/MR-VD/Setup Controller Ray Interaction`：保存当前场景的射线和操控引用，并按 UI 实际边界扩大 Canvas；保留各面板的尺寸与位置。反复执行不会重复添加组件或恢复已删除的提示文字，已有操控参数和平台选项不会被重置。编辑面板范围后可重新执行。
+- `Tools/MR-VD/Apply Quest Visual and UI Tuneup`：重新生成手部、Quest 3 手柄和操控轮廓材质，连接平滑光标，调整设置按钮命中范围与音频面板刷新参数；可重复执行。
 - `Tools/MR-VD/Verify Screen Interaction`：Edit Mode 自动检查左右面板边角的 Meta 射线命中、按钮的 GraphicRaycaster 命中，以及模拟输入下的移动、缩放、单手所有权、UI 拖动互斥、死区、追踪丢失和释放。测试结束恢复场景参数。模拟输入只存在于 Editor 验证工具中。
 
 ## 本次验证（2026-09-22）
@@ -37,3 +38,10 @@
 - `dotnet build Assembly-CSharp-Editor.csproj --no-restore --nologo`：0 错误，6 个 MSB3277 依赖版本警告（包含运行时工程）。当前本地包/Unity 升级尚未提交，警告数与旧版记录不同。
 - 完整场景 Play Mode 尝试遇到 OpenXR `XR_ERROR_FORM_FACTOR_UNAVAILABLE`，随后 Meta SDK 初始化组件出现异常；未将此尝试判定为通过。
 - 尚需连接头显验证左右手真实射线、A 回中、扳机拖拽、移动/缩放手感，以及 Quest / PC VR 的启动定位。未执行 Android 构建；现有 Windows 音频/桌面捕获功能的平台限制未在本次改动中调整。
+
+## 2026-09-26 调整与验证
+
+- 视频对应的虚拟手颗粒轮廓替换为不透明 URP 材质；Quest 3 手柄模型使用保留原纹理的 Unlit 材质，避免受场景照明影响而整片发黑。
+- Audio Analysis 与 Performance 各自切换；关闭 Audio Analysis 仅关闭分析页，AudioVisualizer 保持启用。Play Mode 已验证两个选项可同时开启、关闭分析页不关闭可视化。
+- 设置面板四行按钮改为 28 单位高，面板展开高度 172；展开设置时收起 Weather 与 System 为选项让出空间。Play Mode 几何检查确认第 4 行位于设置面板内，页脚仍在 Dashboard 范围内。
+- Unity 6000.3.11f1 导入与编译通过；标准 dotnet 命令受生成的 v4.7.1 目标与监控库 v4.7.2 不匹配影响，使用 `-p:TargetFrameworkVersion=v4.7.2` 后编译通过（21 条依赖警告）。Quest 3 已通过 ADB 识别，但本次 Editor Play Mode 的 OpenXR 报 `ErrorFormFactorUnavailable`，没有完成头显内视觉与手柄操作验证。

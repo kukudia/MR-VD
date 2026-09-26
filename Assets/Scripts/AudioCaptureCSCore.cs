@@ -142,7 +142,11 @@ public class AudioCaptureCSCore : MonoBehaviour
 
     [Range(10, 32)]
     [Tooltip("Font size for the BPM and playback values on the compact status page.")]
-    public int screenCompactPrimaryFontSize = 18;
+    public int screenCompactPrimaryFontSize = 24;
+
+    [Tooltip("Seconds for the three analysis meters to approach new energy values.")]
+    [Range(0.02f, 0.5f)]
+    public float screenEnergyBarResponse = 0.09f;
 
     [Range(8, 24)]
     [Tooltip("Font size for energy labels and chroma note labels.")]
@@ -171,6 +175,7 @@ public class AudioCaptureCSCore : MonoBehaviour
     private Text _screenAnalysisKeyText;
     private AudioChromaWheelGraphic _screenChromaWheel;
     private readonly Image[] _screenEnergyFills = new Image[3];
+    private readonly float[] _screenEnergyTargets = new float[3];
     private bool _screenAnalysisPageVisible;
     private string _screenDeviceListSignature = string.Empty;
     private float _nextScreenCanvasRefreshTime;
@@ -205,6 +210,7 @@ public class AudioCaptureCSCore : MonoBehaviour
 
     private void Update()
     {
+        UpdateScreenEnergyBarVisuals();
         if (!updateFftDataAutomatically || Time.frameCount == _lastManualFftUpdateFrame)
         {
             UpdateScreenCanvasPanel(false);
@@ -1124,13 +1130,13 @@ public class AudioCaptureCSCore : MonoBehaviour
         {
             _screenVisualizerText.text = string.Join("\n",
                 $"<size={screenCompactPrimaryFontSize}>BPM  --</size>",
-                $"<size={screenCompactPrimaryFontSize}>MUTE</size>");
+                $"<size={screenCompactPrimaryFontSize}>MUTE 00:00</size>");
             return;
         }
 
         _screenVisualizerText.text = string.Join("\n",
             $"<size={screenCompactPrimaryFontSize}>BPM  {audioVisualizer.limitedBPM:F1}</size>",
-            $"<size={screenCompactPrimaryFontSize}>{(audioVisualizer.wasSilent ? "MUTE" : "PLAY")}</size>");
+            $"<size={screenCompactPrimaryFontSize}>{audioVisualizer.GetPlaybackStatusText().ToUpperInvariant()}</size>");
     }
 
     public void SetScreenAnalysisPageVisible(bool visible)
@@ -1379,19 +1385,9 @@ public class AudioCaptureCSCore : MonoBehaviour
             return;
         }
 
-        float[] energies =
-        {
-            audioVisualizer.smoothedKickEnergy * screenKickEnergyGain,
-            audioVisualizer.smoothedBassEnergy * screenBassEnergyGain,
-            audioVisualizer.smoothedSynthEnergy * screenSynthEnergyGain
-        };
-        for (int i = 0; i < _screenEnergyFills.Length; i++)
-        {
-            if (_screenEnergyFills[i] != null)
-            {
-                _screenEnergyFills[i].fillAmount = Mathf.Clamp01(energies[i]);
-            }
-        }
+        _screenEnergyTargets[0] = Mathf.Clamp01(audioVisualizer.smoothedKickEnergy * screenKickEnergyGain);
+        _screenEnergyTargets[1] = Mathf.Clamp01(audioVisualizer.smoothedBassEnergy * screenBassEnergyGain);
+        _screenEnergyTargets[2] = Mathf.Clamp01(audioVisualizer.smoothedSynthEnergy * screenSynthEnergyGain);
 
         int keyIndex = GetChromaKeyIndex(audioVisualizer.currentKey);
         if (_screenChromaWheel != null)
@@ -1406,6 +1402,17 @@ public class AudioCaptureCSCore : MonoBehaviour
             _screenAnalysisKeyText.text = string.IsNullOrWhiteSpace(audioVisualizer.currentKey) || audioVisualizer.currentKey == "Unknown"
                 ? "UNKNOWN"
                 : $"{audioVisualizer.currentKey}\n{audioVisualizer.currentMode}";
+        }
+    }
+
+    private void UpdateScreenEnergyBarVisuals()
+    {
+        float blend = 1f - Mathf.Exp(-Time.unscaledDeltaTime / Mathf.Max(0.02f, screenEnergyBarResponse));
+        for (int i = 0; i < _screenEnergyFills.Length; i++)
+        {
+            Image fill = _screenEnergyFills[i];
+            if (fill != null && fill.gameObject.activeInHierarchy)
+                fill.fillAmount = Mathf.Lerp(fill.fillAmount, _screenEnergyTargets[i], blend);
         }
     }
 

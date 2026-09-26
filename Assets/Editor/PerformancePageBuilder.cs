@@ -105,11 +105,12 @@ public static class PerformancePageBuilder
         toggleTransform.GetComponentInChildren<Text>(true).text = "PERFORMANCE";
 
         LayoutElement bodyLayout = settingsBody.GetComponent<LayoutElement>();
-        bodyLayout.minHeight = 116f;
-        bodyLayout.preferredHeight = 116f;
+        bodyLayout.minHeight = 132f;
+        bodyLayout.preferredHeight = 132f;
+        ((RectTransform)settingsBody).SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, 132f);
         ScreenCanvasModuleAnimator animator = settingsBody.GetComponentInParent<ScreenCanvasModuleAnimator>();
         SerializedObject animatorObject = new SerializedObject(animator);
-        animatorObject.FindProperty("expandedHeight").floatValue = 124f;
+        animatorObject.FindProperty("expandedHeight").floatValue = 172f;
         animatorObject.ApplyModifiedPropertiesWithoutUndo();
 
         Transform oldPage = dashboard.Find("PerformancePage");
