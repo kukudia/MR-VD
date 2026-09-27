@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using Oculus.Interaction;
+using Oculus.Interaction.Input.Visuals;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -11,6 +12,21 @@ public static class QuestVisualAndUiTuneup
 {
     private const string ScenePath = "Assets/Scenes/v203.0.0.unity";
     private const string MaterialFolder = "Assets/Materials/QuestUI";
+
+    [MenuItem("Tools/MR-VD/Hide Controllers and Update Placement Outline")]
+    public static void UpdatePlacementVisuals()
+    {
+        Scene scene = SceneManager.GetActiveScene();
+        if (scene.path != ScenePath || EditorApplication.isPlaying)
+            throw new InvalidOperationException("Open v203.0.0 in Edit Mode before updating placement visuals.");
+        GameObject screen = scene.GetRootGameObjects().FirstOrDefault(root => root.name == "Screen");
+        if (screen == null) throw new MissingReferenceException("Screen is missing.");
+        HideControllerModels(scene);
+        ConfigurePlacementOutline(screen);
+        EditorSceneManager.MarkSceneDirty(scene);
+        EditorSceneManager.SaveScene(scene);
+        Debug.Log("[QuestVisualAndUiTuneup] Controller models hidden; rounded white placement outline saved.");
+    }
 
     [MenuItem("Tools/MR-VD/Apply Quest Visual and UI Tuneup")]
     public static void Apply()
@@ -125,7 +141,8 @@ public static class QuestVisualAndUiTuneup
         min -= Vector2.one * margin;
         max += Vector2.one * margin;
 
-        GameObject outlineObject = new GameObject("PlacementOutline", typeof(RectTransform));
+        GameObject outlineObject = new GameObject("PlacementOutline", typeof(RectTransform),
+            typeof(CanvasRenderer), typeof(RoundedPlacementOutline), typeof(CanvasGroup));
         RectTransform outline = (RectTransform)outlineObject.transform;
         outline.SetParent(canvas, false);
         outline.SetAsLastSibling();
@@ -133,20 +150,13 @@ public static class QuestVisualAndUiTuneup
         outline.anchoredPosition3D = new Vector3((min.x + max.x) * 0.5f,
             (min.y + max.y) * 0.5f, -0.01f);
         outline.sizeDelta = max - min;
-        const float thickness = 0.006f;
-        Color color = new Color(0.25f, 0.9f, 1f, 1f);
-        CreateBorder("Top", outline, new Vector2(0.5f, 1f),
-            new Vector2(0.5f, 0.5f), new Vector2(0f, thickness * 0.5f),
-            new Vector2(outline.sizeDelta.x, thickness), color);
-        CreateBorder("Bottom", outline, new Vector2(0.5f, 0f),
-            new Vector2(0.5f, 0.5f), new Vector2(0f, -thickness * 0.5f),
-            new Vector2(outline.sizeDelta.x, thickness), color);
-        CreateBorder("Left", outline, new Vector2(0f, 0.5f),
-            new Vector2(0.5f, 0.5f), new Vector2(-thickness * 0.5f, 0f),
-            new Vector2(thickness, outline.sizeDelta.y), color);
-        CreateBorder("Right", outline, new Vector2(1f, 0.5f),
-            new Vector2(0.5f, 0.5f), new Vector2(thickness * 0.5f, 0f),
-            new Vector2(thickness, outline.sizeDelta.y), color);
+        RoundedPlacementOutline graphic = outlineObject.GetComponent<RoundedPlacementOutline>();
+        graphic.color = Color.white;
+        graphic.raycastTarget = false;
+        CanvasGroup fade = outlineObject.GetComponent<CanvasGroup>();
+        fade.alpha = 0f;
+        fade.interactable = false;
+        fade.blocksRaycasts = false;
         outlineObject.SetActive(false);
         ScreenRayManipulator manipulator = screen.GetComponent<ScreenRayManipulator>();
         SerializedObject serialized = new SerializedObject(manipulator);
@@ -155,19 +165,30 @@ public static class QuestVisualAndUiTuneup
         serialized.ApplyModifiedPropertiesWithoutUndo();
     }
 
-    private static void CreateBorder(string name, RectTransform parent, Vector2 anchor,
-        Vector2 pivot, Vector2 position, Vector2 size, Color color)
+    private static void HideControllerModels(Scene scene)
     {
-        GameObject edge = new GameObject(name, typeof(RectTransform), typeof(Image));
-        RectTransform rect = (RectTransform)edge.transform;
-        rect.SetParent(parent, false);
-        rect.anchorMin = rect.anchorMax = anchor;
-        rect.pivot = pivot;
-        rect.anchoredPosition = position;
-        rect.sizeDelta = size;
-        Image image = edge.GetComponent<Image>();
-        image.color = color;
-        image.raycastTarget = false;
+        foreach (GameObject root in scene.GetRootGameObjects())
+        {
+            foreach (ControllerVisual visual in root.GetComponentsInChildren<ControllerVisual>(true))
+            {
+                visual.gameObject.SetActive(false);
+                PrefabUtility.RecordPrefabInstancePropertyModifications(visual.gameObject);
+            }
+            foreach (OVRControllerHelper helper in root.GetComponentsInChildren<OVRControllerHelper>(true))
+            {
+                if (!helper.name.StartsWith("[BuildingBlock] Controller Tracking", StringComparison.Ordinal))
+                    continue;
+                helper.enabled = false;
+                EditorUtility.SetDirty(helper);
+                PrefabUtility.RecordPrefabInstancePropertyModifications(helper);
+                foreach (Renderer renderer in helper.GetComponentsInChildren<Renderer>(true))
+                {
+                    renderer.enabled = false;
+                    EditorUtility.SetDirty(renderer);
+                    PrefabUtility.RecordPrefabInstancePropertyModifications(renderer);
+                }
+            }
+        }
     }
 
     private static void ConfigureSettings(Transform screen)

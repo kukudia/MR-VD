@@ -15,6 +15,7 @@ public sealed class ScreenRayManipulator : MonoBehaviour
     [SerializeField] private CanvasGroup canvasInputGroup;
     [SerializeField] private Text interactionHint;
     [SerializeField] private GameObject placementOutline;
+    [SerializeField, Min(0.01f)] private float outlineFadeDuration = 0.18f;
     [Tooltip("Temporarily suspend controller locomotion while the sticks place the screen.")]
     [SerializeField] private LocomotionEventsConnection[] controllerLocomotion = new LocomotionEventsConnection[0];
 
@@ -45,6 +46,7 @@ public sealed class ScreenRayManipulator : MonoBehaviour
     private bool previousBlocksRaycasts;
     private bool hasFocus = true;
     private bool isPaused;
+    private CanvasGroup outlineGroup;
 
     public bool IsManipulating => activeController >= 0;
 
@@ -57,18 +59,22 @@ public sealed class ScreenRayManipulator : MonoBehaviour
         locomotionWasEnabled = new bool[controllerLocomotion.Length];
         for (int i = 0; i < controllerRays.Length; i++)
             controllers[i] = controllerRays[i] != null ? controllerRays[i].GetComponent<ControllerRef>() : null;
+        if (placementOutline != null) outlineGroup = placementOutline.GetComponent<CanvasGroup>();
     }
 
     private void OnEnable()
     {
         positionController.BeforeRecenter += EndManipulation;
         if (interactionHint != null) interactionHint.gameObject.SetActive(false);
+        if (outlineGroup != null) outlineGroup.alpha = 0f;
         if (placementOutline != null) placementOutline.SetActive(false);
     }
 
     private void OnDisable()
     {
         EndManipulation();
+        if (outlineGroup != null) outlineGroup.alpha = 0f;
+        if (placementOutline != null) placementOutline.SetActive(false);
         positionController.BeforeRecenter -= EndManipulation;
     }
 
@@ -86,6 +92,7 @@ public sealed class ScreenRayManipulator : MonoBehaviour
 
     private void LateUpdate()
     {
+        UpdateOutline(Mathf.Min(Time.unscaledDeltaTime, 0.1f));
         if (!hasFocus || isPaused || canvasInteractable == null || !canvasInteractable.isActiveAndEnabled
             || canvasInputGroup == null)
         {
@@ -160,11 +167,28 @@ public sealed class ScreenRayManipulator : MonoBehaviour
         float blend = 1f - Mathf.Exp(-dt / pointerSmoothingTime);
         displayedScaleMultiplier = Mathf.Lerp(displayedScaleMultiplier, scaleMultiplier, blend);
         transform.localScale = authoredScale * displayedScaleMultiplier;
-        // Keep the original hit point on the ray, including while scaling off-center.
-        // Rotation is deliberately retained so wrist roll does not tilt the whole desktop.
         Vector3 target = ray.Origin + ray.Forward * grabDistance;
         smoothedTarget = Vector3.Lerp(smoothedTarget, target, blend);
+        Transform cameraTransform = positionController.CameraTransform;
+        if (cameraTransform != null)
+        {
+            Vector3 cameraToScreen = transform.position - cameraTransform.position;
+            if (cameraToScreen.sqrMagnitude > 0.0001f)
+                transform.rotation = Quaternion.Slerp(transform.rotation,
+                    Quaternion.LookRotation(cameraToScreen, Vector3.up), blend);
+        }
+        // Translation compensates for scale and rotation around the off-center grab point.
         transform.position += smoothedTarget - transform.TransformPoint(localGrabPoint);
+    }
+
+    private void UpdateOutline(float dt)
+    {
+        if (outlineGroup == null || placementOutline == null) return;
+        if (IsManipulating && !placementOutline.activeSelf) placementOutline.SetActive(true);
+        outlineGroup.alpha = Mathf.MoveTowards(outlineGroup.alpha, IsManipulating ? 1f : 0f,
+            dt / outlineFadeDuration);
+        if (!IsManipulating && outlineGroup.alpha <= 0f && placementOutline.activeSelf)
+            placementOutline.SetActive(false);
     }
 
     private bool IsTracked(int index)
@@ -192,7 +216,7 @@ public sealed class ScreenRayManipulator : MonoBehaviour
         }
         // Reconnection, recenter and a second hand all require a fresh grip, not a held button.
         if (gripArmed != null) System.Array.Clear(gripArmed, 0, gripArmed.Length);
-        if (placementOutline != null) placementOutline.SetActive(false);
+        if (placementOutline != null && outlineGroup == null) placementOutline.SetActive(false);
     }
 
     private void OnValidate()
@@ -201,5 +225,6 @@ public sealed class ScreenRayManipulator : MonoBehaviour
         maximumDistance = Mathf.Max(minimumDistance, maximumDistance);
         minimumScale = Mathf.Clamp(minimumScale, 0.01f, 1f);
         maximumScale = Mathf.Max(1f, maximumScale);
+        outlineFadeDuration = Mathf.Max(0.01f, outlineFadeDuration);
     }
 }

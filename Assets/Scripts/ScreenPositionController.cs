@@ -24,6 +24,7 @@ public class ScreenPositionController : MonoBehaviour
 
     public event Action BeforeRecenter;
     public bool IsManuallyControlled { get; private set; }
+    public Transform CameraTransform => GetCameraTransform();
     public bool UsesHeadsetPlacement => platform == PositioningPlatform.Headset
         || (platform == PositioningPlatform.Automatic
             && (Application.platform == RuntimePlatform.Android || XRSettings.isDeviceActive));
