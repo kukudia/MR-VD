@@ -32084,9 +32084,11 @@ MonoBehaviour:
   - {fileID: 1888493636}
   - {fileID: 655826625}
   - {fileID: 577387666}
-  minimumBurstInterval: 0.28
+  minimumBurstInterval: 0.18
+  minimumOnsetConfidence: 0.22
+  minimumImpact: 0.55
   beatsPerVariant: 4
-  meteorIntensity: 0.85
+  meteorIntensity: 1
   backgroundParticles: {fileID: 1157853602}
   smokeEffect: {fileID: 1163695019}
   laserBeamEffect: {fileID: 839570183}

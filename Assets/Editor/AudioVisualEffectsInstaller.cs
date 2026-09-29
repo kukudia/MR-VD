@@ -28,6 +28,54 @@ public static class AudioVisualEffectsInstaller
         Install(SceneManager.GetActiveScene());
     }
 
+    [MenuItem("Tools/MR-VD/Audio Effects/Boost Installed Impact Assets")]
+    public static void BoostInstalledImpactAssets()
+    {
+        if (EditorApplication.isPlaying) throw new InvalidOperationException("Update impact assets in Edit Mode.");
+        foreach (string variant in Variants)
+        {
+            string path = ArtRoot + "/" + variant + ".prefab";
+            GameObject root = PrefabUtility.LoadPrefabContents(path);
+            try
+            {
+                var systems = root.GetComponentsInChildren<ParticleSystem>(true);
+                if (systems.Length != 2) throw new InvalidOperationException("Incomplete meteor prefab: " + path);
+                var heads = systems.First(x => x.name == "Meteors").main;
+                heads.maxParticles = Mathf.Max(heads.maxParticles, 144);
+                var sparks = systems.First(x => x.name == "Burst Sparks").main;
+                sparks.maxParticles = Mathf.Max(sparks.maxParticles, 256);
+                foreach (ParticleSystem system in systems) ConfigureImpactEnvelope(system);
+                PrefabUtility.SaveAsPrefabAsset(root, path);
+            }
+            finally { PrefabUtility.UnloadPrefabContents(root); }
+        }
+
+        var material = AssetDatabase.LoadAssetAtPath<Material>(ArtRoot + "/MeteorGlow.mat");
+        if (material != null)
+        {
+            Undo.RecordObject(material, "Brighten XR meteor glow");
+            material.SetFloat("_Emission", 4.5f);
+            EditorUtility.SetDirty(material);
+        }
+        AssetDatabase.SaveAssets();
+        Debug.Log("[AudioEffects] Strengthened four meteor variants and raised particle capacity for per-beat bursts.");
+    }
+
+    private static void ConfigureImpactEnvelope(ParticleSystem ps)
+    {
+        var color = ps.colorOverLifetime;
+        // Keep each authored palette; replace only the slow fade-in and soft attack envelope.
+        Gradient gradient = color.color.gradient;
+        gradient.SetKeys(gradient.colorKeys, new[] {
+            new GradientAlphaKey(0.95f, 0f), new GradientAlphaKey(1f, 0.025f),
+            new GradientAlphaKey(0.7f, 0.28f), new GradientAlphaKey(0.18f, 0.7f), new GradientAlphaKey(0f, 1f)
+        });
+        color.color = gradient;
+        var size = ps.sizeOverLifetime;
+        size.size = new ParticleSystem.MinMaxCurve(1f, new AnimationCurve(
+            new Keyframe(0f, 1f), new Keyframe(0.12f, 0.9f), new Keyframe(1f, 0.15f)));
+    }
+
     [MenuItem("Tools/MR-VD/Audio Effects/Migrate Project Scenes")]
     public static void MigrateProjectScenes()
     {
@@ -38,7 +86,7 @@ public static class AudioVisualEffectsInstaller
         var setup = EditorSceneManager.GetSceneManagerSetup();
         try
         {
-            foreach (string path in new[] { "Assets/Scenes/v203.0.0.unity", "Assets/Scenes/v77.0(Abondoned).unity" })
+            foreach (string path in new[] { "Assets/Scenes/v203.0.0.unity" })
             {
                 Scene scene = EditorSceneManager.OpenScene(path, OpenSceneMode.Single);
                 Install(scene);
@@ -47,7 +95,7 @@ public static class AudioVisualEffectsInstaller
         }
         finally { EditorSceneManager.RestoreSceneManagerSetup(setup); }
         AssetDatabase.SaveAssets();
-        Debug.Log("[AudioEffects] Migrated both stage scenes and saved four editable meteor prefabs.");
+        Debug.Log("[AudioEffects] Migrated the stage scene and saved four editable meteor prefabs.");
     }
 
     private static void Install(Scene scene)
@@ -167,7 +215,7 @@ public static class AudioVisualEffectsInstaller
         if (material == null)
         {
             material = new Material(shader) { name = "MeteorGlow", enableInstancing = true };
-            material.SetFloat("_Emission", 3f);
+            material.SetFloat("_Emission", 4.5f);
             AssetDatabase.CreateAsset(material, materialPath);
         }
         for (int i = 0; i < Variants.Length; i++)
@@ -201,7 +249,7 @@ public static class AudioVisualEffectsInstaller
         var main = ps.main;
         main.loop = false; main.playOnAwake = false; main.duration = 2f;
         main.simulationSpace = ParticleSystemSimulationSpace.World;
-        main.maxParticles = trails ? 128 : 96;
+        main.maxParticles = trails ? 144 : 256;
         main.startSpeed = 0f; main.startLifetime = 1.1f; main.startSize = 0.06f;
         main.startColor = Color.white;
         main.cullingMode = ParticleSystemCullingMode.AlwaysSimulate;
@@ -231,6 +279,7 @@ public static class AudioVisualEffectsInstaller
             trail.inheritParticleColor = false;
             renderer.trailMaterial = material;
         }
+        ConfigureImpactEnvelope(ps);
         return ps;
     }
 

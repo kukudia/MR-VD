@@ -604,7 +604,7 @@ ParticleSystem:
         m_RotationOrder: 4
     randomizeRotationDirection: 0
     gravitySource: 0
-    maxNumParticles: 96
+    maxNumParticles: 256
     customEmitterVelocity: {x: 0, y: 0, z: 0}
     size3D: 0
     rotation3D: 0
@@ -987,15 +987,6 @@ ParticleSystem:
         m_Curve:
         - serializedVersion: 3
           time: 0
-          value: 0.65
-          inSlope: 0
-          outSlope: 0
-          tangentMode: 0
-          weightedMode: 0
-          inWeight: 0
-          outWeight: 0
-        - serializedVersion: 3
-          time: 0.12
           value: 1
           inSlope: 0
           outSlope: 0
@@ -1004,8 +995,17 @@ ParticleSystem:
           inWeight: 0
           outWeight: 0
         - serializedVersion: 3
+          time: 0.12
+          value: 0.9
+          inSlope: 0
+          outSlope: 0
+          tangentMode: 0
+          weightedMode: 0
+          inWeight: 0
+          outWeight: 0
+        - serializedVersion: 3
           time: 1
-          value: 0.2
+          value: 0.15
           inSlope: 0
           outSlope: 0
           tangentMode: 0
@@ -1317,10 +1317,10 @@ ParticleSystem:
       maxColor: {r: 1, g: 1, b: 1, a: 1}
       maxGradient:
         serializedVersion: 2
-        key0: {r: 1, g: 0.36, b: 0.8, a: 0}
+        key0: {r: 1, g: 0.36, b: 0.8, a: 0.95}
         key1: {r: 1, g: 0.68, b: 0.9, a: 1}
-        key2: {r: 1, g: 0.36, b: 0.8, a: 0.8}
-        key3: {r: 0.32, g: 0.1, b: 1, a: 0}
+        key2: {r: 1, g: 0.36, b: 0.8, a: 0.7}
+        key3: {r: 0.32, g: 0.1, b: 1, a: 0.18}
         key4: {r: 0, g: 0, b: 0, a: 0}
         key5: {r: 0, g: 0, b: 0, a: 0}
         key6: {r: 0, g: 0, b: 0, a: 0}
@@ -1334,17 +1334,17 @@ ParticleSystem:
         ctime6: 0
         ctime7: 0
         atime0: 0
-        atime1: 5243
-        atime2: 42598
-        atime3: 65535
-        atime4: 0
+        atime1: 1638
+        atime2: 18350
+        atime3: 45875
+        atime4: 65535
         atime5: 0
         atime6: 0
         atime7: 0
         m_Mode: 0
         m_ColorSpace: -1
         m_NumColorKeys: 4
-        m_NumAlphaKeys: 4
+        m_NumAlphaKeys: 5
       minGradient:
         serializedVersion: 2
         key0: {r: 1, g: 1, b: 1, a: 1}
@@ -5449,7 +5449,7 @@ ParticleSystem:
         m_RotationOrder: 4
     randomizeRotationDirection: 0
     gravitySource: 0
-    maxNumParticles: 128
+    maxNumParticles: 144
     customEmitterVelocity: {x: 0, y: 0, z: 0}
     size3D: 0
     rotation3D: 0
@@ -5832,15 +5832,6 @@ ParticleSystem:
         m_Curve:
         - serializedVersion: 3
           time: 0
-          value: 0.65
-          inSlope: 0
-          outSlope: 0
-          tangentMode: 0
-          weightedMode: 0
-          inWeight: 0
-          outWeight: 0
-        - serializedVersion: 3
-          time: 0.12
           value: 1
           inSlope: 0
           outSlope: 0
@@ -5849,8 +5840,17 @@ ParticleSystem:
           inWeight: 0
           outWeight: 0
         - serializedVersion: 3
+          time: 0.12
+          value: 0.9
+          inSlope: 0
+          outSlope: 0
+          tangentMode: 0
+          weightedMode: 0
+          inWeight: 0
+          outWeight: 0
+        - serializedVersion: 3
           time: 1
-          value: 0.2
+          value: 0.15
           inSlope: 0
           outSlope: 0
           tangentMode: 0
@@ -6162,10 +6162,10 @@ ParticleSystem:
       maxColor: {r: 1, g: 1, b: 1, a: 1}
       maxGradient:
         serializedVersion: 2
-        key0: {r: 1, g: 0.36, b: 0.8, a: 0}
+        key0: {r: 1, g: 0.36, b: 0.8, a: 0.95}
         key1: {r: 1, g: 0.68, b: 0.9, a: 1}
-        key2: {r: 1, g: 0.36, b: 0.8, a: 0.8}
-        key3: {r: 0.32, g: 0.1, b: 1, a: 0}
+        key2: {r: 1, g: 0.36, b: 0.8, a: 0.7}
+        key3: {r: 0.32, g: 0.1, b: 1, a: 0.18}
         key4: {r: 0, g: 0, b: 0, a: 0}
         key5: {r: 0, g: 0, b: 0, a: 0}
         key6: {r: 0, g: 0, b: 0, a: 0}
@@ -6179,17 +6179,17 @@ ParticleSystem:
         ctime6: 0
         ctime7: 0
         atime0: 0
-        atime1: 5243
-        atime2: 42598
-        atime3: 65535
-        atime4: 0
+        atime1: 1638
+        atime2: 18350
+        atime3: 45875
+        atime4: 65535
         atime5: 0
         atime6: 0
         atime7: 0
         m_Mode: 0
         m_ColorSpace: -1
         m_NumColorKeys: 4
-        m_NumAlphaKeys: 4
+        m_NumAlphaKeys: 5
       minGradient:
         serializedVersion: 2
         key0: {r: 1, g: 1, b: 1, a: 1}
@@ -9746,3 +9746,8 @@ MonoBehaviour:
   flightTime: 1.1
   meteorsPerSide: 9
   seed: 1018
+  strongBeatCountMultiplier: 1.4
+  strongBeatSpeedMultiplier: 1.28
+  strongBeatSizeMultiplier: 1.5
+  burstSparksPerSide: 12
+  impactFlashSize: 0.45

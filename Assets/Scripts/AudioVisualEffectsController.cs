@@ -2,7 +2,7 @@ using System;
 using UnityEngine;
 using UnityEngine.VFX;
 
-/// <summary>Owns audio VFX. Meteors consume detected beats, never the stage's synthetic beat clock.</summary>
+/// <summary>Owns audio VFX. Meteors consume real audio onsets independently of the tempo clock.</summary>
 [DisallowMultipleComponent]
 [DefaultExecutionOrder(100)]
 public sealed class AudioVisualEffectsController : MonoBehaviour
@@ -14,9 +14,13 @@ public sealed class AudioVisualEffectsController : MonoBehaviour
     [SerializeField] private StageManager stage;
     [Header("XR Beat Meteors")]
     [SerializeField] private XrBeatMeteorEffect[] meteorVariants = new XrBeatMeteorEffect[0];
-    [SerializeField, Min(0.1f)] private float minimumBurstInterval = 0.28f;
+    [Tooltip("Deduplicates a drum attack without blocking faster musical accents like the BPM cooldown does.")]
+    [SerializeField, Min(0.1f)] private float minimumBurstInterval = 0.18f;
+    [SerializeField, Range(0f, 1f)] private float minimumOnsetConfidence = 0.22f;
+    [Tooltip("Minimum presence of an accepted hit; stronger attacks still produce faster, larger volleys.")]
+    [SerializeField, Range(0f, 1f)] private float minimumImpact = 0.55f;
     [SerializeField, Min(1)] private int beatsPerVariant = 4;
-    [SerializeField, Range(0f, 1f)] private float meteorIntensity = 0.85f;
+    [SerializeField, Range(0f, 1f)] private float meteorIntensity = 1f;
     [Header("Stage Graphs")]
     [SerializeField] private VisualEffect backgroundParticles;
     [SerializeField] private VisualEffect smokeEffect;
@@ -29,7 +33,7 @@ public sealed class AudioVisualEffectsController : MonoBehaviour
     [SerializeField, Range(0f, 4f)] private float masterIntensity = 1f;
     [SerializeField] private GraphSettings vfx = new GraphSettings();
 
-    private float lastObservedBeat;
+    private uint lastObservedOnset;
     private float lastBurstTime = float.NegativeInfinity;
     private int beatCount;
     public int EmittedBeatCount { get; private set; }
@@ -42,7 +46,7 @@ public sealed class AudioVisualEffectsController : MonoBehaviour
         if (audioVisualizer == null) audioVisualizer = FindFirstObjectByType<AudioVisualizer>();
         if (targetCamera == null) targetCamera = Camera.main;
         // Enabling the component must not replay a stale beat.
-        lastObservedBeat = audioVisualizer != null ? audioVisualizer.lastBeatTime : 0f;
+        lastObservedOnset = audioVisualizer != null ? audioVisualizer.VisualOnsetSequence : 0;
         lastBurstTime = float.NegativeInfinity;
     }
 
@@ -51,12 +55,13 @@ public sealed class AudioVisualEffectsController : MonoBehaviour
         if (targetCamera == null || !targetCamera.isActiveAndEnabled) targetCamera = Camera.main;
         if (audioVisualizer == null || !audioVisualizer.isActiveAndEnabled) return;
 
-        float timestamp = audioVisualizer.lastBeatTime;
-        bool freshBeat = timestamp > lastObservedBeat;
-        lastObservedBeat = timestamp;
-        if (vfx.enableVFX && vfx.triggerBeatEvents && !audioVisualizer.wasSilent && freshBeat)
+        uint sequence = audioVisualizer.VisualOnsetSequence;
+        bool freshOnset = sequence != lastObservedOnset && Time.time - audioVisualizer.VisualOnsetTime < 0.12f;
+        lastObservedOnset = sequence;
+        if (vfx.enableVFX && vfx.triggerBeatEvents && !audioVisualizer.wasSilent && freshOnset
+            && audioVisualizer.VisualOnsetConfidence >= minimumOnsetConfidence)
         {
-            EmitBeat(Mathf.Clamp01(0.35f + audioVisualizer.smoothedKickEnergy * 12f));
+            EmitBeat(Mathf.Lerp(minimumImpact, 1f, audioVisualizer.VisualOnsetStrength));
         }
         if (!vfx.enableVFX) return;
         UpdateGraphs();
@@ -65,7 +70,8 @@ public sealed class AudioVisualEffectsController : MonoBehaviour
     public void EmitBeat(float strength)
     {
         if (!isActiveAndEnabled || targetCamera == null || !targetCamera.isActiveAndEnabled
-            || meteorVariants.Length == 0 || Time.time - lastBurstTime < minimumBurstInterval) return;
+            || meteorVariants.Length == 0 || strength <= 0f || meteorIntensity * masterIntensity <= 0f
+            || Time.time - lastBurstTime < minimumBurstInterval) return;
         int index = (beatCount / Mathf.Max(1, beatsPerVariant)) % meteorVariants.Length;
         XrBeatMeteorEffect effect = meteorVariants[index];
         if (effect == null || !effect.isActiveAndEnabled) return;

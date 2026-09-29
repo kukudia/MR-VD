@@ -2,7 +2,7 @@ Shader "MR-VD/XR Meteor Additive"
 {
     Properties
     {
-        _Emission ("Emission", Range(0,8)) = 3
+        _Emission ("Emission", Range(0,8)) = 4.5
         _NearFade ("Near Fade Start / End (metres)", Vector) = (0.85,1.4,0,0)
     }
     SubShader

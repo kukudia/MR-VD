@@ -159,6 +159,13 @@ public class AudioVisualizer : MonoBehaviour
     [Tooltip("Timestamp of the last detected beat, in Time.time seconds.")]
     public float lastBeatTime = 0f;
 
+    // Transients are published before the tempo estimator's cooldown. VFX may follow
+    // subdivisions without adding those accents to the BPM history.
+    public uint VisualOnsetSequence { get; private set; }
+    public float VisualOnsetTime { get; private set; } = float.NegativeInfinity;
+    public float VisualOnsetConfidence { get; private set; }
+    public float VisualOnsetStrength { get; private set; }
+
     [Tooltip("Timestamp of the last BPM update, in Time.time seconds.")]
     public float lastBpmUpdateTime = 0f;
 
@@ -438,7 +445,7 @@ public class AudioVisualizer : MonoBehaviour
         UpdateBars(smoothedFftData, smoothedLeftFftData, smoothedRightFftData);
 
         // Run the unified beat detection pipeline.
-        DetectBeatImproved(frequencyData);
+        DetectBeatImproved(frequencyData, Time.time, Time.deltaTime);
     }
 
     /// <summary>
@@ -824,10 +831,8 @@ public class AudioVisualizer : MonoBehaviour
     ///   3. beatCooldown ignores onsets inside the hard cooldown window.
     ///   4. OnKeyChanged no longer writes into beatTimestamps.
     /// </summary>
-    private void DetectBeatImproved(float[] fft)
+    private void DetectBeatImproved(float[] fft, float time, float deltaTime)
     {
-        float time = Time.time;
-
         // Step 1: calculate multi-band energy.
         float snareEnergy = GetBandEnergy(fft, 150, 300);
 
@@ -869,9 +874,9 @@ public class AudioVisualizer : MonoBehaviour
 
         // Smooth thresholds with Lerp; higher speeds respond faster.
         smoothedKickThreshold = Mathf.Lerp(smoothedKickThreshold, rawKickThreshold,
-            Time.deltaTime * dynamicKickThresholdSpeed);
+            deltaTime * dynamicKickThresholdSpeed);
         smoothedSnareThreshold = Mathf.Lerp(smoothedSnareThreshold, rawSnareThreshold,
-            Time.deltaTime * dynamicSnareThresholdSpeed);
+            deltaTime * dynamicSnareThresholdSpeed);
 
         // Expose smoothed thresholds for UI and dependent systems.
         dynamicKickThreshold = smoothedKickThreshold;
@@ -896,6 +901,15 @@ public class AudioVisualizer : MonoBehaviour
             ? Mathf.Clamp01(bassOnset / Mathf.Max(bassMean * 0.35f, 1e-6f)) * 0.45f
             : 0f;
         float totalConfidence = Mathf.Clamp01(Mathf.Max(kickConfidence, snareConfidence) + bassConfidence);
+
+        if (isKickBeat || isSnareBeat)
+        {
+            float attack = Mathf.Max(
+                kickOnset / Mathf.Max(kickMean * 0.75f, kickOnsetFloor),
+                snareOnset / Mathf.Max(snareMean * 0.75f, snareOnsetFloor));
+            PublishVisualOnset(time, totalConfidence,
+                Mathf.Clamp01(totalConfidence * 0.65f + Mathf.Clamp01(attack) * 0.35f));
+        }
 
         // Step 6: boost confidence inside the predicted phase window.
         float timeSinceLast = time - lastBeatTime;
@@ -974,9 +988,18 @@ public class AudioVisualizer : MonoBehaviour
             beatConfidences.Add(1.0f);
             beatStrengths.Add(kickEnergy + snareEnergy);
             lastBeatTime = time;
+            PublishVisualOnset(time, 1f, 1f);
             Debug.Log($"[Beat] Manual tap @ {time:F2}s");
         }
 
+    }
+
+    private void PublishVisualOnset(float time, float confidence, float strength)
+    {
+        VisualOnsetTime = time;
+        VisualOnsetConfidence = confidence;
+        VisualOnsetStrength = strength;
+        VisualOnsetSequence++;
     }
 
     /// <summary>
@@ -1716,7 +1739,7 @@ public class AudioVisualizer : MonoBehaviour
 
     private float GetBandEnergy(float[] spectrum, float fMin, float fMax)
     {
-        int sampleRate = AudioCaptureCSCore.instance.waveSource.WaveFormat.SampleRate;
+        int sampleRate = GetCurrentSampleRate();
         int imin = Mathf.FloorToInt(fMin * fftSize / sampleRate);
         int imax = Mathf.FloorToInt(fMax * fftSize / sampleRate);
 
