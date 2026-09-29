@@ -12,16 +12,15 @@ public sealed class XrBeatMeteorEffect : MonoBehaviour
     [SerializeField, Min(0f)] private float verticalSpread = 0.8f;
     [Tooltip("The trajectories stay on their own side of the central reading area.")]
     [SerializeField, Min(0.6f)] private float passingOffset = 1.15f;
-    [SerializeField, Range(0.45f, 2f)] private float flightTime = 1.1f;
+    [SerializeField, Range(0.65f, 2f)] private float flightTime = 1.1f;
     [SerializeField, Range(1, 24)] private int meteorsPerSide = 9;
     [SerializeField] private int seed = 917;
-    [Header("Impact response")]
-    [SerializeField, Range(1f, 2f)] private float strongBeatCountMultiplier = 1.4f;
-    [SerializeField, Range(1f, 2f)] private float strongBeatSpeedMultiplier = 1.28f;
-    [SerializeField, Range(1f, 2f)] private float strongBeatSizeMultiplier = 1.5f;
-    [SerializeField, Range(0, 20)] private int burstSparksPerSide = 12;
-    [Tooltip("Small, short-lived glow at each launch point, in metres; never a full-screen flash.")]
-    [SerializeField, Range(0f, 0.8f)] private float impactFlashSize = 0.45f;
+    // The prefab's Speed Modifier curve is normalized to this mean, so each
+    // comet covers the same peripheral path despite its rapid initial motion.
+    private const float speedDecayRate = 3.4f;
+    private const float finalSpeedFraction = 0.12f;
+    private static readonly float meanSpeedModifier = finalSpeedFraction
+        + (1f - finalSpeedFraction) * (1f - Mathf.Exp(-speedDecayRate)) / speedDecayRate;
     private System.Random random;
 
     public int LiveParticleCount => (meteors != null ? meteors.particleCount : 0) + (sparks != null ? sparks.particleCount : 0);
@@ -38,57 +37,32 @@ public sealed class XrBeatMeteorEffect : MonoBehaviour
         if (forward.sqrMagnitude < 0.1f) forward = Vector3.forward;
         Vector3 right = Vector3.Cross(Vector3.up, forward);
         float impact = Mathf.Clamp01(intensity);
-        int count = Mathf.Max(1, Mathf.RoundToInt(meteorsPerSide * Mathf.Lerp(0.65f, strongBeatCountMultiplier, impact)));
+        int count = Mathf.Max(1, Mathf.RoundToInt(meteorsPerSide * Mathf.Lerp(0.5f, 1f, impact)));
         for (int side = -1; side <= 1; side += 2)
         {
-            Vector3 burstOrigin = origin + right * side * sideOffset + forward * forwardDistance;
             for (int i = 0; i < count; i++)
             {
-                Vector3 start = burstOrigin + right * Range(-0.18f, 0.18f)
-                    + forward * Range(-0.15f, 0.15f)
-                    + Vector3.up * Range(-verticalSpread * 0.35f, verticalSpread * 0.35f);
+                Vector3 start = origin + right * side * (sideOffset + Range(-0.25f, 0.3f))
+                    + forward * (forwardDistance + Range(-0.3f, 0.35f))
+                    + Vector3.up * Range(-verticalSpread, verticalSpread);
                 Vector3 end = origin + right * side * (passingOffset + Range(0f, 0.65f))
                     + forward * 0.65f + Vector3.up * Range(-verticalSpread * 1.3f, verticalSpread * 1.3f);
-                float duration = flightTime / Mathf.Lerp(0.9f, strongBeatSpeedMultiplier, impact) * Range(0.85f, 1.15f);
+                float duration = flightTime * Range(0.85f, 1.15f);
                 var emission = new ParticleSystem.EmitParams
                 {
-                    position = start, velocity = (end - start) / duration,
-                    startLifetime = duration, startSize = Range(0.045f, 0.09f) * Mathf.Lerp(0.85f, strongBeatSizeMultiplier, impact),
+                    position = start, velocity = (end - start) / (duration * meanSpeedModifier),
+                    startLifetime = duration, startSize = Range(0.035f, 0.075f),
                     randomSeed = (uint)random.Next(1, int.MaxValue)
                 };
                 meteors.Emit(emission, 1);
                 if (sparks != null)
                 {
-                    emission.startSize *= 0.38f;
+                    emission.startSize *= 0.4f;
                     emission.startLifetime = Range(0.22f, 0.4f);
                     emission.velocity = right * side * Range(-0.8f, 1.6f)
                         + Vector3.up * Range(-1.5f, 1.5f) - forward * Range(0.2f, 1f);
                     sparks.Emit(emission, 2);
                 }
-            }
-
-            if (sparks == null) continue;
-            if (impactFlashSize > 0f)
-                sparks.Emit(new ParticleSystem.EmitParams
-                {
-                    position = burstOrigin, velocity = Vector3.zero,
-                    startLifetime = 0.1f, startSize = impactFlashSize * Mathf.Lerp(0.5f, 1f, impact),
-                    randomSeed = (uint)random.Next(1, int.MaxValue)
-                }, 1);
-            int burstCount = Mathf.RoundToInt(burstSparksPerSide * Mathf.Lerp(0.4f, 1f, impact));
-            for (int i = 0; i < burstCount; i++)
-            {
-                Vector3 direction = (right * side * Range(0.25f, 1f)
-                    + Vector3.up * Range(-0.8f, 0.8f)
-                    + forward * Range(-0.7f, 0.25f)).normalized;
-                sparks.Emit(new ParticleSystem.EmitParams
-                {
-                    position = burstOrigin + Vector3.up * Range(-0.2f, 0.2f),
-                    velocity = direction * Range(2.2f, 4.8f) * Mathf.Lerp(0.8f, 1.45f, impact),
-                    startLifetime = Range(0.2f, 0.42f),
-                    startSize = Range(0.045f, 0.085f) * Mathf.Lerp(0.9f, 1.55f, impact),
-                    randomSeed = (uint)random.Next(1, int.MaxValue)
-                }, 1);
             }
         }
     }

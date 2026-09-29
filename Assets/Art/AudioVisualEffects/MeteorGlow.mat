@@ -25,7 +25,7 @@ Material:
     m_TexEnvs: []
     m_Ints: []
     m_Floats:
-    - _Emission: 4.5
+    - _Emission: 7.5
     m_Colors:
     - _NearFade: {r: 0.85, g: 1.4, b: 0, a: 0}
   m_BuildTextureStacks: []

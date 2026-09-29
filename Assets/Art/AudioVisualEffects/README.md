@@ -11,13 +11,13 @@ All four prefabs and MeteorGlow.mat are native editable assets. The shader gener
 ## Editing and preview
 
 - Scene root `Audio Visual Effects`: AudioVisualEffectsController binds AudioVisualizer, camera, optional stage palette/cues and four prefab instances. It rotates variant after four visual onsets; minimum burst interval is 0.18 s and the tempo detector keeps its own 0.45 s BPM cooldown. `Preview Beat (Play Mode)` is a context menu on the component.
-- Each prefab: XrBeatMeteorEffect controls side distance, forward distance, passing offset, lifetime, count and seed. `Strong Beat Count/Speed/Size Multiplier`, `Burst Sparks Per Side` and `Impact Flash Size` control punch. `Meteors` and `Burst Sparks` expose Particle System colors, curves, capacity and trails. Material emission and head-distance fade are editable.
-- Default strong volley: 26 meteor heads + 78 sparks (including two 0.1 s local flashes). Heads launch faster and larger with onset strength; trails last 0.3 s. Each variant is capped at 144 heads / 256 sparks. These are conservative initial budgets, not measured headset performance guarantees.
+- Each prefab: XrBeatMeteorEffect controls side distance, forward distance, passing offset, lifetime, count and seed. `Meteors` and `Burst Sparks` expose Particle System colors, curves, capacity and trails. Material emission and head-distance fade are editable.
+- Default strong volley: 18 meteor heads + 36 short companion sparks, with no separate flash or scatter burst. Heads have high initial speed and brightness, then slow and dim through lifetime. Each particle system is capped at 128 particles. These are conservative initial budgets, not measured headset performance guarantees.
 - A volley captures horizontal camera orientation when fired and moves in world space. It heads toward the camera's peripheral region, not its centre. Shader fades geometry between 1.4 and 0.85 m from each rendered eye, including when the user moves after emission.
 - GPU stardust keeps 3,072 particles and Screen occlusion. `Particle Gradient`, `Gradient Speed`, `Emission` and `Particle Size` are the main editing controls. Brightness is applied once instead of squaring the audio response. Gradient texture is rebuilt on Inspector changes and released on disable.
 - `Tools/MR-VD/Audio Effects/Install or Repair Active Scene` creates missing assets/instances without overwriting existing prefab edits. Save the scene after installation. Project migration saves both stage scenes. To regenerate a prefab, deliberately remove that prefab asset and rerun installation; existing assets are preserved.
 - `Render Variant Contact Sheet` renders all four editable prefabs to `Temp/AudioEffectsValidation/meteor-variants.png`. `Validate Trajectories` checks symmetric emission, tilted-head orientation, default trajectory clearance and cleanup. `Validate Onset Response` checks fast accents, steady audio and silence. `Validate Play Mode Response` exercises onset consumption and lifecycle in Play Mode.
-- `Boost Installed Impact Assets` explicitly reapplies the stronger alpha/size envelope and emission to the four prefabs, preserving their palette colors and trajectory settings. Normal installation still leaves existing prefab edits intact.
+- `Configure Meteor Lifetime Decay` reapplies the exponential speed and alpha curves to the four prefabs while preserving authored palette colors and trajectory settings. Normal installation still leaves existing prefab edits intact.
 
 ## Architecture and migration
 
@@ -40,4 +40,10 @@ Both `v203.0.0.unity` and `v77.0(Abondoned).unity` were migrated via Unity seria
 - Offline replay of the user's 95.21 s recording: 235 visual onsets versus 165 tempo beats; normalized strengths 0.32–1.0. Replay uses mono audio, a 4096-sample Hann FFT, 20 ms steps and the actual C# detector. This is an approximate comparison, not a measurement of live capture latency or musical detection accuracy.
 - Play Mode injection passed: same-sequence deduplication, 0.18 s cooldown, a 0.20 s accent accepted without changing tempo state, silence/stale/weak rejection, disabled StageManager independence and disable/re-enable cleanup. No new effect exceptions; Meta XR reports the missing-headset error.
 - `git diff --check` passed. Standard dotnet build still fails on existing LibreHardwareMonitor/PerformanceMonitorPanel framework references. The command-local `-p:TargetFrameworkVersion=v4.8` build passed with 0 errors and 22 existing warnings; no framework configuration changed.
-- Live music listening, end-to-end capture latency and headset comfort/frame time remain unverified. Lower `Impact Flash Size` or `Meteor Intensity` if the stronger peripheral accents are too prominent in-headset.
+- Live music listening, end-to-end capture latency and headset comfort/frame time remain unverified. Lower `Meteor Intensity` if the peripheral accents are too prominent in-headset.
+
+## Lifetime decay revision (2026-09-30)
+
+- Removed the separate launch flash, scatter burst and strong-beat count/size boosts. Four variants retain their color gradients, original nine heads per side, two companion sparks per head and XR near fade.
+- Normalized lifetime `t` uses speed multiplier `0.12 + 0.88 exp(-3.4t)`. Initial velocity is divided by the integral mean of that curve, so the particle still covers its peripheral path. Alpha follows sampled `exp(-4t)` and reaches zero at death; material emission is 7.5 at spawn. Both curves are editable in the Prefabs.
+- Unity particle simulation, trajectory clearance and four-color contact sheet were rerun after the change. Actual sampled movement slowed on each successive 0.1 s step. Headset comfort and frame time remain to be checked on device.

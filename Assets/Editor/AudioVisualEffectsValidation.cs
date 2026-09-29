@@ -179,7 +179,7 @@ public static class AudioVisualEffectsValidation
             var ps = instance.transform.Find("Meteors").GetComponent<ParticleSystem>();
             var particles = new ParticleSystem.Particle[128];
             int count = ps.GetParticles(particles);
-            if (count != 26) throw new Exception("Expected thirteen meteors per side on a maximum impact, got " + count);
+            if (count != 18) throw new Exception("Expected nine meteors per side on a maximum impact, got " + count);
             Vector3 forward = Vector3.ProjectOnPlane(head.transform.forward, Vector3.up).normalized;
             Vector3 right = Vector3.Cross(Vector3.up, forward);
             int left = 0, rightCount = 0;
@@ -190,15 +190,42 @@ public static class AudioVisualEffectsValidation
                 if (startSide < 0f) left++; else rightCount++;
                 for (int step = 0; step <= 16; step++)
                 {
-                    Vector3 relative = p.position + p.velocity * p.startLifetime * step / 16f - head.transform.position;
+                    float lifeFraction = step / 16f;
+                    float travelled = 0.12f * lifeFraction
+                        + 0.88f * (1f - Mathf.Exp(-3.4f * lifeFraction)) / 3.4f;
+                    Vector3 relative = p.position + p.velocity * p.startLifetime * travelled - head.transform.position;
                     float side = Vector3.Dot(relative, right);
                     if (side * startSide <= 0f || relative.magnitude < 1.1f) throw new Exception("Trajectory crossed the central region or head clearance.");
                 }
             }
-            if (left != 13 || rightCount != 13) throw new Exception("Asymmetric volley.");
+            if (left != 9 || rightCount != 9) throw new Exception("Asymmetric volley.");
+            var modifier = ps.velocityOverLifetime.speedModifier;
+            float startSpeed = modifier.Evaluate(0f);
+            float middleSpeed = modifier.Evaluate(0.5f);
+            float endSpeed = modifier.Evaluate(1f);
+            if (!(startSpeed > middleSpeed && middleSpeed > endSpeed && startSpeed > endSpeed * 5f))
+                throw new Exception("Meteor speed did not decay strongly over its lifetime.");
+            var alpha = ps.colorOverLifetime.color.gradient;
+            if (!(alpha.Evaluate(0f).a > alpha.Evaluate(0.5f).a
+                && alpha.Evaluate(0.5f).a > alpha.Evaluate(1f).a))
+                throw new Exception("Meteor brightness did not decay over its lifetime.");
+            uint probeSeed = particles[0].randomSeed;
+            Vector3 previousPosition = particles[0].position;
+            float previousStep = float.PositiveInfinity;
+            for (int step = 0; step < 5; step++)
+            {
+                ps.Simulate(0.1f, false, false, false);
+                count = ps.GetParticles(particles);
+                int probe = Array.FindIndex(particles, 0, count, p => p.randomSeed == probeSeed);
+                if (probe < 0) throw new Exception("Meteor expired before the decay probe finished.");
+                float displacement = Vector3.Distance(previousPosition, particles[probe].position);
+                if (displacement >= previousStep) throw new Exception("Simulated meteor did not slow down.");
+                previousStep = displacement;
+                previousPosition = particles[probe].position;
+            }
             effect.Clear();
             if (effect.LiveParticleCount != 0) throw new Exception("Particle cleanup failed.");
-            Debug.Log("[AudioEffects] Trajectory validation passed: 26 meteors, symmetric sides, tilted head, >1.1m clearance, cleanup.");
+            Debug.Log("[AudioEffects] Trajectory validation passed: 18 meteors, symmetric sides, decaying speed, tilted head, >1.1m clearance, cleanup.");
         }
         finally { Object.DestroyImmediate(instance); Object.DestroyImmediate(head); }
     }
