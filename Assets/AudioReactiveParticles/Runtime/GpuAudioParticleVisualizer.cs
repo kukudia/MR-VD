@@ -36,10 +36,12 @@ public sealed class GpuAudioParticleVisualizer : MonoBehaviour
     [Header("Color")]
     [ColorUsage(true, true)] public Color backgroundColor = new Color(0.14f, 0.3f, 0.62f, 1f);
     [ColorUsage(true, true)] public Color accentColor = new Color(0.65f, 0.95f, 1f, 1f);
+    [GradientUsage(true)] public Gradient particleGradient = new Gradient();
+    [Range(0f, 0.2f)] public float gradientSpeed = 0.025f;
 
     [Header("Rendering")]
     [Min(0.001f)] public float particleSize = 0.014f;
-    [Min(0f)] public float emission = 1.8f;
+    [Min(0f)] public float emission = 3.2f;
     [Range(0f, 1f)] public float opacity = 0.82f;
     [Min(0f)] public float occlusionPadding = 0.02f;
 
@@ -58,6 +60,9 @@ public sealed class GpuAudioParticleVisualizer : MonoBehaviour
     private bool hasPreviousCameraPosition;
     private bool resourcesReady;
     private bool warnedAboutSupport;
+    private Texture2D gradientTexture;
+    private bool gradientDirty = true;
+    private readonly Color[] gradientPixels = new Color[128];
 
     private static readonly int ParticlesId = Shader.PropertyToID("_Particles");
     private static readonly int ParticleCountId = Shader.PropertyToID("_ParticleCount");
@@ -109,6 +114,7 @@ public sealed class GpuAudioParticleVisualizer : MonoBehaviour
         minimumDistance = Mathf.Clamp(minimumDistance, 0f, volumeRadius - 0.05f);
         backgroundSpeed = Mathf.Max(0f, backgroundSpeed);
         motionSmoothing = Mathf.Max(0.01f, motionSmoothing);
+        gradientDirty = true;
     }
 
     private void Update()
@@ -222,6 +228,7 @@ public sealed class GpuAudioParticleVisualizer : MonoBehaviour
 
     private void SetStaticSimulationParameters()
     {
+        UpdateGradientTexture();
         runtimeCompute.SetInt(ParticleCountId, totalParticleCount);
         runtimeCompute.SetFloat(VolumeRadiusId, volumeRadius);
         runtimeCompute.SetFloat(MinimumDistanceId, minimumDistance);
@@ -229,6 +236,27 @@ public sealed class GpuAudioParticleVisualizer : MonoBehaviour
         runtimeCompute.SetFloat(MotionSmoothingId, motionSmoothing);
         runtimeCompute.SetVector(BackgroundColorId, backgroundColor);
         runtimeCompute.SetVector(AccentColorId, accentColor);
+        runtimeCompute.SetTexture(updateKernel, "_Gradient", gradientTexture);
+        runtimeCompute.SetFloat("_GradientSpeed", gradientSpeed);
+    }
+
+    private void UpdateGradientTexture()
+    {
+        if (gradientTexture == null)
+        {
+            gradientTexture = new Texture2D(128, 1, TextureFormat.RGBAHalf, false, true)
+            {
+                name = "Stardust Gradient (Runtime)", wrapMode = TextureWrapMode.Clamp,
+                filterMode = FilterMode.Bilinear, hideFlags = HideFlags.HideAndDontSave
+            };
+            gradientDirty = true;
+        }
+        if (!gradientDirty) return;
+        for (int i = 0; i < gradientPixels.Length; i++)
+            gradientPixels[i] = particleGradient.Evaluate(i / (float)(gradientPixels.Length - 1)).linear;
+        gradientTexture.SetPixels(gradientPixels);
+        gradientTexture.Apply(false, false);
+        gradientDirty = false;
     }
 
     private void UpdateSimulation(float deltaTime, Vector3 cameraDelta)
@@ -322,6 +350,8 @@ public sealed class GpuAudioParticleVisualizer : MonoBehaviour
         runtimeMaterial = null;
         DestroyRuntimeObject(runtimeCompute);
         runtimeCompute = null;
+        DestroyRuntimeObject(gradientTexture);
+        gradientTexture = null;
         materialProperties = null;
     }
 

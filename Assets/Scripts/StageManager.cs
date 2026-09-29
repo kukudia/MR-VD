@@ -1,16 +1,10 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.VFX;
-#if UNITY_EDITOR
-using UnityEditor;
-using UnityEditor.SceneManagement;
-#endif
-
 /// <summary>
 /// Advanced VJ and dynamic stage manager.
 /// Keeps the original inspector fields, then adds an audio-reactive director,
-/// moving fixture rig, generated LED visuals, VFX parameter bus, and dynamic
+/// moving fixture rig, generated LED visuals, and dynamic
 /// stage environment controls.
 /// </summary>
 [DisallowMultipleComponent]
@@ -31,13 +25,6 @@ public partial class StageManager : MonoBehaviour
     public Light[] laserLights;
     public Light[] strobeLights;
 
-    [Header("Legacy VFX Graphs")]
-    public VisualEffect backgroundParticles;
-    public VisualEffect smokeEffect;
-    public VisualEffect beatBurstEffect;
-    public VisualEffect laserBeamEffect;
-    public VisualEffect groundRingEffect;
-
     [Header("Legacy Stage Decor")]
     public Renderer[] ledScreens;
     public GameObject discoBall;
@@ -49,9 +36,6 @@ public partial class StageManager : MonoBehaviour
     [Range(0f, 5f)] public float colorChangeSpeed = 1f;
     [Range(0f, 2f)] public float chaseLightSpeed = 0.5f;
 
-    [Header("Legacy VFX Parameters")]
-    [Range(0f, 1000f)] public float particleSpawnRate = 100f;
-    [Range(0f, 1f)] public float smokeDensity = 0.3f;
     [Range(0f, 10f)] public float laserIntensity = 5f;
 
     [Header("Legacy Mood Gradients")]
@@ -67,7 +51,6 @@ public partial class StageManager : MonoBehaviour
     public new StageAudioSettings audio = new StageAudioSettings();
     public StageLightingSettings lighting = new StageLightingSettings();
     public StageVJSettings vj = new StageVJSettings();
-    public StageVFXSettings vfx = new StageVFXSettings();
     public StageDirectorSettings director = new StageDirectorSettings();
     public StageEnvironmentSettings environment = new StageEnvironmentSettings();
     public StageAutomationSlot[] manualSlots = new StageAutomationSlot[0];
@@ -89,7 +72,6 @@ public partial class StageManager : MonoBehaviour
     private readonly List<FixtureState> laserFixtures = new List<FixtureState>(32);
     private readonly List<FixtureState> strobeFixtures = new List<FixtureState>(32);
     private readonly List<ScreenState> screens = new List<ScreenState>(16);
-    private readonly List<VisualEffect> allVfx = new List<VisualEffect>(16);
     private readonly List<StageCue> cueLibrary = new List<StageCue>(256);
     private readonly List<StagePalette> paletteLibrary = new List<StagePalette>(96);
     private readonly Dictionary<Light, FixtureState> fixtureLookup = new Dictionary<Light, FixtureState>();
@@ -156,6 +138,21 @@ public partial class StageManager : MonoBehaviour
     public string CurrentCueName { get { return currentCue != null ? currentCue.name : "None"; } }
     public StageEnergyMode CurrentEnergyMode { get { return frame.energyMode; } }
     public Color CurrentMoodColor { get { return moodColor; } }
+
+    // Read-only presentation data lets renderers consume stage cues without the stage owning effects.
+    public struct PresentationFrame
+    {
+        public float kick, bass, synth, energy, bpm, beatPhase, barPhase, visibility, smoke, laser;
+        public Color color;
+    }
+
+    public PresentationFrame Presentation => new PresentationFrame
+    {
+        kick = frame.kick, bass = frame.bass, synth = frame.synth, energy = frame.energy,
+        bpm = frame.bpm, beatPhase = frame.beatPhase, barPhase = frame.barPhase,
+        visibility = 1f - blackoutLevel, smoke = currentCue != null ? currentCue.smoke : 1f,
+        laser = laserEnvelope.value, color = moodColor
+    };
 
     private void Reset()
     {
@@ -237,7 +234,6 @@ public partial class StageManager : MonoBehaviour
         UpdateEnvelopes(dt);
         UpdateLightingRig(dt);
         UpdateLighting(dt);
-        UpdateVfx(dt);
         UpdateScreens(dt);
         UpdateEnvironment(dt);
         firstFrame = false;
@@ -452,12 +448,10 @@ public partial class StageManager : MonoBehaviour
             DiscoverReferences();
         }
 
-        CompleteVfxGraphBindings();
         CacheStageBounds();
         CacheFixtures();
         EnsureVisibleLightBeams();
         CacheScreens();
-        CacheVfx();
         EnsureLibraries();
 
         if (currentCue == null && cueLibrary.Count > 0)
@@ -479,27 +473,17 @@ public partial class StageManager : MonoBehaviour
         }
     }
 
-    [ContextMenu("Complete Stage VFX Graphs")]
-    public void CompleteStageVfxGraphs()
-    {
-        CompleteVfxGraphBindings();
-        CacheVfx();
-    }
-
     private void SanitizeSettings()
     {
         if (runtime == null) runtime = new StageRuntimeSettings();
         if (audio == null) audio = new StageAudioSettings();
         if (lighting == null) lighting = new StageLightingSettings();
         if (vj == null) vj = new StageVJSettings();
-        if (vfx == null) vfx = new StageVFXSettings();
         if (director == null) director = new StageDirectorSettings();
         if (environment == null) environment = new StageEnvironmentSettings();
         if (debug == null) debug = new StageDebugSettings();
         baseLightIntensity = Mathf.Max(0f, baseLightIntensity);
         beatLightIntensity = Mathf.Max(baseLightIntensity, beatLightIntensity);
-        particleSpawnRate = Mathf.Max(0f, particleSpawnRate);
-        smokeDensity = Mathf.Clamp01(smokeDensity);
         strobeThreshold = Mathf.Clamp01(strobeThreshold);
         laserThreshold = Mathf.Clamp01(laserThreshold);
         director.phraseLengthBeats = Mathf.Max(1, director.phraseLengthBeats);
@@ -583,72 +567,7 @@ public partial class StageManager : MonoBehaviour
             if (t != null) discoBall = t.gameObject;
         }
         if (IsEmpty(ledScreens)) ledScreens = FilterRenderers(GetComponentsInChildren<Renderer>(true), "screen", "led", "panel", "wall");
-        VisualEffect[] effects = GetComponentsInChildren<VisualEffect>(true);
-        if (backgroundParticles == null) backgroundParticles = FindVfx(effects, "background", "particle", "rain");
-        if (smokeEffect == null) smokeEffect = FindVfx(effects, "smoke", "fog", "haze");
-        if (beatBurstEffect == null) beatBurstEffect = FindVfx(effects, "beat", "burst", "impact");
-        if (laserBeamEffect == null) laserBeamEffect = FindVfx(effects, "laser", "beam");
-        if (groundRingEffect == null) groundRingEffect = FindVfx(effects, "ground", "ring", "floor");
     }
-
-    private void CompleteVfxGraphBindings()
-    {
-#if UNITY_EDITOR
-        if (!vfx.autoCompleteGraphBindings)
-        {
-            return;
-        }
-
-        backgroundParticles = EnsureStageVfx("BackgroundParticles", backgroundParticles, "Assets/VFX/BackgroundParticles.vfx", null);
-        smokeEffect = EnsureStageVfx("SmokeEffect", smokeEffect, "Assets/VFX/SmokeEffect.vfx", null);
-        beatBurstEffect = EnsureStageVfx("BeatBurstEffect", beatBurstEffect, "Assets/VFX/BeatBurstEffect.vfx", null);
-        laserBeamEffect = EnsureStageVfx("LaserBeamEffect", laserBeamEffect, "Assets/VFX/LaserBeamEffect.vfx", null);
-        groundRingEffect = EnsureStageVfx("GroundRingEffect", groundRingEffect, "Assets/VFX/GroundRingEffect.vfx", "Assets/VFX/LaserBeamEffect.vfx");
-#endif
-    }
-
-#if UNITY_EDITOR
-    private VisualEffect EnsureStageVfx(string objectName, VisualEffect current, string primaryAssetPath, string fallbackAssetPath)
-    {
-        VisualEffectAsset asset = AssetDatabase.LoadAssetAtPath<VisualEffectAsset>(primaryAssetPath);
-        if (asset == null && !string.IsNullOrEmpty(fallbackAssetPath))
-        {
-            asset = AssetDatabase.LoadAssetAtPath<VisualEffectAsset>(fallbackAssetPath);
-        }
-
-        if (current == null)
-        {
-            Transform target = FindTransform(objectName);
-            if (target == null && vfx.createMissingGraphObjects)
-            {
-                GameObject created = new GameObject(objectName);
-                created.transform.SetParent(transform, false);
-                target = created.transform;
-            }
-
-            if (target != null)
-            {
-                current = target.GetComponent<VisualEffect>();
-                if (current == null)
-                {
-                    current = target.gameObject.AddComponent<VisualEffect>();
-                }
-            }
-        }
-
-        if (current != null && asset != null && current.visualEffectAsset != asset)
-        {
-            current.visualEffectAsset = asset;
-            EditorUtility.SetDirty(current);
-            if (!Application.isPlaying && vfx.markSceneDirtyWhenAutoCompleted)
-            {
-                EditorSceneManager.MarkSceneDirty(gameObject.scene);
-            }
-        }
-
-        return current;
-    }
-#endif
 
     private Light[] FilterLights(Light[] lights, FixtureRole role)
     {
@@ -709,22 +628,6 @@ public partial class StageManager : MonoBehaviour
         for (int i = 0; i < transforms.Length; i++)
         {
             if (transforms[i] != null && transforms[i].name.ToLowerInvariant().Contains(lower)) return transforms[i];
-        }
-        return null;
-    }
-
-    private VisualEffect FindVfx(VisualEffect[] effects, params string[] tokens)
-    {
-        if (effects == null) return null;
-        for (int i = 0; i < effects.Length; i++)
-        {
-            VisualEffect effect = effects[i];
-            if (effect == null) continue;
-            string n = effect.name.ToLowerInvariant();
-            for (int t = 0; t < tokens.Length; t++)
-            {
-                if (n.Contains(tokens[t])) return effect;
-            }
         }
         return null;
     }
@@ -909,20 +812,6 @@ public partial class StageManager : MonoBehaviour
             Destroy(texture);
 #endif
         }
-    }
-
-    private void CacheVfx()
-    {
-        allVfx.Clear();
-        AddVfx(backgroundParticles); AddVfx(smokeEffect); AddVfx(beatBurstEffect); AddVfx(laserBeamEffect); AddVfx(groundRingEffect);
-        VisualEffect[] children = GetComponentsInChildren<VisualEffect>(true);
-        for (int i = 0; i < children.Length; i++) AddVfx(children[i]);
-    }
-
-    private void AddVfx(VisualEffect effect)
-    {
-        if (effect == null || allVfx.Contains(effect)) return;
-        allVfx.Add(effect);
     }
 
     private void EnsureLibraries()
@@ -1342,84 +1231,6 @@ public partial class StageManager : MonoBehaviour
         if (direction.sqrMagnitude < 0.0001f) return;
         Quaternion look = Quaternion.LookRotation(direction.normalized, Vector3.up);
         f.transform.rotation = Quaternion.Slerp(f.transform.rotation, look, 1f - Mathf.Exp(-lighting.transformSmoothing * dt));
-    }
-
-    private void UpdateVfx(float dt)
-    {
-        if (!vfx.enableVFX) return;
-        Color c = moodColor;
-        Vector4 color = new Vector4(c.r, c.g, c.b, c.a);
-        float master = runtime.vfxMaster * (1f - blackoutLevel);
-        float spawn = particleSpawnRate * (0.15f + frame.energy * vfx.maxSpawnMultiplier) * vfx.backgroundGain * master;
-        float smoke = smokeDensity * (0.3f + frame.bass * 0.7f) * (currentCue != null ? currentCue.smoke : 1f) * vfx.smokeGain * master;
-        float burst = Mathf.Clamp(frame.kick + frame.impact, 0f, vfx.maxBurstStrength) * vfx.burstGain * master;
-        float laser = laserEnvelope.value * laserIntensity * vfx.laserBeamGain * master;
-        float ring = Mathf.Clamp(frame.bass * vfx.maxRingExpansion, 0f, vfx.maxRingExpansion) * vfx.groundRingGain * master;
-        SetVfxFloat(backgroundParticles, "SpawnRate", spawn); SetVfxVector(backgroundParticles, "ParticleColor", color); SetVfxFloat(backgroundParticles, "Energy", frame.energy);
-        SetVfxFloat(smokeEffect, "Density", smoke); SetVfxFloat(smokeEffect, "SmokeDensity", smoke); SetVfxVector(smokeEffect, "SmokeColor", color); if (smokeEffect != null) SetVfxVector(smokeEffect, "TransformPosition", smokeEffect.transform.position);
-        SetVfxFloat(beatBurstEffect, "BurstStrength", burst); SetVfxVector(beatBurstEffect, "BurstColor", color);
-        if (vfx.triggerBeatEvents && frame.isBeat && frame.kick > vfx.beatBurstThreshold) { SendVfxEvent(beatBurstEffect, "OnBeatBurst"); SendVfxEvent(beatBurstEffect, "OnBeat"); }
-        SetVfxFloat(laserBeamEffect, "BeamIntensity", laser); SetVfxVector(laserBeamEffect, "BeamColor", color);
-        SetVfxFloat(groundRingEffect, "RingExpansion", ring); SetVfxVector(groundRingEffect, "RingColor", color);
-        SetVfxFloat(groundRingEffect, "BeamIntensity", ring); SetVfxVector(groundRingEffect, "BeamColor", color);
-        if (!vfx.sendCommonParameters) return;
-        for (int i = 0; i < allVfx.Count; i++)
-        {
-            VisualEffect effect = allVfx[i];
-            SetVfxFloat(effect, "Kick", frame.kick); SetVfxFloat(effect, "Bass", frame.bass); SetVfxFloat(effect, "Synth", frame.synth); SetVfxFloat(effect, "Energy", frame.energy); SetVfxFloat(effect, "BPM", frame.bpm); SetVfxFloat(effect, "BeatPhase", frame.beatPhase); SetVfxFloat(effect, "BarPhase", frame.barPhase); SetVfxVector(effect, "StageColor", color);
-        }
-    }
-
-    private void SetVfxFloat(VisualEffect effect, string property, float value)
-    {
-        if (effect == null) return;
-        try
-        {
-            if (!effect.HasFloat(property))
-            {
-                return;
-            }
-
-            effect.SetFloat(property, value);
-        }
-        catch (Exception ex) { if (debug.logMissingVfxProperties) Debug.LogWarning(string.Format("{0} VFX float {1} on {2}: {3}", LogPrefix, property, effect.name, ex.Message)); }
-    }
-
-    private void SetVfxVector(VisualEffect effect, string property, Vector4 value)
-    {
-        if (effect == null) return;
-        try
-        {
-            if (!effect.HasVector4(property))
-            {
-                return;
-            }
-
-            effect.SetVector4(property, value);
-        }
-        catch (Exception ex) { if (debug.logMissingVfxProperties) Debug.LogWarning(string.Format("{0} VFX vector {1} on {2}: {3}", LogPrefix, property, effect.name, ex.Message)); }
-    }
-
-    private void SetVfxVector(VisualEffect effect, string property, Vector3 value)
-    {
-        if (effect == null) return;
-        try
-        {
-            if (!effect.HasVector3(property))
-            {
-                return;
-            }
-
-            effect.SetVector3(property, value);
-        }
-        catch (Exception ex) { if (debug.logMissingVfxProperties) Debug.LogWarning(string.Format("{0} VFX vector3 {1} on {2}: {3}", LogPrefix, property, effect.name, ex.Message)); }
-    }
-
-    private void SendVfxEvent(VisualEffect effect, string eventName)
-    {
-        if (effect == null) return;
-        try { effect.SendEvent(eventName); }
-        catch (Exception ex) { if (debug.logMissingVfxProperties) Debug.LogWarning(string.Format("{0} VFX event {1} on {2}: {3}", LogPrefix, eventName, effect.name, ex.Message)); }
     }
 
     private void UpdateScreens(float dt)
@@ -1987,7 +1798,6 @@ public partial class StageManager : MonoBehaviour
         public bool updateOnZeroDeltaTime = false;
         [Range(0f, 4f)] public float masterIntensity = 1f;
         [Range(0f, 4f)] public float screenMaster = 1f;
-        [Range(0f, 4f)] public float vfxMaster = 1f;
         [Range(0f, 4f)] public float motionMaster = 1f;
         [Range(0f, 4f)] public float environmentMaster = 1f;
         [Range(0.01f, 0.5f)] public float maxDeltaTime = 0.08f;
@@ -2088,27 +1898,6 @@ public partial class StageManager : MonoBehaviour
     }
 
     [Serializable]
-    public class StageVFXSettings
-    {
-        public bool enableVFX = true;
-        public bool autoCompleteGraphBindings = true;
-        public bool createMissingGraphObjects = true;
-        public bool markSceneDirtyWhenAutoCompleted = true;
-        public bool sendCommonParameters = true;
-        public bool triggerBeatEvents = true;
-        public bool logMissingProperties = false;
-        [Range(0f, 4f)] public float backgroundGain = 1f;
-        [Range(0f, 4f)] public float smokeGain = 1f;
-        [Range(0f, 4f)] public float burstGain = 1f;
-        [Range(0f, 4f)] public float laserBeamGain = 1f;
-        [Range(0f, 4f)] public float groundRingGain = 1f;
-        [Range(0f, 1f)] public float beatBurstThreshold = 0.25f;
-        [Range(0f, 10f)] public float maxSpawnMultiplier = 4f;
-        [Range(0f, 10f)] public float maxBurstStrength = 5f;
-        [Range(0f, 10f)] public float maxRingExpansion = 8f;
-    }
-
-    [Serializable]
     public class StageDirectorSettings
     {
         public bool enableAutoDirector = true;
@@ -2167,7 +1956,6 @@ public partial class StageManager : MonoBehaviour
     {
         public bool logLifecycle = true;
         public bool logCueChanges = false;
-        public bool logMissingVfxProperties = false;
         public bool showRuntimeOverlay = false;
         public bool drawGizmos = true;
         public bool drawFixtureRays = true;

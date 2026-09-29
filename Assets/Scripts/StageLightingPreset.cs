@@ -69,7 +69,10 @@ public class StageLightingPreset : ScriptableObject
         stage.chaseLightSpeed = chaseLightSpeed;
         stage.strobeThreshold = 1f - strobeFrequency;
         stage.laserThreshold = 1f - laserDensity;
-        stage.smokeDensity = smokeAmount;
+        foreach (var effects in UnityEngine.Object.FindObjectsByType<AudioVisualEffectsController>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+        {
+            if (effects.Stage == stage) effects.SetSmokeDensity(smokeAmount);
+        }
 
         Debug.Log($"[LightingPreset] Applied preset: {presetName}");
     }

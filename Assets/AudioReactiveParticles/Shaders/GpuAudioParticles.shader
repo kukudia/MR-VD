@@ -148,7 +148,7 @@ Shader "MR-VD/Audio Reactive GPU Stardust"
                 float radiusSquared = dot(centered, centered);
                 clip(1.0 - radiusSquared);
 
-                float softDisc = pow(saturate(1.0 - radiusSquared), 2.2);
+                float softDisc = pow(saturate(1.0 - radiusSquared), 1.8);
                 float alpha = softDisc * input.color.a * _Opacity;
                 float3 color = input.color.rgb * alpha * _Emission;
                 return half4(color, alpha);

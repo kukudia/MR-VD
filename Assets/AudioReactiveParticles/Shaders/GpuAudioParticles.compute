@@ -29,6 +29,9 @@ float _Synth;
 float _Energy;
 float4 _BackgroundColor;
 float4 _AccentColor;
+Texture2D<float4> _Gradient;
+SamplerState sampler_Gradient;
+float _GradientSpeed;
 
 uint Hash(uint value)
 {
@@ -115,10 +118,13 @@ void UpdateParticle(inout Particle particle)
 
     float twinkle = sin(_SimulationTime * lerp(1.2, 4.2, particle.seed)
         + particle.seed * 31.0) * 0.5 + 0.5;
-    float responseLevel = 0.12 + twinkle * 0.28 + _Energy * 0.62;
-    float accentMix = saturate(0.08 + _Synth * 0.38 + twinkle * 0.12);
-    float3 color = lerp(_BackgroundColor.rgb, _AccentColor.rgb, accentMix);
-    particle.color = float4(color * responseLevel, saturate(responseLevel));
+    float responseLevel = 0.42 + twinkle * 0.30 + _Energy * 0.28;
+    // Ping-pong avoids a visible jump between the ends of an authored gradient.
+    float phase = particle.seed + _SimulationTime * _GradientSpeed + _Synth * 0.08;
+    float gradientT = 1.0 - abs(frac(phase * 0.5) * 2.0 - 1.0);
+    float4 color = _Gradient.SampleLevel(sampler_Gradient, float2(gradientT, 0.5), 0);
+    // Store unattenuated RGB. Alpha is applied once by the additive shader.
+    particle.color = float4(color.rgb, color.a * responseLevel);
 }
 
 [numthreads(THREAD_GROUP_SIZE, 1, 1)]

@@ -64,6 +64,7 @@ public class StageBuilder : MonoBehaviour
         StageManager stageManager = stageRoot.AddComponent<StageManager>();
         LinkComponents(stageManager, lightingSystem, vfxSystem, decorations, floor);
         SetupDefaultParameters(stageManager);
+        EditorApplication.ExecuteMenuItem("Tools/MR-VD/Audio Effects/Install or Repair Active Scene");
 
         Debug.Log("[StageBuilder] Stage build complete.");
         Debug.Log("[StageBuilder] Assign the AudioVisualizer object to the StageManager audioVisualizer field.");
@@ -76,6 +77,11 @@ public class StageBuilder : MonoBehaviour
         GameObject existing = GameObject.Find("VirtualStage");
         if (existing != null)
         {
+            StageManager oldStage = existing.GetComponent<StageManager>();
+            foreach (var effects in Object.FindObjectsByType<AudioVisualEffectsController>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            {
+                if (effects.Stage == oldStage) DestroyImmediate(effects.gameObject);
+            }
             Debug.Log("[StageBuilder] Removing existing virtual stage...");
             DestroyImmediate(existing);
         }
@@ -282,7 +288,6 @@ public class StageBuilder : MonoBehaviour
         {
             new GameObject("BackgroundParticles"),
             new GameObject("SmokeEffect"),
-            new GameObject("BeatBurstEffect"),
             new GameObject("LaserBeamEffect"),
             new GameObject("GroundRingEffect")
         };
@@ -393,8 +398,7 @@ public class StageBuilder : MonoBehaviour
         manager.beatLightIntensity = 8f;
         manager.colorChangeSpeed = 1f;
         manager.chaseLightSpeed = 0.5f;
-        manager.particleSpawnRate = 100f;
-        manager.smokeDensity = 0.3f;
+        // Particle defaults now belong to AudioVisualEffectsController.
         manager.laserIntensity = 5f;
         manager.strobeThreshold = 0.7f;
         manager.laserThreshold = 0.5f;
