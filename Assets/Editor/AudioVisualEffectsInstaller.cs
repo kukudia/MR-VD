@@ -50,13 +50,7 @@ public static class AudioVisualEffectsInstaller
             finally { PrefabUtility.UnloadPrefabContents(root); }
         }
 
-        var material = AssetDatabase.LoadAssetAtPath<Material>(ArtRoot + "/MeteorGlow.mat");
-        if (material != null)
-        {
-            Undo.RecordObject(material, "Set XR meteor initial brightness");
-            material.SetFloat("_Emission", 7.5f);
-            EditorUtility.SetDirty(material);
-        }
+        // Lifetime tuning must preserve the material brightness authored in the Editor.
         AssetDatabase.SaveAssets();
         Debug.Log("[AudioEffects] Configured exponential speed and brightness decay on four meteor variants.");
     }
@@ -230,7 +224,8 @@ public static class AudioVisualEffectsInstaller
         if (material == null)
         {
             material = new Material(shader) { name = "MeteorGlow", enableInstancing = true };
-            material.SetFloat("_Emission", 7.5f);
+            material.SetFloat("_Emission", 2f);
+            material.SetFloat("_Saturation", 0.45f);
             AssetDatabase.CreateAsset(material, materialPath);
         }
         for (int i = 0; i < Variants.Length; i++)

@@ -1,187 +1,221 @@
 using System;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Threading;
 using UnityEngine;
 using UnityEngine.UI;
-using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 
-/// <summary>
-/// Streams the primary desktop display into a Unity UI texture through the native DesktopPlugin.
-/// </summary>
+/// <summary>Publishes complete, opaque desktop frames without sharing Unity texture memory with the capture thread.</summary>
 public class ScreenCaptureNew : MonoBehaviour
 {
-    [DllImport("DesktopPlugin")]
-    private static extern void InitCaptureResources(int width, int height);
-    [DllImport("DesktopPlugin")]
-    private static extern void ReleaseCaptureResources();
-    [DllImport("DesktopPlugin")]
-    private static extern bool PerformCapture(IntPtr buffer, int width, int height);
+    [DllImport("DesktopPlugin")] private static extern void InitCaptureResources(int width, int height);
+    [DllImport("DesktopPlugin")] private static extern void ReleaseCaptureResources();
+    [DllImport("DesktopPlugin")] private static extern bool PerformCapture(IntPtr buffer, int width, int height);
 
     public RawImage screenObject;
+    [Header("Desktop Capture")]
+    [SerializeField, Range(1, 60)] private int captureFrameRate = 60;
+    [Tooltip("Enable only when the desktop is viewed at a distance; regenerating mipmaps increases upload cost.")]
+    [SerializeField] private bool generateMipmaps;
+    [SerializeField, Range(1, 8)] private int failedCaptureDelayMilliseconds = 8;
 
+    // DesktopPlugin uses process-wide resources. A retiring session must release them before a new one starts.
+    private static readonly object NativeSessionLock = new object();
+    private CaptureSession session;
     private Texture2D screenTexture;
-    private int screenWidth, screenHeight;
-    private bool isInitialized = false;
+    private float nextResolutionCheck;
+    private bool faultReported;
 
-    // Cache the native texture buffer on the main thread before passing it to the capture thread.
-    private NativeArray<byte> textureNativeArray;
-    private IntPtr textureDataPtr;
+    public long CapturedFrames => session == null ? 0 : Interlocked.Read(ref session.Captured);
+    public long FailedCaptures => session == null ? 0 : Interlocked.Read(ref session.Failed);
+    public long UploadedFrames { get; private set; }
+    public bool IsCapturing => session != null && session.Fault == null && session.Thread.IsAlive && !session.Stop;
 
-    private Thread captureThread;
-    private volatile bool shouldStop = false;
-    private volatile bool newDataReady = false;
-
-    private void Start()
+    private sealed class CaptureSession
     {
-        InitializeTexture();
-        StartCaptureThread();
-    }
+        public readonly object FramesLock = new object();
+        public readonly int Width, Height, Bytes, FrameRate, RetryDelay;
+        public IntPtr Writing, Pending, Uploading;
+        public bool Ready;
+        public volatile bool Stop;
+        public volatile string Fault;
+        public long Captured, Failed;
+        public Thread Thread;
 
-    private void InitializeTexture()
-    {
-        screenWidth = System.Windows.Forms.Screen.PrimaryScreen.Bounds.Width;
-        screenHeight = System.Windows.Forms.Screen.PrimaryScreen.Bounds.Height;
-
-        screenTexture = new Texture2D(
-            screenWidth,
-            screenHeight,
-            TextureFormat.BGRA32,
-            mipChain: true,
-            linear: false
-        );
-
-        if (!screenTexture.isReadable)
+        public CaptureSession(int width, int height, int frameRate, int retryDelay)
         {
-            Debug.LogError("[ScreenCaptureNew] Texture is not readable. Cannot access raw texture data.");
-            return;
+            Width = width; Height = height; Bytes = checked(width * height * 4);
+            FrameRate = frameRate; RetryDelay = retryDelay;
         }
-
-        ConfigureScreenTexture(screenTexture);
-
-        if (screenObject != null)
-            screenObject.texture = screenTexture;
-
-        textureNativeArray = screenTexture.GetRawTextureData<byte>();
-
-        unsafe
-        {
-            textureDataPtr = (IntPtr)NativeArrayUnsafeUtility.GetUnsafePtr(textureNativeArray);
-        }
-
-        InitCaptureResources(screenWidth, screenHeight);
-        isInitialized = true;
-
-        Debug.Log($"[ScreenCaptureNew] Capture initialized: {screenWidth}x{screenHeight}, ptr: {textureDataPtr}");
     }
 
-    private void StartCaptureThread()
-    {
-        shouldStop = false;
-        captureThread = new Thread(CaptureLoop)
-        {
-            Name = "ScreenCaptureThread",
-            IsBackground = true
-        };
-        captureThread.Start();
-    }
+    private void OnEnable() => Initialize();
 
-    /// <summary>
-    /// Runs the native capture loop on a background thread. Do not call Unity APIs from this method.
-    /// </summary>
-    private void CaptureLoop()
+    private void Initialize()
     {
-        while (!shouldStop)
+        if (session != null) return;
+        try
         {
-            if (!isInitialized || textureDataPtr == IntPtr.Zero)
+            var bounds = System.Windows.Forms.Screen.PrimaryScreen.Bounds;
+            var next = new CaptureSession(bounds.Width, bounds.Height,
+                Mathf.Clamp(captureFrameRate, 1, 60), Mathf.Clamp(failedCaptureDelayMilliseconds, 1, 8));
+            screenTexture = new Texture2D(next.Width, next.Height, TextureFormat.BGRA32, generateMipmaps, false)
             {
-                Thread.Sleep(100);
-                continue;
-            }
+                name = "Captured Desktop", wrapMode = TextureWrapMode.Clamp,
+                filterMode = generateMipmaps ? FilterMode.Trilinear : FilterMode.Bilinear, anisoLevel = 1
+            };
+            if (screenObject != null) screenObject.texture = screenTexture;
+            next.Thread = new Thread(() => CaptureLoop(next)) { Name = "ScreenCaptureThread", IsBackground = true };
+            session = next;
+            faultReported = false;
+            UploadedFrames = 0;
+            nextResolutionCheck = Time.unscaledTime + 1f;
+            next.Thread.Start();
+            UnityEngine.Debug.Log($"[ScreenCaptureNew] Capture initialized: {next.Width}x{next.Height}, {next.FrameRate} Hz, independent frame buffers.");
+        }
+        catch (Exception exception)
+        {
+            StopCapture();
+            UnityEngine.Debug.LogError("[ScreenCaptureNew] Initialization failed: " + exception.Message);
+        }
+    }
 
-            if (PerformCapture(textureDataPtr, screenWidth, screenHeight))
+    private static unsafe void CaptureLoop(CaptureSession capture)
+    {
+        try
+        {
+            lock (NativeSessionLock)
             {
-                newDataReady = true;
+                if (capture.Stop) return;
+                bool nativeInitializationAttempted = false;
+                try
+                {
+                    capture.Writing = Marshal.AllocHGlobal(capture.Bytes);
+                    capture.Pending = Marshal.AllocHGlobal(capture.Bytes);
+                    capture.Uploading = Marshal.AllocHGlobal(capture.Bytes);
+                    nativeInitializationAttempted = true;
+                    InitCaptureResources(capture.Width, capture.Height);
+                    var clock = Stopwatch.StartNew();
+                    double nextFrame = 0;
+                    double interval = 1000.0 / capture.FrameRate;
+                    while (!capture.Stop)
+                    {
+                        double remaining = nextFrame - clock.Elapsed.TotalMilliseconds;
+                        if (remaining > 0)
+                        {
+                            Thread.Sleep(Math.Max(1, (int)Math.Ceiling(remaining)));
+                            continue;
+                        }
+                        if (PerformCapture(capture.Writing, capture.Width, capture.Height))
+                        {
+                            // GDI's fourth byte is not a reliable Alpha channel. Desktop pixels are always opaque.
+                            byte* pixels = (byte*)capture.Writing;
+                            for (int i = 3; i < capture.Bytes; i += 4) pixels[i] = 255;
+                            lock (capture.FramesLock)
+                            {
+                                IntPtr old = capture.Pending;
+                                capture.Pending = capture.Writing;
+                                capture.Writing = old;
+                                capture.Ready = true;
+                            }
+                            Interlocked.Increment(ref capture.Captured);
+                            nextFrame = clock.Elapsed.TotalMilliseconds + interval;
+                        }
+                        else
+                        {
+                            Interlocked.Increment(ref capture.Failed);
+                            Thread.Sleep(capture.RetryDelay);
+                        }
+                    }
+                }
+                finally
+                {
+                    if (nativeInitializationAttempted) ReleaseCaptureResources();
+                }
             }
         }
+        catch (Exception exception) { capture.Fault = exception.ToString(); }
+        finally
+        {
+            // The lock also protects a main-thread copy if the native plugin faults during capture.
+            lock (capture.FramesLock)
+            {
+                FreeBuffer(ref capture.Writing);
+                FreeBuffer(ref capture.Pending);
+                FreeBuffer(ref capture.Uploading);
+                capture.Ready = false;
+            }
+        }
+    }
+
+    private static void FreeBuffer(ref IntPtr buffer)
+    {
+        if (buffer == IntPtr.Zero) return;
+        Marshal.FreeHGlobal(buffer);
+        buffer = IntPtr.Zero;
     }
 
     private void Update()
     {
-        if (!isInitialized) return;
-
-        if (newDataReady)
+        var capture = session;
+        if (capture == null) return;
+        if (capture.Fault != null && !faultReported)
         {
-            screenTexture.Apply(updateMipmaps: true, makeNoLongerReadable: false);
-            newDataReady = false;
+            faultReported = true;
+            UnityEngine.Debug.LogError("[ScreenCaptureNew] Capture stopped: " + capture.Fault);
         }
-
-        if (Time.frameCount % 60 == 0)
+        bool copied = false;
+        lock (capture.FramesLock)
         {
-            CheckResolutionChange();
+            if (capture.Ready && !capture.Stop)
+            {
+                IntPtr old = capture.Uploading;
+                capture.Uploading = capture.Pending;
+                capture.Pending = old;
+                capture.Ready = false;
+                // Copy only mip 0 into Unity-owned memory; Apply regenerates optional mipmaps.
+                // The pointer is reacquired on the main thread and never exposed to the producer.
+                unsafe
+                {
+                    var textureData = screenTexture.GetRawTextureData<byte>();
+                    UnsafeUtility.MemCpy(NativeArrayUnsafeUtility.GetUnsafePtr(textureData),
+                        (void*)capture.Uploading, capture.Bytes);
+                }
+                copied = true;
+            }
         }
-    }
-
-    private void CheckResolutionChange()
-    {
-        int currentWidth = System.Windows.Forms.Screen.PrimaryScreen.Bounds.Width;
-        int currentHeight = System.Windows.Forms.Screen.PrimaryScreen.Bounds.Height;
-
-        if (currentWidth != screenWidth || currentHeight != screenHeight)
+        if (copied)
         {
-            Reinitialize();
+            screenTexture.Apply(generateMipmaps, false);
+            UploadedFrames++;
         }
-    }
-
-    private void Reinitialize()
-    {
-        shouldStop = true;
-        captureThread?.Join(2000);
-
-        ReleaseCaptureResources();
-
-        if (textureNativeArray.IsCreated)
+        if (Time.unscaledTime < nextResolutionCheck) return;
+        nextResolutionCheck = Time.unscaledTime + 1f;
+        var bounds = System.Windows.Forms.Screen.PrimaryScreen.Bounds;
+        if (bounds.Width != capture.Width || bounds.Height != capture.Height)
         {
-            textureNativeArray.Dispose();
-        }
-
-        Destroy(screenTexture);
-        InitializeTexture();
-
-        if (isInitialized)
-        {
-            shouldStop = false;
-            StartCaptureThread();
+            StopCapture();
+            Initialize();
         }
     }
 
-    private static void ConfigureScreenTexture(Texture2D texture)
+    private void StopCapture()
     {
-        texture.filterMode = FilterMode.Trilinear;
-        texture.wrapMode = TextureWrapMode.Clamp;
-        texture.anisoLevel = 2;
-    }
-
-    private void OnApplicationQuit()
-    {
-        Cleanup();
-    }
-
-    private void OnDestroy()
-    {
-        Cleanup();
-    }
-
-    private void Cleanup()
-    {
-        shouldStop = true;
-        captureThread?.Join(2000);
-
-        if (textureNativeArray.IsCreated)
+        var retiring = session;
+        session = null;
+        if (retiring != null)
         {
-            textureNativeArray.Dispose();
+            retiring.Stop = true;
+            if (retiring.Thread != null && retiring.Thread.IsAlive && !retiring.Thread.Join(2000))
+                UnityEngine.Debug.LogWarning("[ScreenCaptureNew] Native capture is still returning; its worker retains and releases its own buffers safely.");
         }
-
-        ReleaseCaptureResources();
+        if (screenObject != null && screenObject.texture == screenTexture) screenObject.texture = null;
+        if (screenTexture != null) Destroy(screenTexture);
+        screenTexture = null;
     }
+
+    private void OnDisable() => StopCapture();
+    private void OnDestroy() => StopCapture();
+    private void OnApplicationQuit() => StopCapture();
 }

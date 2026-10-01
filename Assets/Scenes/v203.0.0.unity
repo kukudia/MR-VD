@@ -30952,6 +30952,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 3921126192290627002, guid: 0a7d2469f24041c4284c66706f84c45e, type: 3}
       insertIndex: -1
       addedObject: {fileID: 66819923}
+    - targetCorrespondingSourceObject: {fileID: 1566377277047150759, guid: 0a7d2469f24041c4284c66706f84c45e, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1380643710}
     - targetCorrespondingSourceObject: {fileID: 7182968062029374582, guid: 0a7d2469f24041c4284c66706f84c45e, type: 3}
       insertIndex: -1
       addedObject: {fileID: 962136294}
@@ -30964,6 +30967,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 1149181253749680086, guid: 0a7d2469f24041c4284c66706f84c45e, type: 3}
       insertIndex: -1
       addedObject: {fileID: 66819925}
+    - targetCorrespondingSourceObject: {fileID: 3180938714467287755, guid: 0a7d2469f24041c4284c66706f84c45e, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1380643711}
     - targetCorrespondingSourceObject: {fileID: 6500684760401280538, guid: 0a7d2469f24041c4284c66706f84c45e, type: 3}
       insertIndex: -1
       addedObject: {fileID: 953761329}
@@ -32852,6 +32858,82 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1375604603}
   m_CullTransparentMesh: 1
+--- !u!137 &1380643702 stripped
+SkinnedMeshRenderer:
+  m_CorrespondingSourceObject: {fileID: 3000231475770499095, guid: 0a7d2469f24041c4284c66706f84c45e, type: 3}
+  m_PrefabInstance: {fileID: 1292967005}
+  m_PrefabAsset: {fileID: 0}
+--- !u!23 &1380643703 stripped
+MeshRenderer:
+  m_CorrespondingSourceObject: {fileID: 478650915192743009, guid: 0a7d2469f24041c4284c66706f84c45e, type: 3}
+  m_PrefabInstance: {fileID: 1292967005}
+  m_PrefabAsset: {fileID: 0}
+--- !u!23 &1380643704 stripped
+MeshRenderer:
+  m_CorrespondingSourceObject: {fileID: 7182968062786152631, guid: 0a7d2469f24041c4284c66706f84c45e, type: 3}
+  m_PrefabInstance: {fileID: 1292967005}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1 &1380643705 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 1566377277047150759, guid: 0a7d2469f24041c4284c66706f84c45e, type: 3}
+  m_PrefabInstance: {fileID: 1292967005}
+  m_PrefabAsset: {fileID: 0}
+--- !u!137 &1380643706 stripped
+SkinnedMeshRenderer:
+  m_CorrespondingSourceObject: {fileID: 1169497313811430011, guid: 0a7d2469f24041c4284c66706f84c45e, type: 3}
+  m_PrefabInstance: {fileID: 1292967005}
+  m_PrefabAsset: {fileID: 0}
+--- !u!23 &1380643707 stripped
+MeshRenderer:
+  m_CorrespondingSourceObject: {fileID: 4556683247308078605, guid: 0a7d2469f24041c4284c66706f84c45e, type: 3}
+  m_PrefabInstance: {fileID: 1292967005}
+  m_PrefabAsset: {fileID: 0}
+--- !u!23 &1380643708 stripped
+MeshRenderer:
+  m_CorrespondingSourceObject: {fileID: 6500684759149572827, guid: 0a7d2469f24041c4284c66706f84c45e, type: 3}
+  m_PrefabInstance: {fileID: 1292967005}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1 &1380643709 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 3180938714467287755, guid: 0a7d2469f24041c4284c66706f84c45e, type: 3}
+  m_PrefabInstance: {fileID: 1292967005}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &1380643710
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1380643705}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d6266f1dcae9493eb7b83bf4a33b3a57, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::HandRayPointerVisibility
+  pinchShowThreshold: 0.65
+  releaseGraceSeconds: 0.18
+  pointerRenderers:
+  - {fileID: 1380643704}
+  - {fileID: 1380643703}
+  - {fileID: 1380643702}
+--- !u!114 &1380643711
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1380643709}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d6266f1dcae9493eb7b83bf4a33b3a57, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::HandRayPointerVisibility
+  pinchShowThreshold: 0.65
+  releaseGraceSeconds: 0.18
+  pointerRenderers:
+  - {fileID: 1380643708}
+  - {fileID: 1380643707}
+  - {fileID: 1380643706}
 --- !u!1 &1384070406
 GameObject:
   m_ObjectHideFlags: 0
@@ -33981,8 +34063,9 @@ MonoBehaviour:
     m_NumAlphaKeys: 2
   gradientSpeed: 0.025
   particleSize: 0.018
-  emission: 3.2
-  opacity: 0.82
+  emission: 1.2
+  opacity: 0.55
+  saturation: 0.5
   occlusionPadding: 0.02
   particleCompute: {fileID: 7200000, guid: 77fae7d4a87cf8c4f988c90e66f91b61, type: 3}
   particleShader: {fileID: 4800000, guid: 03257f2c7b9f62d42b2e902a789fe468, type: 3}
@@ -45026,6 +45109,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::DesktopStream
   screenObject: {fileID: 1123992437}
+  captureFrameRate: 60
+  generateMipmaps: 0
+  failedCaptureDelayMilliseconds: 8
 --- !u!114 &1865030115
 MonoBehaviour:
   m_ObjectHideFlags: 0

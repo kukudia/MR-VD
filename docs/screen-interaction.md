@@ -50,3 +50,11 @@
 
 - 用户截图显示手和轮廓呈洋红色、轮廓悬在桌面上方。手和 Quest 3 手柄材质改用场景已经使用的 `Universal Render Pipeline/Lit`。轮廓最终改为 World Space Canvas 内的四条 UI Image，按实际桌面及两侧信息面板的外接边界排布，取代旧 LineRenderer 和其专用材质。
 - Edit Mode 检查：两侧 BuildingBlock 手、12 个 Interaction SDK 手显示网格及系统手势引用均指向 `VirtualHandOpaque`。Play Mode 中手与 Quest 3 手柄渲染器所用 URP/Lit Shader 均报告 supported，手柄纹理引用存在；手部在无头显的 Editor 里无法确认真实外观。Play Mode 强制开启轮廓后的画面确认青色边框贴合三块可见面板，实际握柄切换和头显效果仍待设备验证。
+
+## 2026-10-01 手部指针显示
+
+两侧 HandRayInteractor 增加 `HandRayPointerVisibility`：普通手追踪保持运行，但光束、光标和捏合箭头仅在食指捏合强度达到 0.65 或正在 Select 时可见；松开后保留 0.18 秒反馈，追踪无效或失焦时隐藏。控制器射线不受此策略影响。阈值、松开宽限和目标渲染器都在 Inspector 可编辑。该策略只控制视觉，不禁用 SDK 命中检测和捏合操作；手部真实交互需要连接 Quest 验证。
+
+`Tools/MR-VD/Apply Desktop Capture and Reading Comfort` 可重新配置当前 v203.0.0 场景的指针与柔和粒子预设，并通过 Unity API 保存。它不会改写手追踪 SDK Prefab 或包文件。
+
+保存并重新加载场景后，两侧指针组件和配置引用仍在。Editor 无头显时手部 Rig 不活跃，通过直接调用其生命周期/视觉更新验证了追踪无效时目标渲染器隐藏；未验证真实捏合阈值或 SDK 活跃时序。

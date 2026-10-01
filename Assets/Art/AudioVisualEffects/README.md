@@ -47,3 +47,7 @@ Both `v203.0.0.unity` and `v77.0(Abondoned).unity` were migrated via Unity seria
 - Removed the separate launch flash, scatter burst and strong-beat count/size boosts. Four variants retain their color gradients, original nine heads per side, two companion sparks per head and XR near fade.
 - Normalized lifetime `t` uses speed multiplier `0.12 + 0.88 exp(-3.4t)`. Initial velocity is divided by the integral mean of that curve, so the particle still covers its peripheral path. Alpha follows sampled `exp(-4t)` and reaches zero at death; material emission is 7.5 at spawn. Both curves are editable in the Prefabs.
 - Unity particle simulation, trajectory clearance and four-color contact sheet were rerun after the change. Actual sampled movement slowed on each successive 0.1 s step. Headset comfort and frame time remain to be checked on device.
+
+## Softer rendering preset (2026-10-01)
+
+The current Editor scene preserves the four palettes, deterministic trajectories and lifetime response. MeteorGlow now uses emission 2.0 and saturation 0.45; background stardust uses emission 1.2, opacity 0.55 and saturation 0.5. Saturation is applied at rendering, so authored gradient keys remain editable and intact. Meteor saturation is a material property; stardust saturation is an Inspector field. `Configure Meteor Lifetime Decay` no longer resets authored material brightness. All four meteor variants were rendered before/after in the Editor; headset brightness and comfort remain unverified.

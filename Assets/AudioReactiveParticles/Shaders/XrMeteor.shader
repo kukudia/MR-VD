@@ -2,7 +2,8 @@ Shader "MR-VD/XR Meteor Additive"
 {
     Properties
     {
-        _Emission ("Emission", Range(0,8)) = 7.5
+        _Emission ("Emission", Range(0,8)) = 2.0
+        _Saturation ("Color Saturation", Range(0,1)) = 0.45
         _NearFade ("Near Fade Start / End (metres)", Vector) = (0.85,1.4,0,0)
     }
     SubShader
@@ -22,6 +23,7 @@ Shader "MR-VD/XR Meteor Additive"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             CBUFFER_START(UnityPerMaterial)
             float _Emission;
+            float _Saturation;
             float4 _NearFade;
             CBUFFER_END
             struct Attributes
@@ -58,7 +60,9 @@ Shader "MR-VD/XR Meteor Additive"
                 float core = exp(-dot(p,p) * 18);
                 float nearFade = smoothstep(_NearFade.x, max(_NearFade.x + 0.01, _NearFade.y), distance(GetCameraPositionWS(), input.positionWS));
                 float alpha = input.color.a * nearFade;
-                return half4((input.color.rgb * halo + core * 0.35) * alpha * _Emission, 0);
+                float luminance = dot(input.color.rgb, float3(0.2126, 0.7152, 0.0722));
+                float3 tint = lerp(luminance.xxx, input.color.rgb, _Saturation);
+                return half4((tint * halo + core * 0.35) * alpha * _Emission, 0);
             }
             ENDHLSL
         }

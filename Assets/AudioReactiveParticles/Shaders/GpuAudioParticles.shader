@@ -47,6 +47,7 @@ Shader "MR-VD/Audio Reactive GPU Stardust"
             float _ParticleSize;
             float _Emission;
             float _Opacity;
+            float _Saturation;
 
             struct Attributes
             {
@@ -150,7 +151,8 @@ Shader "MR-VD/Audio Reactive GPU Stardust"
 
                 float softDisc = pow(saturate(1.0 - radiusSquared), 1.8);
                 float alpha = softDisc * input.color.a * _Opacity;
-                float3 color = input.color.rgb * alpha * _Emission;
+                float luminance = dot(input.color.rgb, float3(0.2126, 0.7152, 0.0722));
+                float3 color = lerp(luminance.xxx, input.color.rgb, _Saturation) * alpha * _Emission;
                 return half4(color, alpha);
             }
             ENDHLSL

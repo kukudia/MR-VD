@@ -41,8 +41,9 @@ public sealed class GpuAudioParticleVisualizer : MonoBehaviour
 
     [Header("Rendering")]
     [Min(0.001f)] public float particleSize = 0.014f;
-    [Min(0f)] public float emission = 3.2f;
-    [Range(0f, 1f)] public float opacity = 0.82f;
+    [Min(0f)] public float emission = 1.2f;
+    [Range(0f, 1f)] public float opacity = 0.55f;
+    [Range(0f, 1f)] public float saturation = 0.5f;
     [Min(0f)] public float occlusionPadding = 0.02f;
 
     [Header("GPU Assets")]
@@ -85,6 +86,7 @@ public sealed class GpuAudioParticleVisualizer : MonoBehaviour
     private static readonly int OcclusionEnabledId = Shader.PropertyToID("_OcclusionEnabled");
     private static readonly int ParticleSizeId = Shader.PropertyToID("_ParticleSize");
     private static readonly int EmissionId = Shader.PropertyToID("_Emission");
+    private static readonly int SaturationId = Shader.PropertyToID("_Saturation");
     private static readonly int OpacityId = Shader.PropertyToID("_Opacity");
 
     public int TotalParticleCount => totalParticleCount;
@@ -298,6 +300,7 @@ public sealed class GpuAudioParticleVisualizer : MonoBehaviour
         materialProperties.SetFloat(ParticleSizeId, particleSize);
         materialProperties.SetFloat(EmissionId, emission);
         materialProperties.SetFloat(OpacityId, opacity);
+        materialProperties.SetFloat(SaturationId, saturation);
 
         if (occlusionScreen != null)
         {
