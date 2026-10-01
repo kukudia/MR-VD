@@ -17,7 +17,7 @@ public sealed class AudioVisualEffectsController : MonoBehaviour
     [Tooltip("Deduplicates a drum attack without blocking faster musical accents like the BPM cooldown does.")]
     [SerializeField, Min(0.1f)] private float minimumBurstInterval = 0.18f;
     [SerializeField, Range(0f, 1f)] private float minimumOnsetConfidence = 0.22f;
-    [Tooltip("Minimum presence of an accepted hit; stronger attacks still produce faster, larger volleys.")]
+    [Tooltip("Minimum presence of an accepted hit; stronger attacks emit more meteors.")]
     [SerializeField, Range(0f, 1f)] private float minimumImpact = 0.55f;
     [SerializeField, Min(1)] private int beatsPerVariant = 4;
     [SerializeField, Range(0f, 1f)] private float meteorIntensity = 1f;
@@ -75,7 +75,8 @@ public sealed class AudioVisualEffectsController : MonoBehaviour
         int index = (beatCount / Mathf.Max(1, beatsPerVariant)) % meteorVariants.Length;
         XrBeatMeteorEffect effect = meteorVariants[index];
         if (effect == null || !effect.isActiveAndEnabled) return;
-        effect.Emit(targetCamera.transform, Mathf.Clamp01(strength) * meteorIntensity * masterIntensity);
+        effect.Emit(targetCamera.transform, Mathf.Clamp01(strength) * meteorIntensity * masterIntensity,
+            audioVisualizer != null ? audioVisualizer.limitedBPM : 0f);
         lastBurstTime = Time.time;
         beatCount++;
         EmittedBeatCount++;

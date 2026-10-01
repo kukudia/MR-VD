@@ -141,6 +141,7 @@ public static class AudioVisualEffectsValidation
                         for (int step = 0; step < 24; step++) ps.Simulate(1f / 60f, false, false, false);
                         if (ps.main.simulationSpace != ParticleSystemSimulationSpace.World) throw new Exception("Particles must remain world-space.");
                     }
+                    effect.RefreshMeteors();
                     if (effect.LiveParticleCount == 0) throw new Exception("Meteor emission failed: " + names[i]);
                     preview.BeginPreview(new Rect(0, 0, width, height), GUIStyle.none);
                     preview.Render(true);
@@ -169,63 +170,80 @@ public static class AudioVisualEffectsValidation
     public static void ValidateTrajectories()
     {
         var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(AudioVisualEffectsInstaller.ArtRoot + "/AuroraCyan.prefab");
+        if (prefab == null) throw new Exception("AuroraCyan prefab missing.");
+        ValidateFlight(prefab, 60f, false, 18);
+        ValidateFlight(prefab, 120f, false, 18);
+        ValidateFlight(prefab, 180f, false, 18);
+        ValidateFlight(prefab, 120f, true, 18);
+        ValidateFlight(prefab, 120f, true, 12, 0.3f);
+        Debug.Log("[AudioEffects] 10x launch and 30/BPM recovery passed at 60/120/180 BPM; intensity count, straight/Bezier clearance and cleanup passed.");
+    }
+
+    private static void ValidateFlight(GameObject prefab, float bpm, bool curved, int expectedCount, float intensity = 1f)
+    {
         var instance = Object.Instantiate(prefab);
         var head = new GameObject("Temporary trajectory test head");
         try
         {
             head.transform.SetPositionAndRotation(new Vector3(4f, 1.6f, -2f), Quaternion.Euler(25f, 70f, 30f));
             var effect = instance.GetComponent<XrBeatMeteorEffect>();
-            effect.Emit(head.transform, 1f);
+            var serialized = new SerializedObject(effect);
+            serialized.FindProperty("useBezierTrajectory").boolValue = curved;
+            serialized.ApplyModifiedPropertiesWithoutUndo();
+            effect.Emit(head.transform, intensity, bpm);
             var ps = instance.transform.Find("Meteors").GetComponent<ParticleSystem>();
             var particles = new ParticleSystem.Particle[128];
             int count = ps.GetParticles(particles);
-            if (count != 18) throw new Exception("Expected nine meteors per side on a maximum impact, got " + count);
-            Vector3 forward = Vector3.ProjectOnPlane(head.transform.forward, Vector3.up).normalized;
-            Vector3 right = Vector3.Cross(Vector3.up, forward);
+            if (count != expectedCount) throw new Exception($"Expected {expectedCount} heads, got {count}.");
+            if (ps.velocityOverLifetime.enabled) throw new Exception("Old lifetime velocity curve is still enabled.");
+            var renderer = ps.GetComponent<ParticleSystemRenderer>();
+            float normalEmission = prefab.transform.Find("Meteors").GetComponent<ParticleSystemRenderer>().sharedMaterial.GetFloat("_Emission");
+            float launchEmission = renderer.sharedMaterial.GetFloat("_Emission");
+            if (Mathf.Abs(launchEmission / normalEmission - 10f) > 0.01f)
+                throw new Exception($"Initial meteor emission is not 10x: runtime={launchEmission}, source={normalEmission}, renderer={renderer.sharedMaterial.name}, active={effect.isActiveAndEnabled}.");
+            uint probeSeed = particles[0].randomSeed;
+            Vector3 previousProbePosition = particles[0].position;
+            float firstStep = 0f, lastStep = 0f;
+            Vector3 right = Vector3.Cross(Vector3.up, Vector3.ProjectOnPlane(head.transform.forward, Vector3.up).normalized);
             int left = 0, rightCount = 0;
             for (int i = 0; i < count; i++)
             {
-                var p = particles[i];
-                float startSide = Vector3.Dot(p.position - head.transform.position, right);
-                if (startSide < 0f) left++; else rightCount++;
-                for (int step = 0; step <= 16; step++)
+                float side = Vector3.Dot(particles[i].position - head.transform.position, right);
+                if (side < 0f) left++; else rightCount++;
+            }
+            if (left != expectedCount / 2 || rightCount != expectedCount / 2) throw new Exception("Asymmetric volley.");
+            float halfBeat = 30f / bpm;
+            for (int step = 1; step <= 20; step++)
+            {
+                ps.Simulate(halfBeat / 20f, false, false, false);
+                effect.RefreshMeteors();
+                count = ps.GetParticles(particles);
+                int currentProbe = Array.FindIndex(particles, 0, count, p => p.randomSeed == probeSeed);
+                if (currentProbe < 0) throw new Exception("Probe meteor disappeared early.");
+                float distanceTraveled = Vector3.Distance(previousProbePosition, particles[currentProbe].position);
+                if (step == 1) firstStep = distanceTraveled;
+                if (step == 20) lastStep = distanceTraveled;
+                previousProbePosition = particles[currentProbe].position;
+                for (int i = 0; i < count; i++)
                 {
-                    float lifeFraction = step / 16f;
-                    float travelled = 0.12f * lifeFraction
-                        + 0.88f * (1f - Mathf.Exp(-3.4f * lifeFraction)) / 3.4f;
-                    Vector3 relative = p.position + p.velocity * p.startLifetime * travelled - head.transform.position;
+                    Vector3 relative = particles[i].position - head.transform.position;
                     float side = Vector3.Dot(relative, right);
-                    if (side * startSide <= 0f || relative.magnitude < 1.1f) throw new Exception("Trajectory crossed the central region or head clearance.");
+                    if (Mathf.Abs(side) < 1.1f || relative.magnitude < 1.1f)
+                        throw new Exception($"Meteor entered clearance: bpm={bpm}, curved={curved}, step={step}, side={side:F3}, distance={relative.magnitude:F3}.");
                 }
             }
-            if (left != 9 || rightCount != 9) throw new Exception("Asymmetric volley.");
-            var modifier = ps.velocityOverLifetime.speedModifier;
-            float startSpeed = modifier.Evaluate(0f);
-            float middleSpeed = modifier.Evaluate(0.5f);
-            float endSpeed = modifier.Evaluate(1f);
-            if (!(startSpeed > middleSpeed && middleSpeed > endSpeed && startSpeed > endSpeed * 5f))
-                throw new Exception("Meteor speed did not decay strongly over its lifetime.");
-            var alpha = ps.colorOverLifetime.color.gradient;
-            if (!(alpha.Evaluate(0f).a > alpha.Evaluate(0.5f).a
-                && alpha.Evaluate(0.5f).a > alpha.Evaluate(1f).a))
-                throw new Exception("Meteor brightness did not decay over its lifetime.");
-            uint probeSeed = particles[0].randomSeed;
-            Vector3 previousPosition = particles[0].position;
-            float previousStep = float.PositiveInfinity;
-            for (int step = 0; step < 5; step++)
-            {
-                ps.Simulate(0.1f, false, false, false);
-                count = ps.GetParticles(particles);
-                int probe = Array.FindIndex(particles, 0, count, p => p.randomSeed == probeSeed);
-                if (probe < 0) throw new Exception("Meteor expired before the decay probe finished.");
-                float displacement = Vector3.Distance(previousPosition, particles[probe].position);
-                if (displacement >= previousStep) throw new Exception("Simulated meteor did not slow down.");
-                previousStep = displacement;
-                previousPosition = particles[probe].position;
-            }
+            int probe = Array.FindIndex(particles, 0, count, p => p.randomSeed == probeSeed);
+            if (probe < 0) throw new Exception("Meteor expired before half a beat.");
+            float recoveredBrightness = launchEmission * (particles[probe].startColor.a / 255f) / normalEmission;
+            if (Mathf.Abs(recoveredBrightness - 1.1f) > 0.15f)
+                throw new Exception($"Brightness did not recover at 30/BPM: {recoveredBrightness:F2}x.");
+            var lifetimeColor = ps.colorOverLifetime.color.gradient;
+            if (lifetimeColor.Evaluate(halfBeat / particles[probe].startLifetime).a < 0.99f)
+                throw new Exception("Lifetime alpha hides the BPM brightness recovery.");
+            if (!curved && Mathf.Abs(firstStep / lastStep - 10f / 1.1f) > 1.5f)
+                throw new Exception($"Speed did not recover at 30/BPM: first={firstStep:F3}, last={lastStep:F3}.");
             effect.Clear();
             if (effect.LiveParticleCount != 0) throw new Exception("Particle cleanup failed.");
-            Debug.Log("[AudioEffects] Trajectory validation passed: 18 meteors, symmetric sides, decaying speed, tilted head, >1.1m clearance, cleanup.");
         }
         finally { Object.DestroyImmediate(instance); Object.DestroyImmediate(head); }
     }

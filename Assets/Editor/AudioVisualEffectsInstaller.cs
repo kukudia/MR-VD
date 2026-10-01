@@ -52,37 +52,31 @@ public static class AudioVisualEffectsInstaller
 
         // Lifetime tuning must preserve the material brightness authored in the Editor.
         AssetDatabase.SaveAssets();
-        Debug.Log("[AudioEffects] Configured exponential speed and brightness decay on four meteor variants.");
+        Debug.Log("[AudioEffects] Configured BPM-based meteor decay on four variants.");
     }
 
     private static void ConfigureLifetimeEnvelope(ParticleSystem ps)
     {
         var color = ps.colorOverLifetime;
-        // Preserve the authored color keys; only alpha follows exp(-4t).
+        // Preserve the authored palette while the meteor component controls beat brightness.
         Gradient gradient = color.color.gradient;
-        gradient.SetKeys(gradient.colorKeys, new[] {
+        GradientAlphaKey[] alphaKeys = ps.name == "Meteors" ? new[] {
+            new GradientAlphaKey(1f, 0f), new GradientAlphaKey(1f, 0.8f),
+            new GradientAlphaKey(0f, 1f)
+        } : new[] {
             new GradientAlphaKey(1f, 0f), new GradientAlphaKey(Mathf.Exp(-0.8f), 0.2f),
             new GradientAlphaKey(Mathf.Exp(-2f), 0.5f),
             new GradientAlphaKey(Mathf.Exp(-3.2f), 0.8f), new GradientAlphaKey(0f, 1f)
-        });
+        };
+        gradient.SetKeys(gradient.colorKeys, alphaKeys);
         color.color = gradient;
         var size = ps.sizeOverLifetime;
         size.size = new ParticleSystem.MinMaxCurve(1f, new AnimationCurve(
-            new Keyframe(0f, 1f), new Keyframe(0.2f, 0.85f), new Keyframe(1f, 0.2f)));
+            new Keyframe(0f, 0.65f), new Keyframe(0.12f, 1f), new Keyframe(1f, 0.2f)));
         if (ps.name != "Meteors") return;
-        const float floor = 0.12f;
-        const float rate = 3.4f;
-        var keys = new Keyframe[21];
-        for (int i = 0; i < keys.Length; i++)
-        {
-            float t = i / 20f;
-            float value = floor + (1f - floor) * Mathf.Exp(-rate * t);
-            float tangent = -(1f - floor) * rate * Mathf.Exp(-rate * t);
-            keys[i] = new Keyframe(t, value, tangent, tangent);
-        }
+        // Per-particle BPM and Bezier position are now driven by XrBeatMeteorEffect.
         var velocity = ps.velocityOverLifetime;
-        velocity.enabled = true;
-        velocity.speedModifier = new ParticleSystem.MinMaxCurve(1f, new AnimationCurve(keys));
+        velocity.enabled = false;
     }
 
     [MenuItem("Tools/MR-VD/Audio Effects/Migrate Project Scenes")]
