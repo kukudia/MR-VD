@@ -5061,7 +5061,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 3f0f345137bf366438406f795ea8269f, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::XrBeatMeteorEffect
   meteors: {fileID: 1107292842504971130}
   sparks: {fileID: 1439890443701297118}
@@ -5069,13 +5069,13 @@ MonoBehaviour:
   forwardDistance: 3.8
   verticalSpread: 0.8
   passingOffset: 1.15
-  flightTime: 1.1
+  flightTime: 0.892
   meteorsPerSide: 9
   minimumCountFraction: 0.5
   seed: 917
-  useBezierTrajectory: 0
-  outwardCurve: 0.65
-  verticalCurve: 0.2
+  useBezierTrajectory: 1
+  outwardCurve: 0.214
+  verticalCurve: -0.37
   fallbackBpm: 120
   launchMultiplier: 10
 --- !u!1 &4598305366711475821
