@@ -6,23 +6,40 @@ import numpy as np
 
 root=Path(__file__).resolve().parents[2]
 video=root/'.showcase-work/MR-VD-Showcase-v5.mp4'
-review=root/'.showcase-work/v5-review'; review.mkdir(exist_ok=True)
+review=root/'.showcase-work/v5-fade-review'; review.mkdir(exist_ok=True)
 targets=[0,2,4,6,10,14,18,22,24,26,30,34,38,42,46,50,54,58,62,66,70,74,78,82,86,90,94,98,102,106,110,114,116,118,119]
 frames=0; selected=[]; blank_frames=[]
+sequence_starts=[0,120,720,1380,1980,2640,3060,3480]
+sequence_ends=sequence_starts[1:]+[3600]
+fade_frames={f for start,end in zip(sequence_starts,sequence_ends) for f in list(range(start,start+15))+list(range(end-15,end))}
+# Measure the fixed title area to confirm each fade ramps monotonically.
+fade_contrast=[]
 with av.open(str(video)) as source:
     v=source.streams.video[0]
     info={'width':v.width,'height':v.height,'fps':str(v.average_rate),'videoCodec':v.codec_context.name,'containerDurationSeconds':source.duration/av.time_base}
     for frame in source.decode(video=0):
         if frames%30==0 and frames//30 in targets:
             sec=frames//30; im=frame.to_image(); im.save(review/f'final-{sec:03d}s.jpg',quality=92); im.thumbnail((640,360)); selected.append((sec,im))
-        # All shots have opaque titles/diagrams, including exact chapter boundaries.
+        # Background-only frames are expected within the fade intervals.
         tiny=np.asarray(frame.to_image().resize((240,135)))
-        if int((tiny.min(axis=2)<140).sum())<80:
+        if frames not in fade_frames and int((tiny.min(axis=2)<140).sum())<80:
             blank_frames.append(frames)
+        if frames in fade_frames:
+            im=np.asarray(frame.to_image())
+            crop=im[465:630,650:1270] if frames>=3480 else im[90:210,90:1300]
+            fade_contrast.append((frames,float((245-crop.astype('float32').mean(axis=2)).clip(0).mean())))
         frames+=1
 info['decodedVideoFrames']=frames
 info['blankFrames']=blank_frames
 assert not blank_frames, blank_frames
+contrast=dict(fade_contrast)
+for start,end in zip(sequence_starts,sequence_ends):
+    fade_in=[contrast[i] for i in range(start,start+15)]
+    fade_out=[contrast[i] for i in range(end-15,end)]
+    assert all(b>=a-.3 for a,b in zip(fade_in,fade_in[1:])),(start,fade_in)
+    assert all(b<=a+.3 for a,b in zip(fade_out,fade_out[1:])),(end,fade_out)
+    assert fade_in[-1]>fade_in[0]+2 and fade_out[0]>fade_out[-1]+2
+info['verifiedFadePairs']=len(sequence_starts)
 assert frames==3600 and info['width']==1920 and info['height']==1080 and info['fps']=='30', info
 samples=0; peak=0.; ss=0.; n=0
 with av.open(str(video)) as source:

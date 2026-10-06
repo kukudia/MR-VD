@@ -26,8 +26,9 @@ export const Cursor: React.FC<{x:number;y:number;scale?:number;color?:string}> =
 
 export const Frame: React.FC<{title:string;duration:number;steps:string[];active:number;caption:string;note?:string;children:React.ReactNode}> = ({title,duration,steps,active,caption,note,children}) => {
  const f=useCurrentFrame();
+ const visibility=Math.min(ramp(f,0,14),1-ramp(f,duration-12,duration-1));
  return <AbsoluteFill style={{background:C.bg,color:C.ink,fontFamily:FONT}}>
-  <div>
+  <div style={{opacity:visibility}}>
    <div style={{position:'absolute',left:88,top:86,fontSize:64,fontWeight:700,letterSpacing:-1}}>{title}</div>
    <div style={{position:'absolute',left:90,top:187,width:76,height:3,background:C.green}}/>
    <div style={{position:'absolute',left:54,top:244,width:1320,height:640}}>{children}</div>

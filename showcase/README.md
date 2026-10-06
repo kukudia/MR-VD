@@ -1,6 +1,6 @@
 # MR-VD Showcase
 
-当前交付为 `MRVDShowcaseV5`：120 秒、1920×1080、30 fps。名称统一为“混合现实虚拟桌面”，阈值说明移至图表旁，澄清浮点采样数量、格式与采样率，移除画面淡入淡出。片尾与独立 composition 提供参考样式的 DEMO 标题卡。修改见 [V5-NOTES.md](V5-NOTES.md)，时间线见 [V4-NOTES.md](V4-NOTES.md)，技术依据见 [V3-NOTES.md](V3-NOTES.md)。
+当前交付为 `MRVDShowcaseV5`：120 秒、1920×1080、30 fps。名称统一为“混合现实虚拟桌面”，阈值说明移至图表旁，澄清浮点采样数量、格式与采样率，恢复章节整体淡入淡出（V5.1 修订）。片尾与独立 composition 提供参考样式的 DEMO 标题卡。修改见 [V5-NOTES.md](V5-NOTES.md)，时间线见 [V4-NOTES.md](V4-NOTES.md)，技术依据见 [V3-NOTES.md](V3-NOTES.md)。
 
 ## 使用
 
