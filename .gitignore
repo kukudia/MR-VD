@@ -127,3 +127,9 @@ Assets/#Meta.meta
 Assets/#Meta/
 /Assets/GabrielAguiarProductions
 /Assets/UNI VFX
+
+# Remotion source is versioned; recordings, renders and reproducible data are local.
+/.showcase-work/
+/showcase/public/media/
+/showcase/public/v3/
+/showcase/src/v3/audio-analysis.json

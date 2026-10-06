@@ -1,0 +1,27 @@
+{
+  "name": "mr-vd-showcase-v1",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "studio": "remotion studio --no-open",
+    "preview": "remotion still MRVDShowcaseV3 --frame=1820 --scale=0.5 --output=../.showcase-work/preview-v3.png",
+    "render": "remotion render MRVDShowcaseV3 ../.showcase-work/MR-VD-Showcase-v3.mp4",
+    "prepare:v3": "python scripts/prepare-v3-audio.py"
+  },
+  "dependencies": {
+    "@remotion/media": "4.0.506",
+    "@remotion/three": "4.0.506",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "remotion": "4.0.506",
+    "three": "0.178.0",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@remotion/cli": "^4.0.506",
+    "@types/react": "19.1.10",
+    "@types/react-dom": "19.1.7",
+    "@types/three": "0.178.1",
+    "typescript": "5.9.2"
+  }
+}
