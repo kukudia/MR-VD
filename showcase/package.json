@@ -4,10 +4,12 @@
   "private": true,
   "scripts": {
     "studio": "remotion studio --no-open",
-    "preview": "remotion still MRVDShowcaseV4 --frame=2470 --scale=0.5 --output=../.showcase-work/preview-v4.png",
-    "render": "remotion render MRVDShowcaseV4 ../.showcase-work/MR-VD-Showcase-v4.mp4",
+    "preview": "remotion still MRVDShowcaseV5 --frame=2470 --scale=0.5 --output=../.showcase-work/preview-v5.png",
+    "render": "remotion render MRVDShowcaseV5 ../.showcase-work/MR-VD-Showcase-v5.mp4",
     "prepare:v3": "python scripts/prepare-v3-audio.py",
-    "prepare:v4": "python scripts/prepare-v4-audio.py"
+    "prepare:v4": "python scripts/prepare-v4-audio.py",
+    "demo:still": "remotion still MRVDDemoTitleCard ../.showcase-work/MR-VD-DEMO-Title-v5.png",
+    "demo:render": "remotion render MRVDDemoTitleCard ../.showcase-work/MR-VD-DEMO-Title-v5.mp4"
   },
   "dependencies": {
     "@remotion/media": "4.0.506",
