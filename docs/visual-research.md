@@ -47,6 +47,8 @@ flowchart LR
     A[AudioVisualizer energies and accepted onset] --> F[AudioVisualField.LateUpdate]
     S[StageManager.Presentation] --> F
     T[AudioVisualTheme asset] --> B[Private blended theme]
+    SQ[AudioVisualSequencePlayer.Update optional] --> LP[AudioVisualLookPlayer.SetLook]
+    LP --> F
     F --> B
     F --> R[AudioAuroraRibbons.RenderFrame]
     F --> P[AudioBeatRings.RenderFrame]
@@ -207,3 +209,11 @@ Unity 网格/地形连续性/频谱/GPU 回归与五样式阅读遮罩像素检�
 桌面合成 Play 113.85 秒/5652 帧；17.33 秒时左右存活 25/23、发射率约 3.65/秒，86.11 秒时存活 24/22。禁用 Controller 后 Density 立即为 0，113.85 秒时两侧均清空。纯相机图 camera-20261022-200206-832.png 已查看，侧下方只有轻微细节；这不是测量过的 GPU 性能预算。重复生成前后场景 SHA-256 一致，四原图暴露属性/频谱/调色/黑场回归通过。顺带修正验证报告的表面样式计数为六种及虹膜覆盖文字；不扩大已有测试结论。
 
 工程 Assets 未发现 WAV/MP3/OGG/FLAC/AIFF 样本；目前不能声称已验证真实音乐听感，也不下载未知版权歌曲或自动扬声器播放。
+
+## 第十七轮：可编辑视觉序列
+
+`AudioVisualSequence` 原生资产保存 Look/时长序列，可按秒或显示 BPM 拍数计时，最多 128 段。`AudioVisualSequencePlayer.Update` 显式启动后推进，默认为不自动播放；支持暂停/恢复/下一段/停止，安静或源禁用时暂停时钟。单帧补偿限制 1 秒，避免卡顿后补播多个长段；拍数时钟积分 BPM，不使用慢语义结果伪造节拍。非循环结束保留最后 Look，再次 Play 重新开始；Stop/disable 恢复启动时 Look（会重新应用其参数，不保存每个临时手动参数快照）。
+
+示例 `Five Look Journey.asset` 顺序 Aurora/Jade/Opal/Violet/Solar，虹膜 64 显示拍，其余 32。生成工具只补缺失原生资产与展示场组件；Inspector 可改顺序/时长/循环，工作台 Find 后可直接控制。手动 Apply Look 会暂停正在运行的序列。运行中删短数组会回到有效首段，无效资产停止并恢复；播放器不改写共享序列资产。
+
+真实 Play 中隔离控制测试通过：非法 delta/BPM、拍数边界、秒计时、暂停/恢复、手动 next、Stop/disable 恢复、非循环完成/重启、循环回绕、运行中缩短和资产 JSON 不变。展示场实际运行 146.20 秒/7284 帧，帧时钟到 cue1 后自然切到 cue2；纯相机图 camera-20261022-201422-913.png 与 camera-20261022-201441-824.png 已查看，停止恢复 Aurora Cathedral。此为预先编排演示，不是自动识别歌曲结构或跨歌曲泛化证明。

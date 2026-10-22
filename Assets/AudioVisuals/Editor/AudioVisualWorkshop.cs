@@ -13,6 +13,7 @@ public sealed class AudioVisualWorkshop : EditorWindow
     private AudioVisualField field;
     private GpuAudioParticleVisualizer particles;
     private AudioVisualLook look;
+    private AudioVisualSequencePlayer sequencePlayer;
     private Vector2 scroll;
     private float previewTime = 5f;
     private string notice;
@@ -46,8 +47,37 @@ public sealed class AudioVisualWorkshop : EditorWindow
         particles = (GpuAudioParticleVisualizer)EditorGUILayout.ObjectField("GPU particles", particles,
             typeof(GpuAudioParticleVisualizer), true);
         look = (AudioVisualLook)EditorGUILayout.ObjectField("Authored look", look, typeof(AudioVisualLook), false);
+        sequencePlayer = (AudioVisualSequencePlayer)EditorGUILayout.ObjectField("Sequence player", sequencePlayer,
+            typeof(AudioVisualSequencePlayer), true);
+        if (sequencePlayer != null && EditorApplication.isPlaying)
+        {
+            EditorGUILayout.LabelField("Sequence cue / clock", $"{sequencePlayer.CueIndex + 1} / {sequencePlayer.Elapsed:F1}");
+            if (GUILayout.Button(sequencePlayer.IsRunning ? "Pause Sequence" : "Play / Resume Sequence"))
+            {
+                if (sequencePlayer.IsRunning)
+                {
+                    sequencePlayer.PauseSequence();
+                }
+                else
+                {
+                    sequencePlayer.PlaySequence();
+                }
+            }
+            if (GUILayout.Button("Next Sequence Cue"))
+            {
+                sequencePlayer.NextCue();
+            }
+            if (GUILayout.Button("Stop Sequence / Restore Starting Look"))
+            {
+                sequencePlayer.StopSequence();
+            }
+        }
         if (look != null && field != null && GUILayout.Button("Apply Authored Look"))
         {
+            if (sequencePlayer != null && sequencePlayer.IsRunning)
+            {
+                sequencePlayer.PauseSequence();
+            }
             Undo.RecordObject(field, "Apply Audio Visual Look");
             if (particles != null)
             {
@@ -66,6 +96,7 @@ public sealed class AudioVisualWorkshop : EditorWindow
         {
             field = Object.FindFirstObjectByType<AudioVisualField>();
             particles = Object.FindFirstObjectByType<GpuAudioParticleVisualizer>();
+            sequencePlayer = Object.FindFirstObjectByType<AudioVisualSequencePlayer>();
         }
         if (field != null)
         {
@@ -92,6 +123,10 @@ public sealed class AudioVisualWorkshop : EditorWindow
             if (GUILayout.Button("Build Missing Cinematic Showcase"))
             {
                 AudioVisualShowcaseTools.BuildMissing();
+            }
+            if (GUILayout.Button("Build Missing Editable Look Sequence"))
+            {
+                AudioVisualSequenceTools.BuildMissing();
             }
             if (GUILayout.Button("Upgrade Spectral Lattice in Prefab"))
             {
