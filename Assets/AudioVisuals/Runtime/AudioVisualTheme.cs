@@ -40,6 +40,9 @@ public sealed class AudioVisualTheme : ScriptableObject
     [Header("Audio Response")]
     [Min(0f)] public float bassGain = 10f;
     [Min(0f)] public float detailGain = 9f;
+    [Tooltip("Experimental raw-FFT aggregate for overall visual energy only. Zero preserves legacy band-energy response; not calibrated loudness.")]
+    [Range(0f, 1f)] public float aggregateEnergyWeight = 0f;
+    [Min(0f)] public float aggregateEnergyGain = 6f;
     [Min(0.1f)] public float attack = 12f;
     [Min(0.1f)] public float release = 3f;
     [Range(0f, 0.3f)] public float idleLevel = 0.06f;

@@ -19,7 +19,7 @@ public static class AudioPcmFeatureValidation
 
     private struct Metrics
     {
-        public float centroid, persistent, broadbandPeak, peakBand, maximum;
+        public float centroid, persistent, broadbandPeak, peakBand, maximum, peakPcmRms, peakSpectralNorm, peakAggregate;
     }
 
     [MenuItem("Tools/MR-VD/Spatial Audio/Validate Authored PCM Features")]
@@ -34,8 +34,8 @@ public static class AudioPcmFeatureValidation
             metrics[i] = Analyze(Path.Combine(Root, names[i] + ".wav"));
             Metrics m = metrics[i];
             report += string.Format(CultureInfo.InvariantCulture,
-                "{0}: centroid={1:F4}, persistent={2:F4}, broadbandPeak={3:F4}, peakBand={4:F1}, maximum={5:F5}\n",
-                names[i], m.centroid, m.persistent, m.broadbandPeak, m.peakBand, m.maximum);
+                "{0}: centroid={1:F4}, persistent={2:F4}, broadbandPeak={3:F4}, peakBand={4:F1}, maximum={5:F5}, pcmHopRmsPeak={6:F5}, fftNormPeak={7:F5}, aggregateGain6Peak={8:F5}\n",
+                names[i], m.centroid, m.persistent, m.broadbandPeak, m.peakBand, m.maximum, m.peakPcmRms, m.peakSpectralNorm, m.peakAggregate);
         }
         Require(metrics[0].peakBand >= 6f && metrics[0].peakBand <= 12f, "110Hz PCM projected to the wrong display bands.");
         Require(metrics[1].peakBand >= 37f && metrics[1].peakBand <= 43f, "3520Hz PCM projected to the wrong display bands.");
@@ -44,7 +44,16 @@ public static class AudioPcmFeatureValidation
         Require(metrics[3].broadbandPeak > metrics[2].broadbandPeak + 0.15f,
             "Broadband PCM pulses were not distinguished from sustained harmonic structure.");
         Require(metrics[5].maximum == 0f && metrics[5].centroid == 0f, "Silent PCM produced display energy.");
+        Require(metrics[5].peakPcmRms == 0f && metrics[5].peakSpectralNorm == 0f, "Silent PCM produced aggregate energy.");
+        Require(Mathf.Abs(metrics[0].peakPcmRms - metrics[1].peakPcmRms) < 0.005f,
+            "Equal-amplitude tone fixtures do not have comparable PCM RMS.");
+        float normRatio = metrics[1].peakSpectralNorm / Mathf.Max(0.000001f, metrics[0].peakSpectralNorm);
+        Require(normRatio > 0.9f && normRatio < 1.1f, "Equal-amplitude FFT aggregate changed substantially with tone frequency.");
+        Require(Mathf.Abs(metrics[0].peakAggregate - metrics[1].peakAggregate) < 0.01f,
+            "Production aggregate mapping changed substantially with equal-amplitude tone frequency.");
         report += "PASS: low/high band projection and centroid order; persistence/broadband contrast; silence; all outputs finite.\n"
+            + "Aggregate study: equal-amplitude low/high raw-FFT L2 norms agree within 10%; silence is zero.\n"
+            + "FFT L2 is an uncalibrated aggregate, not LUFS or perceptual loudness. PCM RMS uses 50ms hops; FFT uses its own window.\n"
             + "Controlled PCM only; excludes WASAPI capture, real musical listening, BPM/key accuracy and XR.\n";
         File.WriteAllText(AudioVisualFieldTools.PreviewDirectory + "/pcm-features.txt", report);
         Debug.Log("[AudioPCM] " + report);
@@ -87,9 +96,11 @@ public static class AudioPcmFeatureValidation
         int peaks = 0;
         for (int offset = 0; offset + Hop <= pcm.Length; offset += Hop)
         {
+            double pcmPower = 0d;
             for (int sample = offset; sample < offset + Hop; sample++)
             {
                 provider.Add(pcm[sample], pcm[sample]);
+                pcmPower += pcm[sample] * (double)pcm[sample];
             }
             if (!provider.GetFftData(fft))
             {
@@ -110,6 +121,18 @@ public static class AudioPcmFeatureValidation
             metrics.maximum = Mathf.Max(metrics.maximum, bands.Max());
             if (offset / (float)SampleRate >= 1f)
             {
+                double spectralPower = 0d;
+                int firstBin = Mathf.CeilToInt(40f * fft.Length / SampleRate);
+                int lastBin = Mathf.FloorToInt(8000f * fft.Length / SampleRate);
+                for (int bin = firstBin; bin <= lastBin; bin++)
+                {
+                    Require(float.IsFinite(fft[bin]), "Non-finite raw FFT in energy study.");
+                    spectralPower += fft[bin] * (double)fft[bin];
+                }
+                metrics.peakPcmRms = Mathf.Max(metrics.peakPcmRms, (float)Math.Sqrt(pcmPower / Hop));
+                metrics.peakSpectralNorm = Mathf.Max(metrics.peakSpectralNorm, (float)Math.Sqrt(spectralPower));
+                metrics.peakAggregate = Mathf.Max(metrics.peakAggregate,
+                    AudioSpectralEnergy.Blend(0f, fft, SampleRate, 6f, 1f));
                 metrics.centroid += descriptor.x;
                 metrics.persistent += split.x;
                 metrics.broadbandPeak = Mathf.Max(metrics.broadbandPeak, split.y);

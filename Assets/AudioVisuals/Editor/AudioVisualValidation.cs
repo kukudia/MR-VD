@@ -34,6 +34,7 @@ public static class AudioVisualValidation
         CheckSurfaceShader();
         CheckSpectralShape();
         CheckSpectralLayers();
+        CheckAggregateEnergy();
         int meshesBefore = Resources.FindObjectsOfTypeAll<Mesh>().Length;
         CheckMeshesAndOnsets();
         CheckLatticePropagation();
@@ -45,7 +46,7 @@ public static class AudioVisualValidation
         Directory.CreateDirectory(AudioVisualFieldTools.PreviewDirectory);
         string report = DateTimeOffset.Now.ToString("o") + "\n"
             + "PASS: surface shader; finite bounded geometry; mesh reuse; ring expiration; history; "
-            + "fresh transient once; stale transient ignored on enable; silence; private theme blending; spectral shape; "
+            + "fresh transient once; stale transient ignored on enable; silence; private theme blending; spectral shape; aggregate energy bounds/fallback/zero allocation; "
             + "lattice propagation/clear; terrain scroll continuity; ring spectral snapshot/closed seam; iris onset response/global zero intensity.\n"
             + "PASS: GPU Stardust, SpiralGalaxy, Torus, FlowKnot, CurlNebula dispatch/readback; finite values, speed and volume/near-eye bounds.\n"
             + "Edit Mode and GPU checks only; not real audio listening, XR, Player performance or Play Mode.\n";
@@ -59,6 +60,40 @@ public static class AudioVisualValidation
         Require(shader != null && shader.isSupported, "Surface shader unavailable.");
         Require(!ShaderUtil.GetShaderMessages(shader).Any(m => m.severity.ToString() == "Error"),
             "Surface shader compilation failed.");
+    }
+
+    private static void CheckAggregateEnergy()
+    {
+        float[] fft = new float[4096];
+        fft[10] = 0.2f;
+        float narrow = AudioSpectralEnergy.Blend(0f, fft, 48000f, 6f, 1f);
+        fft[10] = 0f;
+        for (int i = 100; i < 116; i++)
+        {
+            fft[i] = 0.05f;
+        }
+        float distributed = AudioSpectralEnergy.Blend(0f, fft, 48000f, 6f, 1f);
+        Require(Mathf.Abs(narrow - distributed) < 0.00001f,
+            "Equal spectral power changed with bin distribution.");
+        Require(AudioSpectralEnergy.Blend(0.37f, fft, 48000f, 6f, 0f) == 0.37f
+            && AudioSpectralEnergy.Blend(0.37f, null, 48000f, 6f, 1f) == 0.37f
+            && AudioSpectralEnergy.Blend(0.37f, fft, float.NaN, 6f, 1f) == 0.37f,
+            "Disabled/missing/invalid aggregate input changed legacy energy.");
+        Array.Clear(fft, 0, fft.Length);
+        fft[10] = float.NaN;
+        fft[11] = float.PositiveInfinity;
+        fft[12] = -1f;
+        Require(AudioSpectralEnergy.Blend(0f, fft, 48000f, 6f, 1f) == 0f,
+            "Invalid FFT bins produced aggregate energy.");
+        fft[13] = float.MaxValue;
+        Require(AudioSpectralEnergy.Blend(0f, fft, 48000f, 6f, 1f) == 1f,
+            "Large finite FFT did not remain bounded.");
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        for (int i = 0; i < 100; i++)
+        {
+            AudioSpectralEnergy.Blend(0.2f, fft, 48000f, 6f, 0.5f);
+        }
+        Require(GC.GetAllocatedBytesForCurrentThread() == before, "Aggregate energy allocated in steady state.");
     }
 
     private static void CheckRingSpectrumSnapshot()

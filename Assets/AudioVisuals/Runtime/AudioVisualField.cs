@@ -173,7 +173,16 @@ public sealed class AudioVisualField : MonoBehaviour
         }
         bass = Smooth(bass, targetBass, delta);
         detail = Smooth(detail, targetDetail, delta);
-        energy = Smooth(energy, (targetBass + targetDetail) * 0.5f, delta);
+        float targetEnergy = (targetBass + targetDetail) * 0.5f;
+        AudioCaptureCSCore capture = AudioCaptureCSCore.instance;
+        if (!demonstration && !silent && capture != null && capture.isActiveAndEnabled
+            && theme.aggregateEnergyWeight > 0f)
+        {
+            float sampleRate = capture.waveSource != null ? capture.waveSource.WaveFormat.SampleRate : 48000f;
+            targetEnergy = AudioSpectralEnergy.Blend(targetEnergy, capture.rawFftData, sampleRate,
+                theme.aggregateEnergyGain, theme.aggregateEnergyWeight);
+        }
+        energy = Smooth(energy, targetEnergy, delta);
         UpdateSpectrum(delta, silent);
         Vector4 shape = spectralShape.Analyze(spectrum, silent);
         Vector4 layers = spectralLayers.Analyze(spectrum, delta, silent);

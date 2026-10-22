@@ -45,6 +45,8 @@
 ```mermaid
 flowchart LR
     A[AudioVisualizer energies and accepted onset] --> F[AudioVisualField.LateUpdate]
+    FFT[AudioCaptureCSCore raw FFT] --> E[AudioSpectralEnergy.Blend opt-in]
+    E --> F
     S[StageManager.Presentation] --> F
     T[AudioVisualTheme asset] --> B[Private blended theme]
     SQ[AudioVisualSequencePlayer.Update optional] --> LP[AudioVisualLookPlayer.SetLook]
@@ -243,3 +245,11 @@ AudioVisualComplexity 保存光带、环、历史地形、编织、晶格、虹�
 AudioBeatRings 在接受瞬态时将 48 个展示频带保存到固定池槽位。环周用周期余弦映射插值这份快照，产生轻量径向/垂向起伏和局部 accent；后续输入不重写旧环形状。主题 ringSpectralRelief 默认为 0（保持圆环），Solar Percussion 设为 .35m，跟随私有主题平滑。缓存仅在容量/拓扑变化时分配，无新对象池或 GameObject；仍只有原接受瞬态能触发。
 
 隔离检查通过：旧环不跟随后续频谱改变、两侧接缝闭合、关闭 relief 恢复圆环、Clear 后零谱不残留旧起伏、一个瞬态只发一个环且复用同一网格。完整网格/频谱/五 GPU 模式回归报告于 21:41:26 写入 PASS（调用 CLI 曾超时，报告与后续参数查询确认执行完成）。展示场合成 Play 58.58 秒/2892 帧、存活环 4，camera-20261022-214342-151.png 已查看。当前变化是艺术化谱形映射，不代表声波物理重建；真实音乐与头显视觉仍未验证。
+
+## 第二十二轮：原始 FFT 聚合能量实验
+
+受控等振幅 110Hz/3520Hz 夹具的 PCM 50ms hop RMS 峰值都为 .24748，40Hz–8kHz 原始 FFT L2 范数峰值约 .17452/.17502；而原对数展示频带峰值为 .79707/.21814。展示频带会按不同频宽平均，不能把该峰值直接当作整体响度。宽带脉冲原 PCM RMS 峰值 .11882，也确实弱于音调；不能把所有视觉弱响应归咎于算法。
+
+新增可关闭 AudioSpectralEnergy.Blend：对完整原始 FFT 正频率 40Hz–8kHz 平方和开方、指数压缩，再按主题 aggregateEnergyWeight 混合整体视觉 energy。gain 默认 6，weight 默认 0，所有现有预设保持关闭。只在真实输入、未静音且捕获组件有效时启用；原 bass/detail、频带、瞬态、BPM/调性与合成演示路径保持独立，缺失输入回落旧能量。它不是 LUFS、感知响度或自动音量归一化。
+
+生产纯函数的等功率分布一致性、零权重/缺失/无效采样率回落、NaN/Infinity/负值过滤、大值有限上限和稳态零分配检查通过；完整 Unity 回归于 21:52:50 写入 PASS，CLI 曾 5 秒超时但报告后续确认。21:53:11 受控 PCM 重跑，gain6 的低/高峰值 .64905/.65011、宽带 .20661、静音 0，既有投影/层次回归通过。仅证明受控数学行为；未以此宣称算法质量、真实音乐偏好或 WASAPI 端到端运行验证，因此预设不自动开启。
