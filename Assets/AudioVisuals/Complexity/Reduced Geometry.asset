@@ -1,0 +1,28 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: caeb8d7569d35e64b8165efd1d9bf12e, type: 3}
+  m_Name: Reduced Geometry
+  m_EditorClassIdentifier: Assembly-CSharp::AudioVisualComplexity
+  ribbonsPerSide: 2
+  ribbonSegments: 64
+  ringCapacity: 4
+  ringSegments: 64
+  terrainBands: 32
+  terrainRows: 32
+  canopyStrands: 9
+  canopySegments: 96
+  latticeNodes: 16
+  latticeLayers: 2
+  latticeSegments: 5
+  irisPetals: 24
+  irisSegments: 48
+  particleCount: 2048

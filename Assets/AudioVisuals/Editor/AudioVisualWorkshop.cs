@@ -14,6 +14,7 @@ public sealed class AudioVisualWorkshop : EditorWindow
     private GpuAudioParticleVisualizer particles;
     private AudioVisualLook look;
     private AudioVisualSequencePlayer sequencePlayer;
+    private AudioVisualComplexity complexity;
     private Vector2 scroll;
     private float previewTime = 5f;
     private string notice;
@@ -101,6 +102,27 @@ public sealed class AudioVisualWorkshop : EditorWindow
         if (field != null)
         {
             DrawField();
+            complexity = (AudioVisualComplexity)EditorGUILayout.ObjectField("Complexity profile", complexity,
+                typeof(AudioVisualComplexity), false);
+            if (complexity != null)
+            {
+                EditorGUILayout.LabelField("Maximum mesh vertices", complexity.MaximumMeshVertices.ToString("N0"));
+                EditorGUILayout.LabelField("Particle state buffer", $"{complexity.ParticleStateBytes / 1024f:F0} KiB");
+                EditorGUILayout.HelpBox("Counts are geometry budgets, not measured GPU time. Apply changes counts only; Undo restores them.",
+                    MessageType.None);
+                using (new EditorGUI.DisabledScope(EditorApplication.isPlaying))
+                {
+                    if (GUILayout.Button("Apply Complexity Profile to This Field"))
+                    {
+                        AudioVisualComplexityTools.Apply(complexity, field, particles);
+                    }
+                    if (GUILayout.Button("Preview Mesh Themes at This Complexity"))
+                    {
+                        AudioVisualFieldTools.RenderThemeSheet(complexity);
+                        notice = "Mesh-only complexity contact sheet saved in project Temp/AudioVisualResearch.";
+                    }
+                }
+            }
         }
         if (particles != null)
         {
@@ -127,6 +149,10 @@ public sealed class AudioVisualWorkshop : EditorWindow
             if (GUILayout.Button("Build Missing Editable Look Sequence"))
             {
                 AudioVisualSequenceTools.BuildMissing();
+            }
+            if (GUILayout.Button("Build Missing Complexity Presets"))
+            {
+                AudioVisualComplexityTools.BuildMissing();
             }
             if (GUILayout.Button("Upgrade Spectral Lattice in Prefab"))
             {

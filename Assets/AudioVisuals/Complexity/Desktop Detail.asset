@@ -1,0 +1,28 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: caeb8d7569d35e64b8165efd1d9bf12e, type: 3}
+  m_Name: Desktop Detail
+  m_EditorClassIdentifier: Assembly-CSharp::AudioVisualComplexity
+  ribbonsPerSide: 3
+  ribbonSegments: 96
+  ringCapacity: 6
+  ringSegments: 96
+  terrainBands: 48
+  terrainRows: 48
+  canopyStrands: 15
+  canopySegments: 160
+  latticeNodes: 20
+  latticeLayers: 3
+  latticeSegments: 8
+  irisPetals: 32
+  irisSegments: 72
+  particleCount: 4096

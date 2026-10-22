@@ -247,6 +247,11 @@ public static class AudioVisualFieldTools
     [MenuItem("Tools/MR-VD/Spatial Audio/Render Theme Contact Sheet")]
     public static void RenderContactSheet()
     {
+        RenderThemeSheet(null);
+    }
+
+    public static void RenderThemeSheet(AudioVisualComplexity complexity)
+    {
         if (EditorApplication.isPlaying)
         {
             throw new InvalidOperationException("Render theme contact sheets outside Play Mode.");
@@ -274,6 +279,10 @@ public static class AudioVisualFieldTools
                     preview.AddSingleGO(root);
                     AudioVisualField field = root.GetComponent<AudioVisualField>();
                     previewField = field;
+                    if (complexity != null)
+                    {
+                        AudioVisualComplexityTools.Apply(complexity, field, null);
+                    }
                     SerializedObject data = new SerializedObject(field);
                     data.FindProperty("demonstration").boolValue = true;
                     data.ApplyModifiedPropertiesWithoutUndo();
@@ -310,8 +319,9 @@ public static class AudioVisualFieldTools
                 }
             }
             sheet.Apply();
-            File.WriteAllBytes(PreviewDirectory + "/theme-contact-sheet.png", sheet.EncodeToPNG());
-            Debug.Log("[SpatialAudio] Rendered synthetic-input themes to " + PreviewDirectory + "/theme-contact-sheet.png");
+            string file = complexity != null ? "/theme-complexity-contact-sheet.png" : "/theme-contact-sheet.png";
+            File.WriteAllBytes(PreviewDirectory + file, sheet.EncodeToPNG());
+            Debug.Log("[SpatialAudio] Rendered synthetic-input mesh themes to " + PreviewDirectory + file);
         }
         finally
         {

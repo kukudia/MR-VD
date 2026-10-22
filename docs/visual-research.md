@@ -226,3 +226,10 @@ Inspector 暴露 curlScale/curlSpeed/curlConfinement；速度上限 2m/s，沿�
 首次短 GPU 检查通过；进一步长期检查使用最新 Compute 实例，128 粒子、30Hz×3600 步（120 模拟秒），均有限、速度≤2.01、体积/近眼边界有效，平均到测试锚点距离约 2.590m、平均速度约 .098m/s，空间方差通过，未停到单点。完整报告于 21:13:32 写入 validation.txt 并直接返回 PASS；六 Look 绑定与主题隔离验证通过。
 
 运行中曾失去 Editor 主进程，未获取确定退出原因；旧日志已备份到 Temp，未擅自归因为流场。使用匹配 6000.3.11f1 恢复后重新进入 Play，使运行时 Compute 克隆采用最新代码。最终 Play 168.67 秒/8393 帧，camera-20261022-205637-253.png 已查看，表现为多束交织卷流；此前热改源文件后的截图不作为新克隆验证。CLI 的延迟回调方案没有生成报告，已移除不可靠入口。真实音乐、头显与 Player GPU 性能仍未验证。
+## 第十九轮：可编辑复杂度预算与隔离预览
+
+AudioVisualComplexity 保存光带、环、历史地形、编织、晶格、虹膜及 GPU 粒子数量。Desktop Detail 上限 16753 网格顶点、4096 粒子（状态缓冲 192KiB）；Reduced Geometry 为 6990 顶点、2048 粒子（96KiB）。这是数量预算，不代表已测 XR 帧率，也未包含材质过绘制、VFX 或 Editor 开销。配置只在 Edit Mode 经工作台显式应用，支持 Undo，保留主题、变换和音频参数的独立编辑。
+
+隔离实例逐档生成六类网格，实际顶点数匹配估计，所有顶点有限且根变换保留；释放预览前后网格数 35→35。Reduced Geometry 四主题联系图 theme-complexity-contact-sheet.png 已查看，保留主要轮廓和细线层次。预览只含网格，不包含 GPU 粒子与后处理。两档原生 ScriptableObject 已保存，默认场景密度不自动改变。
+
+21:17 再次执行 dotnet build，仍为 LibreHardwareMonitor 缺失导致的 2 个既有错误和 13 个 MSB3277 警告；不能写成静态构建通过。Unity 实际复杂度验证通过；头显、Player GPU 计时和真实歌曲仍待验证。
