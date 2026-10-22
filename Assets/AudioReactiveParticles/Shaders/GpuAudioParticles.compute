@@ -35,6 +35,10 @@ float _GradientSpeed;
 float _FormationBlend;
 float _TorusBlend;
 float _KnotBlend;
+float _CurlBlend;
+float _CurlScale;
+float _CurlSpeed;
+float _CurlConfinement;
 float _KnotLobes;
 float _KnotDepth;
 float _FormationRadius;
@@ -160,6 +164,36 @@ float3 FormationTarget(uint index, float seed)
     return _FormationCenter + _FormationRight * local.x + _FormationUp * local.y + _FormationForward * local.z;
 }
 
+float3 NebulaVelocity(float3 position, float seed)
+{
+    float3 offset = position - _FormationCenter;
+    float3 local = float3(dot(offset, _FormationRight), dot(offset, _FormationUp), dot(offset, _FormationForward));
+    // Fit the anchor-local cloud inside the camera-centered simulation volume. Otherwise a distant
+    // anchor repeatedly hits the global wrap plane and draws artificial beams across the scene.
+    float available = max(0.25, _VolumeRadius - length(_FormationCenter) - 0.35);
+    float radius = max(0.1, min(_FormationRadius, available));
+    float3 q = local * (_CurlScale / radius);
+    // Stable phase families keep radial damping from collapsing the entire population onto one
+    // attracting strand. Each family still samples a smooth field, with no per-frame randomness.
+    float family = floor(seed * 7.0);
+    q += float3(family * 0.41, family * 0.67, family * 0.29);
+    float phase = _SimulationTime * _FormationRotationSpeed;
+    // ABC flow: each component is independent of its own coordinate, so its analytic divergence
+    // is zero. The separate radial confinement below is artistic and is NOT incompressible fluid.
+    float a = 1.0 + _Bass * 0.3;
+    float b = 0.8 + _SpectralShape.x * 0.4;
+    float c = 0.65 + _Synth * 0.3;
+    float3 abc = float3(a * sin(q.z + phase) + c * cos(q.y - phase * 0.7),
+        b * sin(q.x - phase * 0.5) + a * cos(q.z + phase),
+        c * sin(q.y - phase * 0.7) + b * cos(q.x - phase * 0.5));
+    float distanceToAnchor = max(length(local), 0.001);
+    float shell = radius * lerp(0.35, 0.92, seed);
+    float correction = clamp((shell - distanceToAnchor) * _CurlConfinement, -1.2, 1.2);
+    float3 velocity = abc * (_CurlSpeed * (0.55 + _Energy * 0.45)) + local / distanceToAnchor * correction;
+    velocity *= min(1.0, 2.0 / max(length(velocity), 0.001));
+    return _FormationRight * velocity.x + _FormationUp * velocity.y + _FormationForward * velocity.z;
+}
+
 void UpdateParticle(uint index, inout Particle particle)
 {
     // Keep the simulated stars world-stable while the camera-centered volume follows the camera.
@@ -176,6 +210,10 @@ void UpdateParticle(uint index, inout Particle particle)
         float3 attraction = (FormationTarget(index, particle.seed) - particle.position) * _FormationAttraction;
         // Bound displacement during transitions and preserve near-eye clearance below.
         attraction *= min(1.0, 2.0 / max(length(attraction), 0.001));
+        if (_CurlBlend > 0.001)
+        {
+            attraction = lerp(attraction, NebulaVelocity(particle.position, particle.seed), _CurlBlend);
+        }
         targetVelocity = lerp(targetVelocity, attraction, _FormationBlend);
     }
     float response = 1.0 - exp(-_DeltaTime * _MotionSmoothing);
@@ -199,7 +237,7 @@ void UpdateParticle(uint index, inout Particle particle)
     float responseLevel = 0.42 + twinkle * 0.30 + _Energy * 0.28;
     float flowPacket = pow(saturate(sin(particle.seed * TWO_PI * 7.0 - _SimulationTime * 0.9)
         * 0.5 + 0.5), 10.0);
-    responseLevel *= 1.0 + flowPacket * _KnotBlend * (0.3 + _Synth * 0.4);
+    responseLevel *= 1.0 + flowPacket * max(_KnotBlend, _CurlBlend) * (0.3 + _Synth * 0.4);
     float population = Random01(index * 83u + 19u);
     float hot = step(0.965, population);
     float detailBlend = _FormationBlend * _FormationDetail;

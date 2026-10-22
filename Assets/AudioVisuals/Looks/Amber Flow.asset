@@ -1,0 +1,18 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: afd59364613ab1e40bd933fc966c317c, type: 3}
+  m_Name: Amber Flow
+  m_EditorClassIdentifier: Assembly-CSharp::AudioVisualLook
+  theme: {fileID: 11400000, guid: 8be7cd56aba022f4585b53a803b20e6e, type: 2}
+  composition: 0
+  intensity: 0.85
+  formation: 4

@@ -46,7 +46,7 @@ public static class AudioVisualValidation
             + "PASS: surface shader; finite bounded geometry; mesh reuse; ring expiration; history; "
             + "fresh transient once; stale transient ignored on enable; silence; private theme blending; spectral shape; "
             + "lattice propagation/clear; terrain scroll continuity; iris onset response/global zero intensity.\n"
-            + "PASS: GPU Stardust, SpiralGalaxy, Torus, FlowKnot dispatch/readback; finite values and volume/near-eye bounds.\n"
+            + "PASS: GPU Stardust, SpiralGalaxy, Torus, FlowKnot, CurlNebula dispatch/readback; finite values, speed and volume/near-eye bounds.\n"
             + "Edit Mode and GPU checks only; not real audio listening, XR, Player performance or Play Mode.\n";
         File.WriteAllText(AudioVisualFieldTools.PreviewDirectory + "/validation.txt", report);
         Debug.Log("[SpatialAudioValidation] " + report);
@@ -354,6 +354,9 @@ public static class AudioVisualValidation
             compute.SetFloat("_FormationDetail", 0.75f);
             compute.SetFloat("_KnotLobes", 3f);
             compute.SetFloat("_KnotDepth", 0.28f);
+            compute.SetFloat("_CurlScale", 3.2f);
+            compute.SetFloat("_CurlSpeed", 0.5f);
+            compute.SetFloat("_CurlConfinement", 0.8f);
             compute.SetVector("_SpectralShape", new Vector4(0.7f, 0.4f, 0.2f, 0.3f));
             compute.SetVector("_FormationCenter", new Vector3(0f, 0f, 2f));
             compute.SetVector("_FormationRight", Vector3.right);
@@ -362,16 +365,18 @@ public static class AudioVisualValidation
             compute.SetVector("_CameraDelta", Vector3.zero);
             compute.SetTexture(update, "_Gradient", Texture2D.whiteTexture);
             Particle[] particles = new Particle[count];
-            for (int formation = 0; formation < 4; formation++)
+            for (int formation = 0; formation < 5; formation++)
             {
                 compute.SetFloat("_FormationBlend", formation == 0 ? 0f : 1f);
                 compute.SetFloat("_TorusBlend", formation == 2 ? 1f : 0f);
                 compute.SetFloat("_KnotBlend", formation == 3 ? 1f : 0f);
+                compute.SetFloat("_CurlBlend", formation == 4 ? 1f : 0f);
                 compute.Dispatch(initialize, 2, 1, 1);
-                for (int step = 0; step < 360; step++)
+                for (int step = 0; step < (formation == 4 ? 3600 : 360); step++)
                 {
-                    compute.SetFloat("_DeltaTime", 1f / 60f);
-                    compute.SetFloat("_SimulationTime", step / 60f);
+                    float delta = formation == 4 ? 1f / 30f : 1f / 60f;
+                    compute.SetFloat("_DeltaTime", delta);
+                    compute.SetFloat("_SimulationTime", step * delta);
                     compute.Dispatch(update, 2, 1, 1);
                 }
                 buffer.GetData(particles);
@@ -379,12 +384,27 @@ public static class AudioVisualValidation
                 {
                     float radius = particle.position.magnitude;
                     Require(Finite(particle.position) && Finite(particle.velocity), "Non-finite GPU simulation.");
+                    Require(particle.velocity.magnitude <= 2.01f, "GPU formation exceeded bounded speed.");
                     Require(radius >= 0.79f && radius <= 8.01f, "GPU volume or near-eye bound failed.");
                 }
-                if (formation > 0)
+                if (formation > 0 && formation < 4)
                 {
                     Require(particles.Average(p => Mathf.Abs(p.position.y)) < (formation == 3 ? 1.1f : 0.7f),
                         "Particles did not converge towards the formation plane.");
+                }
+                if (formation == 4)
+                {
+                    Vector3 anchor = new Vector3(0f, 0f, 2f);
+                    Require(particles.Average(p => Vector3.Distance(p.position, anchor)) < 3.5f,
+                        "Curl nebula did not converge into its authored volume.");
+                    Require(particles.Average(p => p.velocity.magnitude) > 0.08f,
+                        "Curl nebula stopped flowing after convergence.");
+                    Vector3 mean = particles.Aggregate(Vector3.zero, (sum, p) => sum + p.position) / particles.Length;
+                    Require(particles.Average(p => (p.position - mean).sqrMagnitude) > 0.15f,
+                        "Curl nebula collapsed into a single point.");
+                    Debug.Log("[AudioFlow] 120 simulated seconds: mean anchor radius="
+                        + particles.Average(p => Vector3.Distance(p.position, anchor)).ToString("F3")
+                        + ", mean speed=" + particles.Average(p => p.velocity.magnitude).ToString("F3"));
                 }
             }
         }

@@ -18,7 +18,7 @@ public static class AudioVisualShowcaseTools
     public const string LookRoot = AudioVisualFieldTools.Root + "/Looks";
     public const string ProfilePath = LookRoot + "/ShowcasePost.asset";
     public const string PipelinePath = LookRoot + "/ShowcaseHDRPipeline.asset";
-    private static readonly string[] Names = { "Aurora Cathedral", "Solar Percussion", "Jade Orbit", "Violet Knot", "Opal Iris" };
+    private static readonly string[] Names = { "Aurora Cathedral", "Solar Percussion", "Jade Orbit", "Violet Knot", "Opal Iris", "Amber Flow" };
 
     [MenuItem("Tools/MR-VD/Spatial Audio/Build Missing Cinematic Showcase")]
     public static void BuildMissing()
@@ -106,6 +106,18 @@ public static class AudioVisualShowcaseTools
                 theme.rings = 0.15f;
                 theme.motion = 0.6f;
             }
+            if (index == 5)
+            {
+                theme.primary = new Color(0.9f, 0.4f, 0.12f);
+                theme.secondary = new Color(0.16f, 0.5f, 0.72f);
+                theme.emission = 1.65f;
+                theme.ribbons = 0.22f;
+                theme.canopy = 0.2f;
+                theme.lattice = 0.65f;
+                theme.terrain = 0.18f;
+                theme.rings = 0.12f;
+                theme.motion = 0.4f;
+            }
             AssetDatabase.CreateAsset(theme, themePath);
         }
         string path = LookRoot + "/" + Names[index] + ".asset";
@@ -118,7 +130,8 @@ public static class AudioVisualShowcaseTools
         data.FindProperty("theme").objectReferenceValue = theme;
         data.FindProperty("composition").enumValueIndex = index == 4 ? (int)AudioVisualField.Composition.Sculpture
             : index == 1 ? (int)AudioVisualField.Composition.Pulse : (int)AudioVisualField.Composition.Balanced;
-        data.FindProperty("formation").enumValueIndex = index == 3 ? (int)GpuAudioParticleVisualizer.ParticleFormation.FlowKnot
+        data.FindProperty("formation").enumValueIndex = index == 5 ? (int)GpuAudioParticleVisualizer.ParticleFormation.CurlNebula
+            : index == 3 ? (int)GpuAudioParticleVisualizer.ParticleFormation.FlowKnot
             : index == 2 ? (int)GpuAudioParticleVisualizer.ParticleFormation.Torus : (int)GpuAudioParticleVisualizer.ParticleFormation.SpiralGalaxy;
         data.ApplyModifiedPropertiesWithoutUndo();
         AssetDatabase.CreateAsset(look, path);
@@ -147,7 +160,8 @@ public static class AudioVisualShowcaseTools
                 }
                 look.Apply(field, particles);
                 if (field.Theme == null || field.Theme.name != Names[i] + " Theme"
-                    || particles.Formation != (i == 3 ? GpuAudioParticleVisualizer.ParticleFormation.FlowKnot
+                    || particles.Formation != (i == 5 ? GpuAudioParticleVisualizer.ParticleFormation.CurlNebula
+                    : i == 3 ? GpuAudioParticleVisualizer.ParticleFormation.FlowKnot
                     : i == 2 ? GpuAudioParticleVisualizer.ParticleFormation.Torus
                     : GpuAudioParticleVisualizer.ParticleFormation.SpiralGalaxy))
                 {
@@ -174,7 +188,7 @@ public static class AudioVisualShowcaseTools
             {
                 throw new InvalidOperationException("Showcase HDR/post assets missing.");
             }
-            Debug.Log("[AudioShowcase] PASS: five independent look bindings, private theme rendering, HDR/post assets.");
+            Debug.Log("[AudioShowcase] PASS: six independent look bindings, private theme rendering, HDR/post assets.");
         }
         finally
         {

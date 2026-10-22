@@ -12,7 +12,7 @@ using UnityEngine.Rendering;
 [DefaultExecutionOrder(130)]
 public sealed class GpuAudioParticleVisualizer : MonoBehaviour
 {
-    public enum ParticleFormation { Stardust, SpiralGalaxy, Torus, FlowKnot }
+    public enum ParticleFormation { Stardust, SpiralGalaxy, Torus, FlowKnot, CurlNebula }
 
     private const int ThreadGroupSize = 64;
     private const int ParticleStride = 12 * sizeof(float);
@@ -65,6 +65,11 @@ public sealed class GpuAudioParticleVisualizer : MonoBehaviour
     private float formationBlend;
     private float torusBlend;
     private float knotBlend;
+    private float curlBlend;
+    [Header("Curl Nebula Flow")]
+    [SerializeField, Range(0.5f, 8f)] private float curlScale = 3.2f;
+    [SerializeField, Range(0.05f, 1.2f)] private float curlSpeed = 0.5f;
+    [SerializeField, Range(0.1f, 3f)] private float curlConfinement = 0.8f;
 
     public ParticleFormation Formation => formation;
 
@@ -339,10 +344,15 @@ public sealed class GpuAudioParticleVisualizer : MonoBehaviour
         formationBlend = Mathf.Lerp(formationBlend, formation == ParticleFormation.Stardust ? 0f : 1f, response);
         torusBlend = Mathf.Lerp(torusBlend, formation == ParticleFormation.Torus ? 1f : 0f, response);
         knotBlend = Mathf.Lerp(knotBlend, formation == ParticleFormation.FlowKnot ? 1f : 0f, response);
+        curlBlend = Mathf.Lerp(curlBlend, formation == ParticleFormation.CurlNebula ? 1f : 0f, response);
         Transform anchor = formationAnchor != null ? formationAnchor : transform;
         runtimeCompute.SetFloat("_FormationBlend", formationBlend);
         runtimeCompute.SetFloat("_TorusBlend", torusBlend);
         runtimeCompute.SetFloat("_KnotBlend", knotBlend);
+        runtimeCompute.SetFloat("_CurlBlend", curlBlend);
+        runtimeCompute.SetFloat("_CurlScale", curlScale);
+        runtimeCompute.SetFloat("_CurlSpeed", curlSpeed);
+        runtimeCompute.SetFloat("_CurlConfinement", curlConfinement);
         runtimeCompute.SetFloat("_KnotLobes", Mathf.Clamp(knotLobes | 1, 3, 7));
         runtimeCompute.SetFloat("_KnotDepth", knotDepth);
         runtimeCompute.SetFloat("_FormationRadius", Mathf.Min(formationRadius, volumeRadius * 0.65f));
