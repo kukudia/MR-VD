@@ -173,10 +173,10 @@ public static class AudioVisualPixelValidation
             }
             Directory.CreateDirectory(AudioVisualFieldTools.PreviewDirectory);
             File.WriteAllText(AudioVisualFieldTools.PreviewDirectory + "/reading-pixels.txt",
-                DateTimeOffset.Now.ToString("o") + "\nPASS: five production surface styles; background/foreground; "
+                DateTimeOffset.Now.ToString("o") + "\nPASS: six production surface styles; background/foreground; "
                 + "rotated screen; behind-camera screen; near fade; two mono view offsets.\n"
                 + "Actual GPU pixel readback, isolated camera; not headset stereo or Player performance.\n");
-            Debug.Log("[AudioVisualPixels] PASS: five surface styles preserve reading clearance and near fade.");
+            Debug.Log("[AudioVisualPixels] PASS: six surface styles preserve reading clearance and near fade.");
         }
         finally
         {

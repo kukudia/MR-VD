@@ -44,7 +44,8 @@ public static class AudioVisualValidation
         Directory.CreateDirectory(AudioVisualFieldTools.PreviewDirectory);
         string report = DateTimeOffset.Now.ToString("o") + "\n"
             + "PASS: surface shader; finite bounded geometry; mesh reuse; ring expiration; history; "
-            + "fresh transient once; stale transient ignored on enable; silence; private theme blending; spectral shape; lattice propagation/clear.\n"
+            + "fresh transient once; stale transient ignored on enable; silence; private theme blending; spectral shape; "
+            + "lattice propagation/clear; terrain scroll continuity; iris onset response/global zero intensity.\n"
             + "PASS: GPU Stardust, SpiralGalaxy, Torus, FlowKnot dispatch/readback; finite values and volume/near-eye bounds.\n"
             + "Edit Mode and GPU checks only; not real audio listening, XR, Player performance or Play Mode.\n";
         File.WriteAllText(AudioVisualFieldTools.PreviewDirectory + "/validation.txt", report);

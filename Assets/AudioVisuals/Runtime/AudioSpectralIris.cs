@@ -58,7 +58,7 @@ public sealed class AudioSpectralIris : AudioVisualMesh
             for (int step = 0; step <= steps; step++)
             {
                 float u = step / (float)steps;
-            float envelope = Mathf.Max(0f, Mathf.Sin(u * Mathf.PI));
+                float envelope = Mathf.Max(0f, Mathf.Sin(u * Mathf.PI));
                 float radius = aperture * (1f - onsetPulse * onsetExpansion * 0.22f)
                     + u * (reach + band * spectrumReach + onsetPulse * onsetExpansion) + breathing * envelope;
                 float angle = identity * Mathf.PI * 2f + spiral * u + clock;
