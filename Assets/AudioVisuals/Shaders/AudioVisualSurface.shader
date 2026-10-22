@@ -17,6 +17,7 @@ Shader "MR-VD/Spatial Audio Surface"
         [HideInInspector] _NearFadeEnd ("Near fade end", Float) = 1.4
         [HideInInspector] _ScreenEnabled ("Reading screen enabled", Float) = 0
         [HideInInspector] _SpectralShape ("Spectral shape", Vector) = (0,0,0,0)
+        [HideInInspector] _SpectralLayers ("Causal median layers", Vector) = (0,0,0,0)
     }
     SubShader
     {
@@ -54,6 +55,7 @@ Shader "MR-VD/Spatial Audio Surface"
                 float4x4 _ScreenWorldToLocal;
                 float4 _ScreenRect;
                 float4 _SpectralShape;
+                float4 _SpectralLayers;
             CBUFFER_END
 
             struct Attributes
@@ -142,6 +144,7 @@ Shader "MR-VD/Spatial Audio Surface"
                     distance(input.positionWS, eye));
                 float shape;
                 float highlight = 0.0;
+                float layerContrast = (_SpectralLayers.y - _SpectralLayers.x) * _SpectralLayers.z;
                 float flow = _VisualTime * _FlowSpeed * (1.0 + _SpectralShape.x * 0.5);
                 if (_Style < 0.5)
                 {
@@ -152,10 +155,12 @@ Shader "MR-VD/Spatial Audio Surface"
                     float strand = input.uv.y * _FiberDensity + warp * _Turbulence * (3.0 + _SpectralShape.z * 2.0);
                     float fibers = Filament(strand, 0.045 + _Detail * 0.025);
                     float mist = Noise(float2(input.uv.x * 22.0 - flow * 0.7, input.uv.y * 4.0));
-                    float currents = pow(saturate(sin(input.uv.x * 28.0 - flow + warp * 4.0) * 0.5 + 0.5), 8.0);
+                    float currents = pow(saturate(sin(input.uv.x * 28.0 - flow * (1.0 + layerContrast * 0.35)
+                        + warp * 4.0) * 0.5 + 0.5), 8.0);
                     float glints = pow(saturate(Noise(drift * float2(6.0, 16.0) + flow * 0.2)), 14.0);
                     shape = edge * (0.18 + mist * 0.32 + fibers * (0.4 + currents * 0.7));
-                    highlight = edge * (currents * fibers * 0.45 + glints * _Sparkle * (5.0 + _SpectralShape.w * 8.0));
+                    highlight = edge * (currents * fibers * 0.45 + glints * _Sparkle
+                        * (5.0 + _SpectralShape.w * 8.0) * (1.0 + layerContrast * 0.5));
                 }
                 else if (_Style < 1.5)
                 {
@@ -181,7 +186,7 @@ Shader "MR-VD/Spatial Audio Surface"
                 else if (_Style < 3.5)
                 {
                     float edge = pow(saturate(1.0 - abs(input.uv.y * 2.0 - 1.0)), 0.7);
-                    float carrier = sin(input.uv.x * 100.0 - flow * 1.8) * 0.5 + 0.5;
+                    float carrier = sin(input.uv.x * 100.0 - flow * (1.8 + layerContrast * 0.4)) * 0.5 + 0.5;
                     float packet = pow(saturate(sin(input.uv.x * 31.4159 + flow * 0.7) * 0.5 + 0.5), 18.0);
                     shape = edge * (0.35 + carrier * 0.35 + packet * 0.6);
                     highlight = edge * packet * (0.35 + _SpectralShape.w) * _Sparkle;

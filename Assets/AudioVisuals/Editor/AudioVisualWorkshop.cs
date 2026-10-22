@@ -131,6 +131,7 @@ public sealed class AudioVisualWorkshop : EditorWindow
         AudioVisualField.Frame frame = field.CurrentFrame;
         EditorGUILayout.LabelField("Bass / Detail / Energy", $"{frame.bass:F2} / {frame.detail:F2} / {frame.energy:F2}");
         EditorGUILayout.LabelField("Shape: center / spread / flat / rise", frame.spectralShape.ToString("F2"));
+        EditorGUILayout.LabelField("Median: sustain / broad / contrast / warm", frame.spectralLayers.ToString("F2"));
         if (GUILayout.Button("Bake Current Meshes into New Editable Prefab"))
         {
             notice = BakeSnapshot(field);
@@ -218,6 +219,7 @@ public sealed class AudioVisualWorkshop : EditorWindow
                     material.SetFloat(property, block.GetFloat(property));
                 }
                 material.SetVector("_SpectralShape", block.GetVector("_SpectralShape"));
+                material.SetVector("_SpectralLayers", block.GetVector("_SpectralLayers"));
                 // A saved world-to-screen matrix would become incorrect when the snapshot moves.
                 // Keep the mask on the live field; static decorative snapshots have no screen binding.
                 material.SetFloat("_ScreenEnabled", 0f);

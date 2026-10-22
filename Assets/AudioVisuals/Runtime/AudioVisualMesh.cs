@@ -59,6 +59,9 @@ public abstract class AudioVisualMesh : MonoBehaviour
         properties.SetFloat("_FlowSpeed", theme.flowSpeed);
         properties.SetFloat("_Sparkle", theme.sparkle);
         properties.SetVector("_SpectralShape", frame.spectralShape * theme.spectralInfluence);
+        Vector4 layers = frame.spectralLayers;
+        layers.z *= theme.layerResponse;
+        properties.SetVector("_SpectralLayers", layers);
         properties.SetFloat("_NearFadeStart", theme.fadeStartDistance);
         properties.SetFloat("_NearFadeEnd", Mathf.Max(theme.fadeStartDistance + 0.1f, theme.fullVisibilityDistance));
         properties.SetFloat("_ScreenEnabled", frame.hasScreen ? 1f : 0f);

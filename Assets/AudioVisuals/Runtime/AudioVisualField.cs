@@ -41,6 +41,7 @@ public sealed class AudioVisualField : MonoBehaviour
 
     private readonly float[] spectrum = new float[48];
     private readonly AudioSpectralShape spectralShape = new AudioSpectralShape(48);
+    private readonly AudioSpectralLayers spectralLayers = new AudioSpectralLayers(48);
     private Vector4 smoothedShape;
     private uint lastObservedOnset;
     private float lastAcceptedOnset = float.NegativeInfinity;
@@ -65,6 +66,7 @@ public sealed class AudioVisualField : MonoBehaviour
         public Matrix4x4 screenWorldToLocal;
         public Vector4 screenRect;
         public Vector4 spectralShape;
+        public Vector4 spectralLayers;
     }
 
     public float GetSpectrumBand(int index)
@@ -173,6 +175,7 @@ public sealed class AudioVisualField : MonoBehaviour
         energy = Smooth(energy, (targetBass + targetDetail) * 0.5f, delta);
         UpdateSpectrum(delta, silent);
         Vector4 shape = spectralShape.Analyze(spectrum, silent);
+        Vector4 layers = spectralLayers.Analyze(spectrum, delta, silent);
         smoothedShape = Vector4.Lerp(smoothedShape, shape, 1f - Mathf.Exp(-delta * 8f));
         float phase = visualTime * bpm / 60f;
         float visibility = 1f;
@@ -191,6 +194,7 @@ public sealed class AudioVisualField : MonoBehaviour
             energy = energy, bpm = bpm, beatPhase = Mathf.Repeat(phase, 1f), onset = onset,
             onsetStrength = Mathf.Clamp01(strength),
             spectralShape = smoothedShape,
+            spectralLayers = layers,
             ribbonWeight = theme.ribbons * level * evolution * (composition == Composition.Spectrum ? 0.2f : 1f),
             ringWeight = theme.rings * intensity * visibility * (composition == Composition.Aurora ? 0.35f : 1f),
             terrainWeight = theme.terrain * level * (composition == Composition.Aurora ? 0.15f : 1f)
@@ -266,6 +270,7 @@ public sealed class AudioVisualField : MonoBehaviour
         displayedTheme.flowSpeed = Mathf.Lerp(displayedTheme.flowSpeed, theme.flowSpeed, blend);
         displayedTheme.sparkle = Mathf.Lerp(displayedTheme.sparkle, theme.sparkle, blend);
         displayedTheme.spectralInfluence = Mathf.Lerp(displayedTheme.spectralInfluence, theme.spectralInfluence, blend);
+        displayedTheme.layerResponse = Mathf.Lerp(displayedTheme.layerResponse, theme.layerResponse, blend);
         displayedTheme.canopy = Mathf.Lerp(displayedTheme.canopy, theme.canopy, blend);
         displayedTheme.lattice = Mathf.Lerp(displayedTheme.lattice, theme.lattice, blend);
         displayedTheme.fadeStartDistance = theme.fadeStartDistance;
@@ -333,6 +338,7 @@ public sealed class AudioVisualField : MonoBehaviour
         bass = detail = energy = 0f;
         smoothedShape = Vector4.zero;
         spectralShape.Reset();
+        spectralLayers.Reset();
         System.Array.Clear(spectrum, 0, spectrum.Length);
         if (rings != null)
         {

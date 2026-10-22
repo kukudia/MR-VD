@@ -130,3 +130,13 @@ Inspector 可调节点数、层数、连接细分、线半径、整体半径、�
 `Validate GPU Particle Reading Pixels` 使用生产粒子 Shader 和单粒子 ComputeBuffer，通过实际 RenderPrimitives 提交与像素读回复现旧问题：屏幕前方的粒子仍出现在中央阅读射线上。修复取消交点必须落在视点与粒子之间的限制，使 GPU 与空间网格一样清除完整阅读射线；Shader 改用当前相机/眼睛位置，完整 Rect 边界替代居中 HalfSize 假设，保留非居中 Pivot。旧的独立相机中心 uniform 已删除，运行时仅更新新的内部 Shader 契约，不改场景序列化字段。
 
 修复后 GPU 前后景、非居中矩形、旋转平面、左右独立视点像素检查通过；五种网格表面像素检查通过。报告写入 `Temp/AudioVisualResearch/reading-pixels.txt` 与 `gpu-reading-pixels.txt`。这包含真实 GPU 渲染证据，仍不是单通道立体头显、设备体验或 Player 性能认证；粒子按中心裁剪，跨越遮罩边缘的大粒子可能发生整体显隐，当前小粒子方案保持原行为。
+## 第八轮：因果频谱层次预研
+
+实际阅读 [librosa.decompose.hpss 源码](https://github.com/librosa/librosa/blob/main/librosa/decompose.py)（2026-10-22）：时间/频率中值和幂次软遮罩思想来源于其说明的 Fitzgerald 2010 方法。本项目独立实现 [AudioSpectralLayers.Analyze](../Assets/AudioVisuals/Runtime/AudioSpectralLayers.cs)，没有复制代码或引入 librosa 依赖；只处理 48 个已压缩、平滑的对数展示频带，不重建音频、不等同完整 HPSS、更不识别人声/乐器。因果 9 帧时间中值、7 频带局部中值、20 Hz 更新，不使用前视；启动覆盖约 0.45 秒，中值对变化存在历史滞后。帧卡顿不复制同一快照填满历史。
+
+Frame 的 spectralLayers 为持续比例、宽带比例、对比分离权重、预热覆盖。两比例互补；持续宽带噪声保持 0.5/0.5 且对比为 0，避免强行分类。分离权重乘预热覆盖与主题 `layerResponse`，仅轻量调制极光表面高光/细流和穹顶载波速度，不改变原 BPM、调性、节拍接受链或整体亮度。工作台显示原始描述符，Bake 保存新 Shader 向量；设 layerResponse=0 可关闭调制。
+
+最新程序集已确认包含新增方法与 Frame 字段后，稳定窄带、首次宽带、持续宽带模糊、静音复位、NaN/Infinity 清理、30/60/120 FPS 采样覆盖与 200 次稳定路径零托管分配测试通过。既有网格/GPU 与五样式阅读像素检查通过。算法初版 2000 次窄带更新微基准约 12.8 微秒/次（Editor 单次测量，不是 Player 保证）。真实音频分层可靠性尚未验证，不称为音频分析质量提升。
+
+本轮出现 Bee 构建后端访问冲突及进程创建失败（系统提交余量约 0.3 GB，物理空闲约 6 GB）。保存 DAG 哈希/副本至 Temp 后请求 CleanBuildCache，清理重建仍受资源限制；最终通过官方 AssetDatabase API 将本项目 DesiredWorkerCount 从 3 临时收缩为 1，提交余量恢复约 3 GB，正常编译成功。未结束用户其他程序，未更改分页或全局系统设置。早期旧程序集测试不作为新增回归证据，恢复后已明确验证方法存在并重新运行。
+恢复后实际合成 Play 至少 47.55 秒、2348 帧，分层向量持续更新，截图 Temp/AudioVisualResearch/play-20261022-182252-742.png 已检查。五层 Bake 重载验证 Style 4 与全部材质的 _SpectralLayers 覆盖值持久化通过；临时验证快照已由 AssetDatabase 删除，原示例快照保留。运行窗口仅记录已知无头显 MetaXR 启动错误。

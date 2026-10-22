@@ -33,6 +33,7 @@ public static class AudioVisualValidation
         }
         CheckSurfaceShader();
         CheckSpectralShape();
+        CheckSpectralLayers();
         int meshesBefore = Resources.FindObjectsOfTypeAll<Mesh>().Length;
         CheckMeshesAndOnsets();
         CheckLatticePropagation();
@@ -125,6 +126,60 @@ public static class AudioVisualValidation
         Vector4 finite = analyzer.Analyze(bands, false);
         Require(float.IsFinite(finite.x) && float.IsFinite(finite.y) && float.IsFinite(finite.z)
             && float.IsFinite(finite.w), "Invalid FFT input propagated non-finite descriptors.");
+    }
+
+    private static void CheckSpectralLayers()
+    {
+        AudioSpectralLayers layers = new AudioSpectralLayers(48);
+        float[] bands = new float[48];
+        bands[20] = 0.8f;
+        Vector4 sustained = Vector4.zero;
+        for (int i = 0; i < 12; i++)
+        {
+            sustained = layers.Analyze(bands, 0.05f, false);
+        }
+        Require(sustained.x > 0.99f && sustained.y < 0.01f && sustained.z > 0.99f,
+            "Persistent narrowband spectrum was not distinguished from broadband structure.");
+        layers.Reset();
+        for (int i = 0; i < bands.Length; i++)
+        {
+            bands[i] = 0.8f;
+        }
+        Vector4 impulse = layers.Analyze(bands, 0.05f, false);
+        Require(impulse.y > 0.99f && impulse.x < 0.01f && impulse.w < 0.2f,
+            "First broadband frame did not remain a low-coverage transient.");
+        for (int i = 0; i < 12; i++)
+        {
+            impulse = layers.Analyze(bands, 0.05f, false);
+        }
+        Require(Mathf.Abs(impulse.x - 0.5f) < 0.001f && impulse.z < 0.001f,
+            "Sustained broadband ambiguity was incorrectly labelled confident.");
+        Require(layers.Analyze(bands, 0.05f, true) == Vector4.zero, "Silent masks were not cleared.");
+        bands[2] = float.NaN;
+        bands[3] = float.PositiveInfinity;
+        Vector4 sanitized = layers.Analyze(bands, 0.05f, false);
+        Require(float.IsFinite(sanitized.x) && float.IsFinite(sanitized.z), "Invalid input escaped median masks.");
+        foreach (int fps in new[] { 30, 60, 120 })
+        {
+            layers.Reset();
+            for (int i = 0; i < bands.Length; i++)
+            {
+                bands[i] = i == 20 ? 0.8f : 0f;
+            }
+            for (int i = 0; i < fps * 2 / 5; i++)
+            {
+                layers.Analyze(bands, 1f / fps, false);
+            }
+            Require(Mathf.Abs(layers.Current.w - 8f / 9f) < 0.001f,
+                "Median feature cadence changed with frame rate: " + fps);
+        }
+        // Warm framework sort helpers before measuring steady-state allocation.
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        for (int i = 0; i < 200; i++)
+        {
+            layers.Analyze(bands, 0.05f, false);
+        }
+        Require(GC.GetAllocatedBytesForCurrentThread() == before, "Median feature allocated in steady state.");
     }
 
     private static void CheckMeshesAndOnsets()

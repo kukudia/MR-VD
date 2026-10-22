@@ -22,6 +22,8 @@ public sealed class AudioVisualTheme : ScriptableObject
     [Range(0f, 1f)] public float sparkle = 0.4f;
     [Tooltip("Spectral shape changes filament flow, surface roughness and fine highlights.")]
     [Range(0f, 1f)] public float spectralInfluence = 0.7f;
+    [Tooltip("Experimental causal median masks; 0 disables their surface modulation. Not source separation.")]
+    [Range(0f, 1f)] public float layerResponse = 0.5f;
 
     [Header("Audio Response")]
     [Min(0f)] public float bassGain = 10f;
