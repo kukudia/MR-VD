@@ -170,3 +170,12 @@ GPU 粒子新增可编辑 `motionStretch`，按视点投影速度拉伸粒子四
 采样最终于 2026-10-22 18:59:21 完成 480.02 秒，预热后观测 22961 帧，Editor frame interval p95=20.939ms，生成网格 13→13。475 行一秒采样中 Unity allocated 为约 1307.17～1377.84MiB，结束 1308.60MiB；托管内存约 1259.73～1434.03MiB，呈回收波动。日志 `soak-20261022-185121.csv/.txt` 保存于 Temp；这是含原全局组件、Editor 与采样器开销的观察值，不是单个视觉系统净内存或无泄漏证明。观察完成后 IsRunning=false，原 Look 已恢复，Play 正常退出。PCM 夹具重复生成 SHA-256 一致。
 
 现代模型研究与许可证/时延边界另见 [audio-visual-frontier.md](audio-visual-frontier.md)。当前没有引入神经运行依赖。
+## 第十三轮：受控 PCM 经过同款 CSCore FFT
+
+[AudioLogSpectrum.SampleBand](../Assets/AudioVisuals/Runtime/AudioLogSpectrum.cs) 抽出原有频带积分与压缩计算，AudioVisualField 与受控测试共享正式实现，不改变 40Hz～8kHz/48 对数频带的既有映射。额外防护无效采样率/数组及非有限 FFT 值，不依赖捕获单例。
+
+`Validate Authored PCM Features` 读取自制 48kHz mono PCM、调用生产同款 CSCore Fft4096，使用 .5 FFT 平滑及相同展示 attack/release，然后计算形状与因果层次。低音 110Hz 的峰值频带 9、高音 3520Hz 为 40；平均展示重心约 .1864/.6660，排序通过；静音所有能量为 0。持续谐波床 persistent≈.6581，独立宽带脉冲 broadbandPeak=1.0，有限输出与基础对比通过。报告 `Temp/AudioVisualResearch/pcm-features.txt`。
+
+**限制实测**：混合床/脉冲的 broadbandPeak≈.3708，相比纯音床 .3430 仅小幅变化，不能称其已可靠分离打击与持续声。独立脉冲的展示最大能量仅约 .0207，而窄带音较高，反映当前平均频带积分与压缩的显示尺度，不是感知响度。中值层次继续只负责轻量表面调制，精确瞬态继续来自原 AudioVisualizer。不要用对照夹具的通过结论替代混合音乐泛化或算法质量提升。测试不播放、不启动 WASAPI、不修改设备/PlayerPrefs，不认证 BPM/调性/真实音乐准确率。
+
+Unity 编译、受控 PCM 测试及原网格/GPU/频谱回归通过；diff 检查通过。

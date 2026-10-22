@@ -305,17 +305,7 @@ public sealed class AudioVisualField : MonoBehaviour
             }
             else if (!silent && fft != null && fft.Length >= 4 && sampleRate > 0f)
             {
-                float frequency = 40f * Mathf.Pow(200f, t);
-                // Integrate log intervals so peaks between display bands still contribute.
-                float halfStep = Mathf.Pow(200f, 0.5f / (spectrum.Length - 1));
-                int first = Mathf.Clamp(Mathf.FloorToInt(frequency / halfStep * fft.Length / sampleRate), 1, fft.Length / 2 - 1);
-                int last = Mathf.Clamp(Mathf.CeilToInt(frequency * halfStep * fft.Length / sampleRate), first + 1, fft.Length / 2);
-                float sum = 0f;
-                for (int bin = first; bin < last; bin++)
-                {
-                    sum += float.IsFinite(fft[bin]) ? Mathf.Max(0f, fft[bin]) : 0f;
-                }
-                target = Compress(sum / (last - first), 18f);
+                target = AudioLogSpectrum.SampleBand(fft, sampleRate, band, spectrum.Length);
             }
             spectrum[band] = Smooth(spectrum[band], target, delta);
         }
