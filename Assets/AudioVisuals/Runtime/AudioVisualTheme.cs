@@ -35,6 +35,7 @@ public sealed class AudioVisualTheme : ScriptableObject
     [Range(0f, 1f)] public float rings = 0.5f;
     [Range(0f, 1f)] public float terrain = 0.45f;
     [Range(0f, 1f)] public float canopy = 0.78f;
+    [Range(0f, 1f)] public float lattice = 0.65f;
     [Range(0f, 1f)] public float motion = 0.6f;
     [Tooltip("A slow visual phrase, not automatic song-section recognition.")]
     [Range(4, 64)] public int phraseBeats = 16;

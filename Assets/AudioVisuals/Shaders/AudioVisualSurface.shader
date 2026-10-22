@@ -178,13 +178,21 @@ Shader "MR-VD/Spatial Audio Surface"
                     shape += contours * 0.12;
                     highlight = nodes * (0.1 + scanner * _Sparkle);
                 }
-                else
+                else if (_Style < 3.5)
                 {
                     float edge = pow(saturate(1.0 - abs(input.uv.y * 2.0 - 1.0)), 0.7);
                     float carrier = sin(input.uv.x * 100.0 - flow * 1.8) * 0.5 + 0.5;
                     float packet = pow(saturate(sin(input.uv.x * 31.4159 + flow * 0.7) * 0.5 + 0.5), 18.0);
                     shape = edge * (0.35 + carrier * 0.35 + packet * 0.6);
                     highlight = edge * packet * (0.35 + _SpectralShape.w) * _Sparkle;
+                }
+                else
+                {
+                    float nodes = pow(abs(input.uv.x * 2.0 - 1.0), 20.0);
+                    float packet = pow(saturate(sin(input.uv.x * 18.8496 - flow * 2.0) * 0.5 + 0.5), 12.0);
+                    float ticks = Filament(input.uv.x * 14.0, 0.06);
+                    shape = 0.4 + nodes * 0.8 + packet * 0.3 + ticks * 0.15;
+                    highlight = nodes * 0.4 + packet * _Sparkle * 0.5;
                 }
                 float alpha = input.color.a * _Opacity * shape * nearFade * ReadingMask(input.positionWS, eye);
                 float3 color = lerp(input.color.rgb, max(input.color.rgb, 0.65), saturate(highlight));

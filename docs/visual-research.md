@@ -52,6 +52,7 @@ flowchart LR
     F --> P[AudioBeatRings.RenderFrame]
     F --> H[AudioSpectrumTerrain.RenderFrame]
     F --> K[AudioHarmonicCanopy.RenderFrame]
+    F --> L[AudioSpectralLattice.RenderFrame]
     B --> R
     B --> P
     B --> H
@@ -65,6 +66,7 @@ flowchart LR
     P --> M
     H --> M
     K --> M
+    L --> M
 ```
 
 源码入口：[AudioVisualField](../Assets/AudioVisuals/Runtime/AudioVisualField.cs)、[主题](../Assets/AudioVisuals/Runtime/AudioVisualTheme.cs)、[编辑器工具](../Assets/AudioVisuals/Editor/AudioVisualFieldTools.cs)、[验证](../Assets/AudioVisuals/Editor/AudioVisualValidation.cs)、[GPU](../Assets/AudioReactiveParticles/Runtime/GpuAudioParticleVisualizer.cs)。后续研究在此基础上逐个完整单元推进，不把视觉短语调制称为自动歌曲段落识别，也不把 synth 能量称为人声或语义检测。
@@ -113,3 +115,11 @@ flowchart LR
 检查真实图连接发现 SmokeEffect 的 `Density` 直接进入每秒发射数，而不是归一化密度。控制器新增 Inspector `smokeParticlesPerSecond`（默认 120），按归一化强度换算发射率；原 SmokeDensity 备用属性仍保持归一化契约。默认实验场运行 17.09 秒时烟雾实际存活 21 个、发射率约 3.246/秒，截图可见淡青色烟丝；不会将旧的 -1 计数记为成功。实际截图 `Temp/AudioVisualResearch/play-20261022-174835-446.png` 已查看，柔光点替代此前硬方块，整体层次仍需继续打磨。
 
 重复生成与 Unity 导入通过，四图属性/频谱/调色/黑场验证通过，新增每秒发射率检查通过。重新读取四张 importer 确认线性、mip、Clamp/Trilinear 配置持久化。验证窗口控制台没有新增 error，Editor 无编译失败；不等同于设备、真实音频或 Player 性能验证。
+
+## 第六轮：带传播时差的频谱星座
+
+[AudioSpectralLattice.RenderFrame](../Assets/AudioVisuals/Runtime/AudioSpectralLattice.cs) 用三维三角截面细丝构成开口星座，默认 3 层、每层 20 节点、97 连接，每连接 8 段，共 2619 顶点。静态种子保持形态稳定，48 个展示频带改变节点局部径向位移；连接带有端点结、细节刻度与流动高光。最多保留 8 个接受的瞬态包络，沿开口弧形传播（默认 0.75 秒），不使用全屏同步闪烁，也不声称网络代表音乐相似性或检测到的和声。
+
+Inspector 可调节点数、层数、连接细分、线半径、整体半径、高宽比、深度间距、频带位移、传播时长、中心和种子；主题 `lattice` 控制独立权重。组件使用既有近眼淡出和阅读遮罩；禁用清空传播记录，显式释放网格供编辑预览清理。工作台可升级缺少的 Prefab 组件，重复运行不增加重复层；Bake 的通用效果收集会保留该组件几何、Style 4 和源参数。已有四层快照保持原样。
+
+实际验证：传播起点/远端时差、Clear 不重放、2619 顶点预算、有限边界和网格复用测试通过；全部既有网格/Shader/GPU 检查通过。四主题联系图已渲染查看。桌面合成 Play 49.28 秒、2441 帧，截图 `Temp/AudioVisualResearch/play-20261022-180331-375.png` 已查看；主场景重载检查 demo=false、星座数量为 1、绑定有效，AudioVisualizer/VirtualStage 引用保留。`dotnet build` 仍为基线 LibreHardwareMonitor/Computer 缺失的 2 错误、13 个 MSB3277 警告，不能记录为构建通过；Unity 编译与视觉运行验证独立成立。真实音频听感、头显和 Player 性能仍待验证。

@@ -35,13 +35,14 @@ public static class AudioVisualValidation
         CheckSpectralShape();
         int meshesBefore = Resources.FindObjectsOfTypeAll<Mesh>().Length;
         CheckMeshesAndOnsets();
+        CheckLatticePropagation();
         Require(Resources.FindObjectsOfTypeAll<Mesh>().Length == meshesBefore,
             "Isolated preview objects leaked meshes after teardown.");
         CheckGpuFormations();
         Directory.CreateDirectory(AudioVisualFieldTools.PreviewDirectory);
         string report = DateTimeOffset.Now.ToString("o") + "\n"
             + "PASS: surface shader; finite bounded geometry; mesh reuse; ring expiration; history; "
-            + "fresh transient once; stale transient ignored on enable; silence; private theme blending; spectral shape.\n"
+            + "fresh transient once; stale transient ignored on enable; silence; private theme blending; spectral shape; lattice propagation/clear.\n"
             + "PASS: GPU Stardust, SpiralGalaxy, Torus dispatch/readback; finite values and volume/near-eye bounds.\n"
             + "Edit Mode and GPU checks only; not real audio listening, XR, Player performance or Play Mode.\n";
         File.WriteAllText(AudioVisualFieldTools.PreviewDirectory + "/validation.txt", report);
@@ -54,6 +55,47 @@ public static class AudioVisualValidation
         Require(shader != null && shader.isSupported, "Surface shader unavailable.");
         Require(!ShaderUtil.GetShaderMessages(shader).Any(m => m.severity.ToString() == "Error"),
             "Surface shader compilation failed.");
+    }
+
+    private static void CheckLatticePropagation()
+    {
+        GameObject host = new GameObject("Isolated constellation propagation validation");
+        AudioVisualTheme theme = ScriptableObject.CreateInstance<AudioVisualTheme>();
+        AudioSpectralLattice lattice = host.AddComponent<AudioSpectralLattice>();
+        try
+        {
+            AudioVisualField.Frame frame = new AudioVisualField.Frame
+            {
+                time = 10f, deltaTime = 1f / 60f, ribbonWeight = 1f,
+                onset = true, onsetStrength = 1f
+            };
+            lattice.RenderFrame(frame, theme, null);
+            Mesh mesh = host.GetComponent<MeshFilter>().sharedMesh;
+            Require(lattice.NodeCount == 60 && mesh.vertexCount == 2619, "Unexpected constellation geometry budget.");
+            float initial = mesh.colors[0].a;
+            frame.onset = false;
+            frame.time = 10.75f;
+            lattice.RenderFrame(frame, theme, null);
+            Color[] late = mesh.colors;
+            Require(late[0].a < initial * 0.7f, "Constellation pulse did not leave first node.");
+            // Last vertex of the first arch arrives 0.75 seconds after its first node.
+            int lastVertex = (19 * 9 - 1) * 3;
+            Require(late[lastVertex].a > late[0].a * 1.5f, "Constellation pulse did not propagate to far nodes.");
+            lattice.Clear();
+            lattice.RenderFrame(frame, theme, null);
+            Require(mesh.colors[lastVertex].a < late[lastVertex].a * 0.7f, "Clear replayed a constellation pulse.");
+            Require(host.GetComponent<MeshFilter>().sharedMesh == mesh, "Constellation mesh was not reused.");
+            foreach (Vector3 v in mesh.vertices)
+            {
+                Require(Finite(v) && v.magnitude < 30f, "Constellation geometry escaped bounds.");
+            }
+        }
+        finally
+        {
+            lattice.ReleaseMesh();
+            Object.DestroyImmediate(host);
+            Object.DestroyImmediate(theme);
+        }
     }
 
     private static void CheckSpectralShape()

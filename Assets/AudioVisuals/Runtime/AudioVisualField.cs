@@ -2,7 +2,7 @@ using UnityEngine;
 
 /// <summary>
 /// Main entry for the spatial audio composition. LateUpdate reads the existing audio analysis once,
-/// normalizes the spectrum and directly drives the three mesh effects. Demo input is opt-in and
+/// normalizes the spectrum and directly drives the mesh effects. Demo input is opt-in and
 /// clearly serialized; OnEnable snapshots onset state so re-enabling never replays an old hit.
 /// </summary>
 [DisallowMultipleComponent]
@@ -19,6 +19,7 @@ public sealed class AudioVisualField : MonoBehaviour
     [SerializeField] private AudioBeatRings rings;
     [SerializeField] private AudioSpectrumTerrain terrain;
     [SerializeField] private AudioHarmonicCanopy canopy;
+    [SerializeField] private AudioSpectralLattice lattice;
     [SerializeField] private StageManager stage;
 
     [Tooltip("Follow stage blackout and beat phase without changing the stage or its palette.")]
@@ -238,6 +239,10 @@ public sealed class AudioVisualField : MonoBehaviour
         {
             canopy.RenderFrame(frame, displayedTheme, this);
         }
+        if (lattice != null && lattice.isActiveAndEnabled)
+        {
+            lattice.RenderFrame(frame, displayedTheme, this);
+        }
     }
 
     private void UpdateDisplayedTheme(float deltaTime)
@@ -262,6 +267,7 @@ public sealed class AudioVisualField : MonoBehaviour
         displayedTheme.sparkle = Mathf.Lerp(displayedTheme.sparkle, theme.sparkle, blend);
         displayedTheme.spectralInfluence = Mathf.Lerp(displayedTheme.spectralInfluence, theme.spectralInfluence, blend);
         displayedTheme.canopy = Mathf.Lerp(displayedTheme.canopy, theme.canopy, blend);
+        displayedTheme.lattice = Mathf.Lerp(displayedTheme.lattice, theme.lattice, blend);
         displayedTheme.fadeStartDistance = theme.fadeStartDistance;
         displayedTheme.fullVisibilityDistance = theme.fullVisibilityDistance;
     }
@@ -336,6 +342,10 @@ public sealed class AudioVisualField : MonoBehaviour
         {
             terrain.Clear();
         }
+        if (lattice != null)
+        {
+            lattice.Clear();
+        }
     }
 
     private void OnDestroy()
@@ -362,6 +372,10 @@ public sealed class AudioVisualField : MonoBehaviour
         {
             canopy.ReleaseMesh();
         }
+        if (lattice != null)
+        {
+            lattice.ReleaseMesh();
+        }
         if (displayedTheme == null)
         {
             return;
@@ -379,7 +393,7 @@ public sealed class AudioVisualField : MonoBehaviour
 
     private void SetRenderersVisible(bool visible)
     {
-        AudioVisualMesh[] effects = { ribbons, rings, terrain, canopy };
+        AudioVisualMesh[] effects = { ribbons, rings, terrain, canopy, lattice };
         foreach (AudioVisualMesh effect in effects)
         {
             if (effect != null && effect.TryGetComponent(out MeshRenderer renderer))

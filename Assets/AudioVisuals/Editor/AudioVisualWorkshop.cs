@@ -71,6 +71,10 @@ public sealed class AudioVisualWorkshop : EditorWindow
             {
                 AudioVisualFieldTools.BuildAssets();
             }
+            if (GUILayout.Button("Upgrade Spectral Lattice in Prefab"))
+            {
+                AudioVisualFieldTools.UpgradeLattice();
+            }
             if (GUILayout.Button("Upgrade Canopy in Prefab and Laboratory"))
             {
                 AudioVisualFieldTools.UpgradeCanopy();

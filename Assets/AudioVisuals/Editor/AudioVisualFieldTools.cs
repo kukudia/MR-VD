@@ -68,6 +68,7 @@ public static class AudioVisualFieldTools
                 SerializedObject fieldData = new SerializedObject(field);
                 fieldData.FindProperty("canopy").objectReferenceValue = canopy;
                 fieldData.ApplyModifiedPropertiesWithoutUndo();
+                EnsureLattice(field);
                 PrefabUtility.SaveAsPrefabAsset(root, PrefabPath);
             }
             finally
@@ -116,6 +117,7 @@ public static class AudioVisualFieldTools
         }
         AudioVisualField field = instance.GetComponent<AudioVisualField>();
         EnsureCanopy(field);
+        EnsureLattice(field);
         Undo.RecordObject(field, "Bind Spatial Audio Sources");
         SerializedObject data = new SerializedObject(field);
         data.FindProperty("audioVisualizer").objectReferenceValue = audio;
@@ -365,6 +367,44 @@ public static class AudioVisualFieldTools
             SceneManager.SetActiveScene(previous);
         }
         AssetDatabase.SaveAssets();
+    }
+
+    [MenuItem("Tools/MR-VD/Spatial Audio/Upgrade Missing Spectral Lattice in Prefab")]
+    public static void UpgradeLattice()
+    {
+        if (EditorApplication.isPlaying)
+        {
+            throw new InvalidOperationException("Upgrade outside Play Mode.");
+        }
+        GameObject prefab = PrefabUtility.LoadPrefabContents(PrefabPath);
+        try
+        {
+            EnsureLattice(prefab.GetComponent<AudioVisualField>());
+            PrefabUtility.SaveAsPrefabAsset(prefab, PrefabPath);
+        }
+        finally
+        {
+            PrefabUtility.UnloadPrefabContents(prefab);
+        }
+        AssetDatabase.SaveAssets();
+    }
+
+    private static void EnsureLattice(AudioVisualField field)
+    {
+        AudioSpectralLattice lattice = field.GetComponentInChildren<AudioSpectralLattice>(true);
+        if (lattice == null)
+        {
+            Material material = AssetDatabase.LoadAssetAtPath<Material>(Root + "/Materials/SpatialAudio.mat");
+            lattice = CreateEffect<AudioSpectralLattice>("Spectral Constellation Filaments", field.transform, material);
+            Undo.RegisterCreatedObjectUndo(lattice.gameObject, "Add Spectral Lattice");
+        }
+        SerializedObject data = new SerializedObject(field);
+        data.FindProperty("lattice").objectReferenceValue = lattice;
+        data.ApplyModifiedProperties();
+        if (PrefabUtility.IsPartOfPrefabInstance(field))
+        {
+            PrefabUtility.RecordPrefabInstancePropertyModifications(field);
+        }
     }
 
     private static void EnsureCanopy(AudioVisualField field)
