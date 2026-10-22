@@ -20,6 +20,8 @@ public sealed class AudioVisualTheme : ScriptableObject
     [Range(0f, 2f)] public float turbulence = 0.65f;
     [Range(0f, 2f)] public float flowSpeed = 0.7f;
     [Range(0f, 1f)] public float sparkle = 0.4f;
+    [Tooltip("Spectral shape changes filament flow, surface roughness and fine highlights.")]
+    [Range(0f, 1f)] public float spectralInfluence = 0.7f;
 
     [Header("Audio Response")]
     [Min(0f)] public float bassGain = 10f;

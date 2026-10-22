@@ -53,6 +53,10 @@ public sealed class GpuAudioParticleVisualizer : MonoBehaviour
     [SerializeField, Range(0f, 0.5f)] private float formationRotationSpeed = 0.06f;
     [SerializeField, Min(0.1f)] private float formationTransitionSeconds = 3f;
     [SerializeField] private AudioVisualField spatialField;
+    [Header("Formation Microstructure")]
+    [Tooltip("Filament separation, halo particles and braided orbit lanes. Zero restores simple targets.")]
+    [SerializeField, Range(0f, 1f)] private float formationDetail = 0.75f;
+    [SerializeField, Range(0f, 1f)] private float spectralResponse = 0.65f;
     private float formationBlend;
     private float torusBlend;
 
@@ -334,6 +338,10 @@ public sealed class GpuAudioParticleVisualizer : MonoBehaviour
         runtimeCompute.SetFloat("_FormationThickness", formationThickness);
         runtimeCompute.SetFloat("_FormationAttraction", formationAttraction);
         runtimeCompute.SetFloat("_FormationRotationSpeed", formationRotationSpeed);
+        runtimeCompute.SetFloat("_FormationDetail", formationDetail);
+        Vector4 shape = spatialField != null && spatialField.isActiveAndEnabled
+            ? spatialField.CurrentFrame.spectralShape * spectralResponse : Vector4.zero;
+        runtimeCompute.SetVector("_SpectralShape", shape);
         runtimeCompute.SetVector("_FormationCenter", anchor.position - targetCamera.transform.position);
         runtimeCompute.SetVector("_FormationRight", anchor.right);
         runtimeCompute.SetVector("_FormationUp", anchor.up);

@@ -45,6 +45,8 @@ float3 _FormationForward;
 float _UseSpatialPalette;
 float4 _SpatialPrimary;
 float4 _SpatialSecondary;
+float _FormationDetail;
+float4 _SpectralShape;
 
 uint Hash(uint value)
 {
@@ -116,6 +118,28 @@ float3 FormationTarget(uint index, float seed)
     float tube = _FormationThickness * (0.65 + _Synth * 0.2);
     float3 torus = float3((0.7 + tube * cos(minorAngle)) * cos(majorAngle),
         tube * sin(minorAngle), (0.7 + tube * cos(minorAngle)) * sin(majorAngle)) * radius;
+    // Each particle keeps a stable population/strand identity. Differential orbital motion,
+    // sparse halo dust and braided lanes create depth without stochastic frame-to-frame jitter.
+    float population = Random01(index * 83u + 19u);
+    float lane = floor(Random01(index * 89u + 23u) * 5.0);
+    float filament = sin(distanceT * 21.0 + lane * 1.2566 + orbit * 1.7);
+    float spiralAngle = angle + (lane - 2.0) * 0.065
+        + sin(distanceT * 13.0 - orbit * 0.4 + lane) * 0.045;
+    float spiralRadius = distanceT * (1.0 + filament * 0.025);
+    float height = scatter * 0.3 + sin(distanceT * 12.0 + lane + orbit) * tube * 0.22;
+    float3 detailedGalaxy = float3(cos(spiralAngle) * spiralRadius, height,
+        sin(spiralAngle) * spiralRadius) * radius;
+    if (population > 0.88)
+    {
+        float3 halo = RandomDirection(index * 97u + 29u);
+        detailedGalaxy = float3(halo.x, halo.y * 0.42, halo.z) * radius * (0.35 + distanceT * 0.7);
+    }
+    float braid = majorAngle * 3.0 + lane * 1.2566 + orbit * (0.3 + _SpectralShape.x * 0.3);
+    float braidTube = tube * (0.6 + lane * 0.13 + _SpectralShape.y * 0.18);
+    float3 detailedTorus = float3((0.7 + braidTube * cos(braid)) * cos(majorAngle),
+        braidTube * sin(braid), (0.7 + braidTube * cos(braid)) * sin(majorAngle)) * radius;
+    galaxy = lerp(galaxy, detailedGalaxy, _FormationDetail);
+    torus = lerp(torus, detailedTorus, _FormationDetail);
     float3 local = lerp(galaxy, torus, _TorusBlend);
     return _FormationCenter + _FormationRight * local.x + _FormationUp * local.y + _FormationForward * local.z;
 }
@@ -157,11 +181,19 @@ void UpdateParticle(uint index, inout Particle particle)
     float twinkle = sin(_SimulationTime * lerp(1.2, 4.2, particle.seed)
         + particle.seed * 31.0) * 0.5 + 0.5;
     float responseLevel = 0.42 + twinkle * 0.30 + _Energy * 0.28;
+    float population = Random01(index * 83u + 19u);
+    float hot = step(0.965, population);
+    float detailBlend = _FormationBlend * _FormationDetail;
+    // Mostly fine dust with a few larger luminous nodes, not uniformly sized dots.
+    float microSize = lerp(0.38, 0.95, Random01(index * 101u + 37u)) + hot * 0.85;
+    particle.size = lerp(lerp(0.55, 1.35, Random01(index * 59u + 29u)), microSize, detailBlend);
+    responseLevel *= lerp(1.0, 0.65 + hot * 1.2 + _SpectralShape.w * twinkle * 0.5, detailBlend);
     // Ping-pong avoids a visible jump between the ends of an authored gradient.
     float phase = particle.seed + _SimulationTime * _GradientSpeed + _Synth * 0.08;
     float gradientT = 1.0 - abs(frac(phase * 0.5) * 2.0 - 1.0);
     float4 color = _Gradient.SampleLevel(sampler_Gradient, float2(gradientT, 0.5), 0);
     color.rgb = lerp(color.rgb, lerp(_SpatialPrimary.rgb, _SpatialSecondary.rgb, gradientT), _UseSpatialPalette);
+    color.rgb = lerp(color.rgb, max(color.rgb, 0.75), hot * detailBlend * 0.65);
     // Store unattenuated RGB. Alpha is applied once by the additive shader.
     particle.color = float4(color.rgb, color.a * responseLevel);
 }

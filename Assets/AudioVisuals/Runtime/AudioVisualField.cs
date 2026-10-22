@@ -38,6 +38,8 @@ public sealed class AudioVisualField : MonoBehaviour
     [SerializeField, Range(0f, 1f)] private float demonstrationEnergy = 0.65f;
 
     private readonly float[] spectrum = new float[48];
+    private readonly AudioSpectralShape spectralShape = new AudioSpectralShape(48);
+    private Vector4 smoothedShape;
     private uint lastObservedOnset;
     private float lastAcceptedOnset = float.NegativeInfinity;
     private float bass;
@@ -60,6 +62,12 @@ public sealed class AudioVisualField : MonoBehaviour
         public bool onset, hasScreen;
         public Matrix4x4 screenWorldToLocal;
         public Vector4 screenRect;
+        public Vector4 spectralShape;
+    }
+
+    public float GetSpectrumBand(int index)
+    {
+        return spectrum[Mathf.Clamp(index, 0, spectrum.Length - 1)];
     }
 
     public void Configure(AudioVisualizer source, RectTransform screen, AudioVisualTheme visualTheme,
@@ -162,6 +170,8 @@ public sealed class AudioVisualField : MonoBehaviour
         detail = Smooth(detail, targetDetail, delta);
         energy = Smooth(energy, (targetBass + targetDetail) * 0.5f, delta);
         UpdateSpectrum(delta, silent);
+        Vector4 shape = spectralShape.Analyze(spectrum, silent);
+        smoothedShape = Vector4.Lerp(smoothedShape, shape, 1f - Mathf.Exp(-delta * 8f));
         float phase = visualTime * bpm / 60f;
         float visibility = 1f;
         if (!demonstration && followStage && stage != null && stage.isActiveAndEnabled)
@@ -178,6 +188,7 @@ public sealed class AudioVisualField : MonoBehaviour
             time = visualTime, deltaTime = delta, bass = bass, detail = detail,
             energy = energy, beatPhase = Mathf.Repeat(phase, 1f), onset = onset,
             onsetStrength = Mathf.Clamp01(strength),
+            spectralShape = smoothedShape,
             ribbonWeight = theme.ribbons * level * evolution * (composition == Composition.Spectrum ? 0.2f : 1f),
             ringWeight = theme.rings * intensity * visibility * (composition == Composition.Aurora ? 0.35f : 1f),
             terrainWeight = theme.terrain * level * (composition == Composition.Aurora ? 0.15f : 1f)
@@ -244,6 +255,7 @@ public sealed class AudioVisualField : MonoBehaviour
         displayedTheme.turbulence = Mathf.Lerp(displayedTheme.turbulence, theme.turbulence, blend);
         displayedTheme.flowSpeed = Mathf.Lerp(displayedTheme.flowSpeed, theme.flowSpeed, blend);
         displayedTheme.sparkle = Mathf.Lerp(displayedTheme.sparkle, theme.sparkle, blend);
+        displayedTheme.spectralInfluence = Mathf.Lerp(displayedTheme.spectralInfluence, theme.spectralInfluence, blend);
         displayedTheme.fadeStartDistance = theme.fadeStartDistance;
         displayedTheme.fullVisibilityDistance = theme.fullVisibilityDistance;
     }
@@ -273,11 +285,19 @@ public sealed class AudioVisualField : MonoBehaviour
                 target = (0.2f + 0.5f * Mathf.Pow(Mathf.Sin(t * 11f - visualTime * 1.2f), 2f))
                     * demonstrationEnergy * (0.5f + 0.5f * (1f - t));
             }
-            else if (!silent && fft != null && fft.Length > 1)
+            else if (!silent && fft != null && fft.Length >= 4 && sampleRate > 0f)
             {
                 float frequency = 40f * Mathf.Pow(200f, t);
-                int bin = Mathf.Clamp(Mathf.RoundToInt(frequency * fft.Length / sampleRate), 1, fft.Length / 2 - 1);
-                target = Compress(fft[bin], 18f);
+                // Integrate log intervals so peaks between display bands still contribute.
+                float halfStep = Mathf.Pow(200f, 0.5f / (spectrum.Length - 1));
+                int first = Mathf.Clamp(Mathf.FloorToInt(frequency / halfStep * fft.Length / sampleRate), 1, fft.Length / 2 - 1);
+                int last = Mathf.Clamp(Mathf.CeilToInt(frequency * halfStep * fft.Length / sampleRate), first + 1, fft.Length / 2);
+                float sum = 0f;
+                for (int bin = first; bin < last; bin++)
+                {
+                    sum += float.IsFinite(fft[bin]) ? Mathf.Max(0f, fft[bin]) : 0f;
+                }
+                target = Compress(sum / (last - first), 18f);
             }
             spectrum[band] = Smooth(spectrum[band], target, delta);
         }
@@ -298,6 +318,10 @@ public sealed class AudioVisualField : MonoBehaviour
     {
         SetRenderersVisible(false);
         CurrentFrame = default;
+        bass = detail = energy = 0f;
+        smoothedShape = Vector4.zero;
+        spectralShape.Reset();
+        System.Array.Clear(spectrum, 0, spectrum.Length);
         if (rings != null)
         {
             rings.Clear();

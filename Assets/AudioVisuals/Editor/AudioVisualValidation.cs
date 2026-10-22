@@ -32,6 +32,7 @@ public static class AudioVisualValidation
             throw new InvalidOperationException("Run outside Play Mode.");
         }
         CheckSurfaceShader();
+        CheckSpectralShape();
         int meshesBefore = Resources.FindObjectsOfTypeAll<Mesh>().Length;
         CheckMeshesAndOnsets();
         Require(Resources.FindObjectsOfTypeAll<Mesh>().Length == meshesBefore,
@@ -40,7 +41,7 @@ public static class AudioVisualValidation
         Directory.CreateDirectory(AudioVisualFieldTools.PreviewDirectory);
         string report = DateTimeOffset.Now.ToString("o") + "\n"
             + "PASS: surface shader; finite bounded geometry; mesh reuse; ring expiration; history; "
-            + "fresh transient once; stale transient ignored on enable; silence; private theme blending.\n"
+            + "fresh transient once; stale transient ignored on enable; silence; private theme blending; spectral shape.\n"
             + "PASS: GPU Stardust, SpiralGalaxy, Torus dispatch/readback; finite values and volume/near-eye bounds.\n"
             + "Edit Mode and GPU checks only; not real audio listening, XR, Player performance or Play Mode.\n";
         File.WriteAllText(AudioVisualFieldTools.PreviewDirectory + "/validation.txt", report);
@@ -53,6 +54,35 @@ public static class AudioVisualValidation
         Require(shader != null && shader.isSupported, "Surface shader unavailable.");
         Require(!ShaderUtil.GetShaderMessages(shader).Any(m => m.severity.ToString() == "Error"),
             "Surface shader compilation failed.");
+    }
+
+    private static void CheckSpectralShape()
+    {
+        AudioSpectralShape analyzer = new AudioSpectralShape(48);
+        float[] bands = new float[48];
+        bands[3] = 1f;
+        Vector4 low = analyzer.Analyze(bands, false);
+        Require(low.x < 0.1f && low.y < 0.001f && low.z < 0.01f && low.w == 0f,
+            "Low narrowband descriptors or initial flux are incorrect.");
+        Require(analyzer.Analyze(bands, false).w == 0f, "Unchanged spectrum must have zero positive change.");
+        bands[3] = 0f;
+        bands[42] = 1f;
+        Vector4 high = analyzer.Analyze(bands, false);
+        Require(high.x > 0.8f && high.w > 0.9f, "High frequency movement must change centroid and flux.");
+        for (int i = 0; i < bands.Length; i++)
+        {
+            bands[i] = 0.5f;
+        }
+        Vector4 flat = analyzer.Analyze(bands, false);
+        Require(Mathf.Abs(flat.x - 0.5f) < 0.001f && flat.z > 0.99f && flat.y > 0.5f,
+            "Uniform bands must be broad and flat.");
+        Require(analyzer.Analyze(bands, true) == Vector4.zero, "Silent spectrum must clear descriptors.");
+        Require(analyzer.Analyze(bands, false).w == 0f, "Silence recovery must not create a synthetic change pulse.");
+        bands[0] = float.NaN;
+        bands[1] = float.PositiveInfinity;
+        Vector4 finite = analyzer.Analyze(bands, false);
+        Require(float.IsFinite(finite.x) && float.IsFinite(finite.y) && float.IsFinite(finite.z)
+            && float.IsFinite(finite.w), "Invalid FFT input propagated non-finite descriptors.");
     }
 
     private static void CheckMeshesAndOnsets()
@@ -160,6 +190,8 @@ public static class AudioVisualValidation
             compute.SetFloat("_FormationThickness", 0.22f);
             compute.SetFloat("_FormationAttraction", 1.2f);
             compute.SetFloat("_FormationRotationSpeed", 0.06f);
+            compute.SetFloat("_FormationDetail", 0.75f);
+            compute.SetVector("_SpectralShape", new Vector4(0.7f, 0.4f, 0.2f, 0.3f));
             compute.SetVector("_FormationCenter", new Vector3(0f, 0f, 2f));
             compute.SetVector("_FormationRight", Vector3.right);
             compute.SetVector("_FormationUp", Vector3.up);
