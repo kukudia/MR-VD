@@ -272,6 +272,8 @@ MonoBehaviour:
   formationRotationSpeed: 0.06
   formationTransitionSeconds: 3
   spatialField: {fileID: 124245247}
+  formationDetail: 0.75
+  spectralResponse: 0.65
   particleSize: 0.012
   emission: 1.2
   opacity: 0.65

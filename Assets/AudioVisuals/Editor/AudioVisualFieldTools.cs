@@ -62,8 +62,12 @@ public static class AudioVisualFieldTools
                 AudioAuroraRibbons ribbons = CreateEffect<AudioAuroraRibbons>("Aurora Ribbons", root.transform, material);
                 AudioBeatRings rings = CreateEffect<AudioBeatRings>("Beat Rings", root.transform, material);
                 AudioSpectrumTerrain terrain = CreateEffect<AudioSpectrumTerrain>("Spectrum History", root.transform, material);
+                AudioHarmonicCanopy canopy = CreateEffect<AudioHarmonicCanopy>("Braided Spectrum Canopy", root.transform, material);
                 field.Configure(null, null, AssetDatabase.LoadAssetAtPath<AudioVisualTheme>(ThemePath(0)),
                     ribbons, rings, terrain, false);
+                SerializedObject fieldData = new SerializedObject(field);
+                fieldData.FindProperty("canopy").objectReferenceValue = canopy;
+                fieldData.ApplyModifiedPropertiesWithoutUndo();
                 PrefabUtility.SaveAsPrefabAsset(root, PrefabPath);
             }
             finally
@@ -111,6 +115,7 @@ public static class AudioVisualFieldTools
             instance.transform.SetParent(screen, false);
         }
         AudioVisualField field = instance.GetComponent<AudioVisualField>();
+        EnsureCanopy(field);
         Undo.RecordObject(field, "Bind Spatial Audio Sources");
         SerializedObject data = new SerializedObject(field);
         data.FindProperty("audioVisualizer").objectReferenceValue = audio;
@@ -305,6 +310,70 @@ public static class AudioVisualFieldTools
     public static string ThemePath(int index)
     {
         return Root + "/Themes/" + ThemeNames[index] + ".asset";
+    }
+
+    [MenuItem("Tools/MR-VD/Spatial Audio/Upgrade Missing Canopy in Prefab and Laboratory")]
+    public static void UpgradeCanopy()
+    {
+        if (EditorApplication.isPlaying)
+        {
+            throw new InvalidOperationException("Upgrade outside Play Mode.");
+        }
+        GameObject prefab = PrefabUtility.LoadPrefabContents(PrefabPath);
+        try
+        {
+            EnsureCanopy(prefab.GetComponent<AudioVisualField>());
+            PrefabUtility.SaveAsPrefabAsset(prefab, PrefabPath);
+        }
+        finally
+        {
+            PrefabUtility.UnloadPrefabContents(prefab);
+        }
+        // Existing prefab instances receive the added child and reference automatically.
+        // Explicit scene copies are handled too, without rebuilding authored transforms.
+        Scene previous = SceneManager.GetActiveScene();
+        Scene lab = SceneManager.GetSceneByPath(LaboratoryPath);
+        bool opened = !lab.isLoaded;
+        if (opened)
+        {
+            lab = EditorSceneManager.OpenScene(LaboratoryPath, OpenSceneMode.Additive);
+        }
+        try
+        {
+            foreach (AudioVisualField field in lab.GetRootGameObjects()
+                .SelectMany(x => x.GetComponentsInChildren<AudioVisualField>(true)))
+            {
+                EnsureCanopy(field);
+            }
+            EditorSceneManager.SaveScene(lab);
+        }
+        finally
+        {
+            if (opened)
+            {
+                EditorSceneManager.CloseScene(lab, true);
+            }
+            SceneManager.SetActiveScene(previous);
+        }
+        AssetDatabase.SaveAssets();
+    }
+
+    private static void EnsureCanopy(AudioVisualField field)
+    {
+        AudioHarmonicCanopy canopy = field.GetComponentInChildren<AudioHarmonicCanopy>(true);
+        if (canopy == null)
+        {
+            Material material = AssetDatabase.LoadAssetAtPath<Material>(Root + "/Materials/SpatialAudio.mat");
+            canopy = CreateEffect<AudioHarmonicCanopy>("Braided Spectrum Canopy", field.transform, material);
+            Undo.RegisterCreatedObjectUndo(canopy.gameObject, "Add Spectrum Canopy");
+        }
+        SerializedObject data = new SerializedObject(field);
+        data.FindProperty("canopy").objectReferenceValue = canopy;
+        data.ApplyModifiedProperties();
+        if (PrefabUtility.IsPartOfPrefabInstance(field))
+        {
+            PrefabUtility.RecordPrefabInstancePropertyModifications(field);
+        }
     }
 
     private static T CreateEffect<T>(string name, Transform parent, Material material) where T : AudioVisualMesh

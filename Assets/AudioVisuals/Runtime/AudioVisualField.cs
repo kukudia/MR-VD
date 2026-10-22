@@ -18,6 +18,7 @@ public sealed class AudioVisualField : MonoBehaviour
     [SerializeField] private AudioAuroraRibbons ribbons;
     [SerializeField] private AudioBeatRings rings;
     [SerializeField] private AudioSpectrumTerrain terrain;
+    [SerializeField] private AudioHarmonicCanopy canopy;
     [SerializeField] private StageManager stage;
 
     [Tooltip("Follow stage blackout and beat phase without changing the stage or its palette.")]
@@ -233,6 +234,10 @@ public sealed class AudioVisualField : MonoBehaviour
         {
             terrain.RenderFrame(frame, displayedTheme, spectrum);
         }
+        if (canopy != null && canopy.isActiveAndEnabled)
+        {
+            canopy.RenderFrame(frame, displayedTheme, this);
+        }
     }
 
     private void UpdateDisplayedTheme(float deltaTime)
@@ -256,6 +261,7 @@ public sealed class AudioVisualField : MonoBehaviour
         displayedTheme.flowSpeed = Mathf.Lerp(displayedTheme.flowSpeed, theme.flowSpeed, blend);
         displayedTheme.sparkle = Mathf.Lerp(displayedTheme.sparkle, theme.sparkle, blend);
         displayedTheme.spectralInfluence = Mathf.Lerp(displayedTheme.spectralInfluence, theme.spectralInfluence, blend);
+        displayedTheme.canopy = Mathf.Lerp(displayedTheme.canopy, theme.canopy, blend);
         displayedTheme.fadeStartDistance = theme.fadeStartDistance;
         displayedTheme.fullVisibilityDistance = theme.fullVisibilityDistance;
     }
@@ -352,6 +358,10 @@ public sealed class AudioVisualField : MonoBehaviour
         {
             terrain.ReleaseMesh();
         }
+        if (canopy != null)
+        {
+            canopy.ReleaseMesh();
+        }
         if (displayedTheme == null)
         {
             return;
@@ -369,7 +379,7 @@ public sealed class AudioVisualField : MonoBehaviour
 
     private void SetRenderersVisible(bool visible)
     {
-        AudioVisualMesh[] effects = { ribbons, rings, terrain };
+        AudioVisualMesh[] effects = { ribbons, rings, terrain, canopy };
         foreach (AudioVisualMesh effect in effects)
         {
             if (effect != null && effect.TryGetComponent(out MeshRenderer renderer))

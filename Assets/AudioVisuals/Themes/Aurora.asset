@@ -21,6 +21,7 @@ MonoBehaviour:
   turbulence: 0.65
   flowSpeed: 0.7
   sparkle: 0.4
+  spectralInfluence: 0.7
   bassGain: 10
   detailGain: 9
   attack: 12
@@ -29,6 +30,7 @@ MonoBehaviour:
   ribbons: 0.75
   rings: 0.5
   terrain: 0.45
+  canopy: 0.78
   motion: 0.6
   phraseBeats: 16
   screenPadding: 0.12

@@ -6,6 +6,17 @@ Shader "MR-VD/Spatial Audio Surface"
     {
         _Emission ("Emission", Range(0, 3)) = 0.85
         _Opacity ("Opacity", Range(0, 1)) = 0.65
+        [HideInInspector] _Style ("Style", Float) = 0
+        [HideInInspector] _VisualTime ("Frozen visual time", Float) = 0
+        [HideInInspector] _Detail ("Detail", Float) = 0
+        [HideInInspector] _FiberDensity ("Fibers", Float) = 22
+        [HideInInspector] _Turbulence ("Turbulence", Float) = 0.65
+        [HideInInspector] _FlowSpeed ("Flow", Float) = 0.7
+        [HideInInspector] _Sparkle ("Sparkle", Float) = 0.4
+        [HideInInspector] _NearFadeStart ("Near fade start", Float) = 0.8
+        [HideInInspector] _NearFadeEnd ("Near fade end", Float) = 1.4
+        [HideInInspector] _ScreenEnabled ("Reading screen enabled", Float) = 0
+        [HideInInspector] _SpectralShape ("Spectral shape", Vector) = (0,0,0,0)
     }
     SubShader
     {
@@ -155,7 +166,7 @@ Shader "MR-VD/Spatial Audio Surface"
                     shape = edge * (0.3 + channels * 0.6) * (0.65 + dashes * 0.35);
                     highlight = edge * sweep * _Sparkle;
                 }
-                else
+                else if (_Style < 2.5)
                 {
                     float2 cellDistance = abs(frac(input.uv + 0.5) - 0.5);
                     float2 pixelWidth = max(fwidth(input.uv), 0.0001);
@@ -166,6 +177,14 @@ Shader "MR-VD/Spatial Audio Surface"
                     float scanner = pow(saturate(sin(input.uv.y * 0.45 - flow) * 0.5 + 0.5), 24.0);
                     shape += contours * 0.12;
                     highlight = nodes * (0.1 + scanner * _Sparkle);
+                }
+                else
+                {
+                    float edge = pow(saturate(1.0 - abs(input.uv.y * 2.0 - 1.0)), 0.7);
+                    float carrier = sin(input.uv.x * 100.0 - flow * 1.8) * 0.5 + 0.5;
+                    float packet = pow(saturate(sin(input.uv.x * 31.4159 + flow * 0.7) * 0.5 + 0.5), 18.0);
+                    shape = edge * (0.35 + carrier * 0.35 + packet * 0.6);
+                    highlight = edge * packet * (0.35 + _SpectralShape.w) * _Sparkle;
                 }
                 float alpha = input.color.a * _Opacity * shape * nearFade * ReadingMask(input.positionWS, eye);
                 float3 color = lerp(input.color.rgb, max(input.color.rgb, 0.65), saturate(highlight));

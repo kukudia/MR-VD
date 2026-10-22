@@ -1,0 +1,43 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!21 &2100000
+Material:
+  serializedVersion: 8
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: AudioHarmonicCanopy
+  m_Shader: {fileID: 4800000, guid: 0d1b56e7a91ddd8479c5aa73059e398f, type: 3}
+  m_Parent: {fileID: 0}
+  m_ModifiedSerializedProperties: 0
+  m_ValidKeywords: []
+  m_InvalidKeywords: []
+  m_LightmapFlags: 4
+  m_EnableInstancingVariants: 0
+  m_DoubleSidedGI: 0
+  m_CustomRenderQueue: -1
+  stringTagMap: {}
+  disabledShaderPasses: []
+  m_LockedProperties:
+  m_SavedProperties:
+    serializedVersion: 3
+    m_TexEnvs: []
+    m_Ints: []
+    m_Floats:
+    - _Detail: 0.40397942
+    - _Emission: 1.8
+    - _FiberDensity: 22
+    - _FlowSpeed: 0.7
+    - _NearFadeEnd: 1.4
+    - _NearFadeStart: 0.8
+    - _Opacity: 0.8
+    - _ScreenEnabled: 0
+    - _Sparkle: 0.4
+    - _Style: 3
+    - _Turbulence: 0.65
+    - _VisualTime: 4.9666667
+    m_Colors:
+    - _SpectralShape: {r: 0.30800608, g: 0.41662648, b: 0.65222794, a: 0.007331724}
+  m_BuildTextureStacks: []
+  m_AllowLocking: 1
