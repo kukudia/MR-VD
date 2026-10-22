@@ -32085,6 +32085,10 @@ MonoBehaviour:
   audioVisualizer: {fileID: 1675917931}
   targetCamera: {fileID: 1686432642}
   stage: {fileID: 500615307}
+  spatialField: {fileID: 1903618198}
+  graphSpectralAmount: 0.55
+  graphPaletteAmount: 0.6
+  graphOnsetAccent: 0.35
   meteorVariants:
   - {fileID: 597802345}
   - {fileID: 1888493636}

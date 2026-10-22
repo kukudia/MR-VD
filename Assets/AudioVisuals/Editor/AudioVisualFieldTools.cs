@@ -125,6 +125,15 @@ public static class AudioVisualFieldTools
         data.FindProperty("demonstration").boolValue = false;
         data.ApplyModifiedProperties();
         PrefabUtility.RecordPrefabInstancePropertyModifications(field);
+        AudioVisualEffectsController controller = scene.GetRootGameObjects()
+            .SelectMany(x => x.GetComponentsInChildren<AudioVisualEffectsController>(true)).FirstOrDefault();
+        if (controller != null)
+        {
+            SerializedObject controllerData = new SerializedObject(controller);
+            controllerData.FindProperty("spatialField").objectReferenceValue = field;
+            controllerData.ApplyModifiedProperties();
+            PrefabUtility.RecordPrefabInstancePropertyModifications(controller);
+        }
         GpuAudioParticleVisualizer particles = screen.GetComponentInChildren<GpuAudioParticleVisualizer>(true);
         if (particles != null)
         {
