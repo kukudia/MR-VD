@@ -75,6 +75,9 @@ flowchart LR
     K --> M
     L --> M
     I --> M
+    MB[AudioMistClearanceBinding.LateUpdate research only] --> MG[MaskedMistResearch VFX Output]
+    MD[AudioMistClearanceBinding.OnDisable] --> Z[ClearanceVisibility zero]
+    MG --> MH[AudioMistClearance.hlsl alpha mask]
 ```
 
 源码入口：[AudioVisualField](../Assets/AudioVisuals/Runtime/AudioVisualField.cs)、[主题](../Assets/AudioVisuals/Runtime/AudioVisualTheme.cs)、[编辑器工具](../Assets/AudioVisuals/Editor/AudioVisualFieldTools.cs)、[验证](../Assets/AudioVisuals/Editor/AudioVisualValidation.cs)、[GPU](../Assets/AudioReactiveParticles/Runtime/GpuAudioParticleVisualizer.cs)。后续研究在此基础上逐个完整单元推进，不把视觉短语调制称为自动歌曲段落识别，也不把 synth 能量称为人声或语义检测。
@@ -267,4 +270,14 @@ AudioVisualSoak 保留原八分钟四 Look 入口，新增显式十二分钟六 
 
 22:06:52→22:18:52 实际完成 720.02 秒，预热后观察 34970 帧，Editor frame interval p95=20.827ms。首次 Opal 启用网格 5→6，第二轮 356 行采样全部为 6，结束 6。712 行一秒采样中 Unity allocated 895.70～960.92MiB，结束 897.66MiB；托管内存 1217.13～1399.74MiB，结束 1365.20MiB。含 Editor/全局组件与采样开销，不是净内存、无泄漏证明或 Player GPU 基准。IsRunning=false 且恢复 Aurora Cathedral，随后正常退出 Play。
 
-新增 [工作台指南](audio-visual-workshop.md)：六套艺术方向、源 Prefab/主题/Graph 参数、几何预算、原生快照与序列、合成/真实输入边界和准确验证入口。预研补充原始 MERT 模型卡（24kHz、75Hz、95M、CC BY-NC 4.0）及 Unity Sentis 算子支持表；没有执行远端模型代码、安装推理包或下载权重。后续 VFX 自定义遮罩仅记录已核实 API 与原型计划，不声称已做成。
+新增 [工作台指南](audio-visual-workshop.md)：六套艺术方向、源 Prefab/主题/Graph 参数、几何预算、原生快照与序列、合成/真实输入边界和准确验证入口。预研补充原始 MERT 模型卡（24kHz、75Hz、95M、CC BY-NC 4.0）及 Unity Sentis 算子支持表；没有执行远端模型代码、安装推理包或下载权重。VFX 自定义遮罩后续进度见第二十五轮。
+
+## 第二十五轮：独立 VFX 阅读遮罩与收尾
+
+新增 AudioMaskedMistTools 原生生成器、MaskedMistResearch.vfx、AudioMistClearance.hlsl、AudioMistClearanceBinding 与独立 AudioMaskedMistResearch 场景。生成器经当前 VFX 17.3 Editor 模型 API 写图；已有图/场景不覆盖，重复调用图字节一致。原 ShowcaseMist 图不改。Output-only 自定义 HLSL 对渲染 alpha 应用阅读矩形射线遮罩、保守粒子半径扩边和近眼渐隐，不累乘模拟 alpha。绑定仅允许有效单眼桌面相机，默认隐藏，禁用归零。研究场景参数与种子可编辑，世界空间发射位置已修正并保存重载。
+
+实际 Play 相机截图 camera-20261022-224049-463.png（遮罩开启）和 camera-20261022-224142-057.png（关闭）已查看。1600×1000 图像中中央 x650..949/y400..599，RGB 和大于 15 的像素为 0 / 38855；外围 x1250..1599/y400..599 为 41433 / 40164。两帧烟雾自然运动，不作为逐像素相等比较。禁用两个绑定后 ClearanceVisibility 均为 0。Unity 编译完成；退出 Play 后保存、重载的两个发射位置为 (0,0,3)/(2,0,3)，场景 dirty=false。
+
+这是粒子中心与半径的保守桌面代理，不是逐像素/双眼遮罩。旋转屏幕、前景粒子完整边界、真实音乐和头显验证未完成，不将研究图接入正式 XR 阅读场。初版全黑由错误的世界发射位置造成，修正后才执行上述像素检查。
+
+按用户最新要求完成本单元后结束，不再执行原定通宵续跑。自动化 mr-vd-10-23-08 已暂停，场景和资产保存后已正常关闭目标 Unity 实例；本次 NightDesk 已退出，events.log 确认临时唤醒请求释放。最终 dotnet build 仍为原有 LibreHardwareMonitor/Computer 两个缺失引用错误、13 个 MSB3277 警告；与 Unity 导入/Play 验证分别记录。用户起始改动保留，仅本地提交、不推送。

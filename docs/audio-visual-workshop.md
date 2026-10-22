@@ -65,3 +65,7 @@
 纯相机截图使用 **Capture Desktop Camera without Debug Overlay**，要求桌面 Play、主相机且不是 stereo；包含 URP 后处理和 GPU，保存在 `Temp/AudioVisualResearch/`。截图、CSV 和机器日志未提交，不依赖它们作为生产资产。
 
 当前 `dotnet build Assembly-CSharp.csproj --no-restore --nologo` 有既有 LibreHardwareMonitor 缺失：2 错误、13 个 MSB3277 警告。Unity 导入和实测结果需单独看研究记录；真实音乐听测、头显与 Player GPU 性能未认证。
+
+## 独立雾效遮罩研究
+
+打开 `Assets/Scenes/AudioMaskedMistResearch.unity` 查看中央/外围双探针；它不安装到主场景。`Tools/MR-VD/Spatial Audio/Build Missing Masked Mist Research Graph` 和 `Build Missing Masked Mist Research Scene` 仅补建缺失资产。修改现有 Graph、绑定组件的 padding、particleGuardRadius、nearStart/nearEnd 及 VFX 种子后正常保存；生成器不会覆盖手工修改。绑定提交相机/矩形参数，HLSL 在 Output 修改 alpha，禁用绑定隐藏输出。仅验证桌面中央区域与外围像素对照，尚不能用于宣称 XR 阅读安全。

@@ -43,10 +43,10 @@ CSCore FFT 受控 PCM 回归、等幅能量实验已完成，六 Look 的原生�
 
 当前没有执行模型卡中的远端代码、安装推理包或下载 checkpoint。原始模型卡/算子页读取记录保存于 Temp。MERT 权重许可来自具体模型卡，不能用其 GitHub 代码许可覆盖；研究候选也不代表本项目已有部署许可或推理基准。
 
-## VFX 阅读遮罩的下一步原型
+## VFX 阅读遮罩独立原型
 
 已检查当前安装包 VFX 17.3 的 CustomHLSL 节点源码：Block 支持 Init/Update/Output 粒子上下文，使用 void 函数及 inout VFXAttributes；输入属性由解析器生成，外部 HLSL 源可绑定为 ShaderInclude。官方类型表包含 Matrix4x4、VFXSampler2D 和缓冲。包 API 属 Editor 内部实现，修改图仍须经原生模型/资源写入并验证该版本。
 
 建议从独立 ShowcaseMist 复制研究图，在 Output 上使用自定义 HLSL，根据粒子位置/当前相机射线与阅读矩形相交来控制 alpha，并保留近眼淡出。这与逐像素裁剪并不等价：大精灵中心判定会弹出，双眼单独射线也不能仅用一次 CPU 主相机参数证明；要先隔离渲染前后平面和非居中/旋转屏幕，再到设备检查。验证前不将桌面雾加入正式 XR 阅读场。
 
-该路径目前只是已核实 API 支持范围与实验计划，尚未创建遮罩图或宣称视觉通过。源图、粒子寿命/容量与用户图编辑应保持独立，生成器只创建缺少的研究资产。
+已创建独立 MaskedMistResearch.vfx、AudioMistClearance.hlsl 和 AudioMaskedMistResearch.unity，经 VFX 17.3 原生模型写入。Output-only alpha 遮罩包含阅读矩形、粒子半径保守扩边和近眼淡出；缺失有效单眼相机、启用 stereo 或禁用绑定均隐藏输出。生成器仅创建缺少资产，重复执行不覆盖已有图。桌面中央/外围相机像素对照已通过，详见研究日志第二十五轮。尚未验证旋转屏幕、前景粒子全覆盖、逐像素边界和头显双眼；不接入正式 XR 场景。
