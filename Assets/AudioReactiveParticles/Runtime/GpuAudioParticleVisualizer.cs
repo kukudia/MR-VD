@@ -108,9 +108,8 @@ public sealed class GpuAudioParticleVisualizer : MonoBehaviour
     private static readonly int BackgroundColorId = Shader.PropertyToID("_BackgroundColor");
     private static readonly int AccentColorId = Shader.PropertyToID("_AccentColor");
     private static readonly int ParticleCenterWSId = Shader.PropertyToID("_ParticleCenterWS");
-    private static readonly int CameraPositionWSId = Shader.PropertyToID("_CameraPositionWS");
     private static readonly int OcclusionWorldToLocalId = Shader.PropertyToID("_OcclusionWorldToLocal");
-    private static readonly int OcclusionHalfSizeId = Shader.PropertyToID("_OcclusionHalfSize");
+    private static readonly int OcclusionRectId = Shader.PropertyToID("_OcclusionRect");
     private static readonly int OcclusionEnabledId = Shader.PropertyToID("_OcclusionEnabled");
     private static readonly int ParticleSizeId = Shader.PropertyToID("_ParticleSize");
     private static readonly int EmissionId = Shader.PropertyToID("_Emission");
@@ -365,7 +364,6 @@ public sealed class GpuAudioParticleVisualizer : MonoBehaviour
         materialProperties.Clear();
         materialProperties.SetBuffer(ParticlesId, particleBuffer);
         materialProperties.SetVector(ParticleCenterWSId, cameraPosition);
-        materialProperties.SetVector(CameraPositionWSId, cameraPosition);
         materialProperties.SetFloat(ParticleSizeId, particleSize);
         materialProperties.SetFloat(EmissionId, emission);
         materialProperties.SetFloat(OpacityId, opacity);
@@ -375,11 +373,10 @@ public sealed class GpuAudioParticleVisualizer : MonoBehaviour
         {
             Rect rect = occlusionScreen.rect;
             materialProperties.SetMatrix(OcclusionWorldToLocalId, occlusionScreen.worldToLocalMatrix);
-            materialProperties.SetVector(OcclusionHalfSizeId, new Vector4(
-                rect.width * 0.5f + occlusionPadding,
-                rect.height * 0.5f + occlusionPadding,
-                0f,
-                0f));
+            // Rect bounds preserve an authored non-centered pivot as well as the default center.
+            materialProperties.SetVector(OcclusionRectId, new Vector4(
+                rect.xMin - occlusionPadding, rect.yMin - occlusionPadding,
+                rect.xMax + occlusionPadding, rect.yMax + occlusionPadding));
             materialProperties.SetFloat(OcclusionEnabledId, 1f);
         }
         else

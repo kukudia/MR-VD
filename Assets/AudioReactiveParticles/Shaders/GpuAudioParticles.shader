@@ -40,9 +40,8 @@ Shader "MR-VD/Audio Reactive GPU Stardust"
 
             StructuredBuffer<Particle> _Particles;
             float3 _ParticleCenterWS;
-            float3 _CameraPositionWS;
             float4x4 _OcclusionWorldToLocal;
-            float4 _OcclusionHalfSize;
+            float4 _OcclusionRect;
             float _OcclusionEnabled;
             float _ParticleSize;
             float _Emission;
@@ -86,7 +85,7 @@ Shader "MR-VD/Audio Reactive GPU Stardust"
                 }
 
                 float3 cameraPositionLS = mul(_OcclusionWorldToLocal,
-                    float4(_CameraPositionWS, 1.0)).xyz;
+                    float4(GetCameraPositionWS(), 1.0)).xyz;
                 float3 particlePositionLS = mul(_OcclusionWorldToLocal,
                     float4(particlePositionWS, 1.0)).xyz;
                 float denominator = particlePositionLS.z - cameraPositionLS.z;
@@ -96,14 +95,16 @@ Shader "MR-VD/Audio Reactive GPU Stardust"
                 }
 
                 float intersectionT = -cameraPositionLS.z / denominator;
-                if (intersectionT <= 0.0 || intersectionT >= 1.0)
+                // Clear foreground as well as background along the reading ray, matching the
+                // spatial mesh surfaces. The current eye position avoids a shared stereo mask.
+                if (intersectionT <= 0.0)
                 {
                     return 0.0;
                 }
 
                 float2 intersectionXY = lerp(cameraPositionLS.xy, particlePositionLS.xy, intersectionT);
-                return abs(intersectionXY.x) <= _OcclusionHalfSize.x
-                    && abs(intersectionXY.y) <= _OcclusionHalfSize.y
+                return intersectionXY.x >= _OcclusionRect.x && intersectionXY.x <= _OcclusionRect.z
+                    && intersectionXY.y >= _OcclusionRect.y && intersectionXY.y <= _OcclusionRect.w
                     ? 1.0
                     : 0.0;
             }

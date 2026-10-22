@@ -123,3 +123,10 @@ flowchart LR
 Inspector 可调节点数、层数、连接细分、线半径、整体半径、高宽比、深度间距、频带位移、传播时长、中心和种子；主题 `lattice` 控制独立权重。组件使用既有近眼淡出和阅读遮罩；禁用清空传播记录，显式释放网格供编辑预览清理。工作台可升级缺少的 Prefab 组件，重复运行不增加重复层；Bake 的通用效果收集会保留该组件几何、Style 4 和源参数。已有四层快照保持原样。
 
 实际验证：传播起点/远端时差、Clear 不重放、2619 顶点预算、有限边界和网格复用测试通过；全部既有网格/Shader/GPU 检查通过。四主题联系图已渲染查看。桌面合成 Play 49.28 秒、2441 帧，截图 `Temp/AudioVisualResearch/play-20261022-180331-375.png` 已查看；主场景重载检查 demo=false、星座数量为 1、绑定有效，AudioVisualizer/VirtualStage 引用保留。`dotnet build` 仍为基线 LibreHardwareMonitor/Computer 缺失的 2 错误、13 个 MSB3277 警告，不能记录为构建通过；Unity 编译与视觉运行验证独立成立。真实音频听感、头显和 Player 性能仍待验证。
+## 第七轮：阅读空间的实际 GPU 像素检查
+
+[AudioVisualPixelValidation](../Assets/AudioVisuals/Editor/AudioVisualPixelValidation.cs) 通过隔离预览相机真实渲染并读取像素。菜单 `Validate Reading Clearance Pixels` 覆盖全部 5 种生产表面样式、前后景、25 度旋转阅读平面、屏幕位于相机后方、0.5 米近眼淡出及 ±0.032 米独立单目视点。中央必须透明，外侧保留亮度；测试不修改用户场景，显式释放网格、材质、纹理和 RenderTexture。
+
+`Validate GPU Particle Reading Pixels` 使用生产粒子 Shader 和单粒子 ComputeBuffer，通过实际 RenderPrimitives 提交与像素读回复现旧问题：屏幕前方的粒子仍出现在中央阅读射线上。修复取消交点必须落在视点与粒子之间的限制，使 GPU 与空间网格一样清除完整阅读射线；Shader 改用当前相机/眼睛位置，完整 Rect 边界替代居中 HalfSize 假设，保留非居中 Pivot。旧的独立相机中心 uniform 已删除，运行时仅更新新的内部 Shader 契约，不改场景序列化字段。
+
+修复后 GPU 前后景、非居中矩形、旋转平面、左右独立视点像素检查通过；五种网格表面像素检查通过。报告写入 `Temp/AudioVisualResearch/reading-pixels.txt` 与 `gpu-reading-pixels.txt`。这包含真实 GPU 渲染证据，仍不是单通道立体头显、设备体验或 Player 性能认证；粒子按中心裁剪，跨越遮罩边缘的大粒子可能发生整体显隐，当前小粒子方案保持原行为。
