@@ -60,7 +60,7 @@ public sealed class AudioVisualField : MonoBehaviour
 
     public struct Frame
     {
-        public float time, deltaTime, bass, detail, energy, bpm, beatPhase, onsetStrength;
+        public float time, deltaTime, bass, detail, energy, bpm, beatPhase, onsetStrength, visibility;
         public float ribbonWeight, ringWeight, terrainWeight;
         public bool onset, hasScreen;
         public Matrix4x4 screenWorldToLocal;
@@ -192,6 +192,7 @@ public sealed class AudioVisualField : MonoBehaviour
         {
             time = visualTime, deltaTime = delta, bass = bass, detail = detail,
             energy = energy, bpm = bpm, beatPhase = Mathf.Repeat(phase, 1f), onset = onset,
+            visibility = visibility,
             onsetStrength = Mathf.Clamp01(strength),
             spectralShape = smoothedShape,
             spectralLayers = layers,

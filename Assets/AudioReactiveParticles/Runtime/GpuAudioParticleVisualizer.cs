@@ -6,8 +6,10 @@ using UnityEngine.Rendering;
 /// changes the drift and twinkle, while the Screen plane can occlude the particles.
 /// UpdateSimulation optionally attracts particles to Screen-local galaxy/torus targets;
 /// Stardust remains the serialized default. OnDisable/OnDestroy release all owned GPU resources.
+/// A bound spatial field coordinates palette/visibility after its frame update; unbound use is independent.
 /// </summary>
 [DisallowMultipleComponent]
+[DefaultExecutionOrder(130)]
 public sealed class GpuAudioParticleVisualizer : MonoBehaviour
 {
     public enum ParticleFormation { Stardust, SpiralGalaxy, Torus }
@@ -366,7 +368,11 @@ public sealed class GpuAudioParticleVisualizer : MonoBehaviour
         materialProperties.SetVector(ParticleCenterWSId, cameraPosition);
         materialProperties.SetFloat(ParticleSizeId, particleSize);
         materialProperties.SetFloat(EmissionId, emission);
-        materialProperties.SetFloat(OpacityId, opacity);
+        float visibility = spatialField == null ? 1f
+            : spatialField.isActiveAndEnabled && spatialField.Theme != null
+                ? Mathf.Clamp01(spatialField.CurrentFrame.visibility) : 0f;
+        // Keep simulation alive during blackout for a continuous reveal, but submit zero light.
+        materialProperties.SetFloat(OpacityId, opacity * visibility);
         materialProperties.SetFloat(SaturationId, saturation);
 
         if (occlusionScreen != null)
