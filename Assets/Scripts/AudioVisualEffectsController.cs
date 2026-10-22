@@ -38,6 +38,8 @@ public sealed class AudioVisualEffectsController : MonoBehaviour
     [SerializeField] private VisualEffect[] additionalGraphs = new VisualEffect[0];
     [SerializeField, Min(0f)] private float particleSpawnRate = 100f;
     [SerializeField, Range(0f, 1f)] private float smokeDensity = 0.3f;
+    [Tooltip("The existing smoke graph connects Density directly to spawn Rate (particles/second).")]
+    [SerializeField, Min(0f)] private float smokeParticlesPerSecond = 120f;
     [SerializeField, Min(0f)] private float laserIntensity = 5f;
     [SerializeField, Range(0f, 4f)] private float masterIntensity = 1f;
     [SerializeField] private GraphSettings vfx = new GraphSettings();
@@ -200,7 +202,7 @@ public sealed class AudioVisualEffectsController : MonoBehaviour
         SetColor(backgroundParticles, "ParticleColor", color);
         float smoke = smokeDensity * (0.3f + f.bass * 0.7f) * f.smoke * vfx.smokeGain * master
             * (1f + shape.z * 0.35f);
-        SetFloat(smokeEffect, "Density", smoke);
+        SetFloat(smokeEffect, "Density", smoke * smokeParticlesPerSecond);
         SetFloat(smokeEffect, "SmokeDensity", smoke);
         SetColor(smokeEffect, "SmokeColor", color);
         if (smokeEffect != null && smokeEffect.HasVector3("TransformPosition"))

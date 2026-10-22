@@ -1,4 +1,4 @@
-﻿%YAML 1.1
+%YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
 --- !u!114 &114340500867371532
 MonoBehaviour:
@@ -697,7 +697,7 @@ MonoBehaviour:
       m_Type:
         m_SerializableType: UnityEngine.Texture2D, UnityEngine.CoreModule, Version=0.0.0.0,
           Culture=neutral, PublicKeyToken=null
-      m_SerializableObject: '{"obj":{"fileID":2800000,"guid":"6c69572945a4fcb4692a0a126f26638f","type":3}}'
+      m_SerializableObject: '{"obj":{"fileID":2800000,"guid":"14ec0320153b0c84392e863ee547ce63","type":3}}'
     m_Space: -1
   m_Property:
     name: mainTexture
@@ -927,7 +927,7 @@ MonoBehaviour:
       m_Type:
         m_SerializableType: UnityEngine.Texture2D, UnityEngine.CoreModule, Version=0.0.0.0,
           Culture=neutral, PublicKeyToken=null
-      m_SerializableObject: '{"obj":{"fileID":2800000,"guid":"6c69572945a4fcb4692a0a126f26638f","type":3}}'
+      m_SerializableObject: '{"obj":{"fileID":2800000,"guid":"b07ec35028594e94e93e9cc29fc4ed3d","type":3}}'
     m_Space: -1
   m_Property:
     name: mainTexture
@@ -5320,5 +5320,3 @@ MonoBehaviour:
         PublicKeyToken=b77a5c561934e089
   m_Direction: 0
   m_LinkedSlots: []
-
-

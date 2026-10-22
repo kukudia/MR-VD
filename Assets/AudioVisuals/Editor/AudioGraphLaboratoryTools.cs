@@ -126,6 +126,7 @@ public static class AudioGraphLaboratoryTools
             write.Invoke(controller, new object[] { presentation });
             float spawn = effects[0].GetFloat("SpawnRate");
             float density = effects[1].GetFloat("Density");
+            Require(density > 1f && density <= 120f, "Smoke intensity must be converted to bounded particles per second.");
             float beam = effects[2].GetFloat("BeamIntensity");
             field.RenderFrame(new AudioVisualField.Frame
             {
