@@ -32,6 +32,19 @@ float4 _AccentColor;
 Texture2D<float4> _Gradient;
 SamplerState sampler_Gradient;
 float _GradientSpeed;
+float _FormationBlend;
+float _TorusBlend;
+float _FormationRadius;
+float _FormationThickness;
+float _FormationAttraction;
+float _FormationRotationSpeed;
+float3 _FormationCenter;
+float3 _FormationRight;
+float3 _FormationUp;
+float3 _FormationForward;
+float _UseSpatialPalette;
+float4 _SpatialPrimary;
+float4 _SpatialSecondary;
 
 uint Hash(uint value)
 {
@@ -89,7 +102,25 @@ void InitializeParticles(uint3 dispatchId : SV_DispatchThreadID)
     _Particles[index] = particle;
 }
 
-void UpdateParticle(inout Particle particle)
+float3 FormationTarget(uint index, float seed)
+{
+    float radius = _FormationRadius * (0.85 + _Bass * 0.15);
+    float orbit = _SimulationTime * _FormationRotationSpeed;
+    float arm = (index % 3u) / 3.0 * TWO_PI;
+    float distanceT = sqrt(Random01(index * 73u + 7u));
+    float angle = arm + distanceT * 5.0 + orbit;
+    float scatter = (seed - 0.5) * _FormationThickness;
+    float3 galaxy = float3(cos(angle) * distanceT, scatter * 0.55, sin(angle) * distanceT) * radius;
+    float majorAngle = seed * TWO_PI + orbit;
+    float minorAngle = Random01(index * 79u + 3u) * TWO_PI + orbit * 0.7;
+    float tube = _FormationThickness * (0.65 + _Synth * 0.2);
+    float3 torus = float3((0.7 + tube * cos(minorAngle)) * cos(majorAngle),
+        tube * sin(minorAngle), (0.7 + tube * cos(minorAngle)) * sin(majorAngle)) * radius;
+    float3 local = lerp(galaxy, torus, _TorusBlend);
+    return _FormationCenter + _FormationRight * local.x + _FormationUp * local.y + _FormationForward * local.z;
+}
+
+void UpdateParticle(uint index, inout Particle particle)
 {
     // Keep the simulated stars world-stable while the camera-centered volume follows the camera.
     particle.position -= _CameraDelta;
@@ -100,6 +131,13 @@ void UpdateParticle(inout Particle particle)
         sin(_SimulationTime * 0.23 + particle.position.x - particle.position.y));
     float3 targetVelocity = normalize(curl + 0.001) * _BackgroundSpeed
         * (0.72 + _Synth * 1.35 + _Bass * 0.35);
+    if (_FormationBlend > 0.001)
+    {
+        float3 attraction = (FormationTarget(index, particle.seed) - particle.position) * _FormationAttraction;
+        // Bound displacement during transitions and preserve near-eye clearance below.
+        attraction *= min(1.0, 2.0 / max(length(attraction), 0.001));
+        targetVelocity = lerp(targetVelocity, attraction, _FormationBlend);
+    }
     float response = 1.0 - exp(-_DeltaTime * _MotionSmoothing);
     particle.velocity = lerp(particle.velocity, targetVelocity, response);
     particle.position += particle.velocity * _DeltaTime;
@@ -123,6 +161,7 @@ void UpdateParticle(inout Particle particle)
     float phase = particle.seed + _SimulationTime * _GradientSpeed + _Synth * 0.08;
     float gradientT = 1.0 - abs(frac(phase * 0.5) * 2.0 - 1.0);
     float4 color = _Gradient.SampleLevel(sampler_Gradient, float2(gradientT, 0.5), 0);
+    color.rgb = lerp(color.rgb, lerp(_SpatialPrimary.rgb, _SpatialSecondary.rgb, gradientT), _UseSpatialPalette);
     // Store unattenuated RGB. Alpha is applied once by the additive shader.
     particle.color = float4(color.rgb, color.a * responseLevel);
 }
@@ -137,6 +176,6 @@ void UpdateParticles(uint3 dispatchId : SV_DispatchThreadID)
     }
 
     Particle particle = _Particles[index];
-    UpdateParticle(particle);
+    UpdateParticle(index, particle);
     _Particles[index] = particle;
 }

@@ -34062,6 +34062,14 @@ MonoBehaviour:
     m_NumColorKeys: 4
     m_NumAlphaKeys: 2
   gradientSpeed: 0.025
+  formation: 0
+  formationAnchor: {fileID: 1972249493}
+  formationRadius: 3.5
+  formationThickness: 0.22
+  formationAttraction: 1.2
+  formationRotationSpeed: 0.06
+  formationTransitionSeconds: 3
+  spatialField: {fileID: 1903618198}
   particleSize: 0.018
   emission: 1.2
   opacity: 0.55
@@ -46710,6 +46718,91 @@ MonoBehaviour:
   m_FillOrigin: 0
   m_UseSpriteMesh: 0
   m_PixelsPerUnitMultiplier: 1
+--- !u!1001 &1903618196
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 1972249493}
+    m_Modifications:
+    - target: {fileID: 562096329375006297, guid: 01b6ef7574c768a49a9cf2eaa46ddb4b, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 562096329375006297, guid: 01b6ef7574c768a49a9cf2eaa46ddb4b, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 562096329375006297, guid: 01b6ef7574c768a49a9cf2eaa46ddb4b, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 562096329375006297, guid: 01b6ef7574c768a49a9cf2eaa46ddb4b, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 562096329375006297, guid: 01b6ef7574c768a49a9cf2eaa46ddb4b, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 562096329375006297, guid: 01b6ef7574c768a49a9cf2eaa46ddb4b, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 562096329375006297, guid: 01b6ef7574c768a49a9cf2eaa46ddb4b, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 562096329375006297, guid: 01b6ef7574c768a49a9cf2eaa46ddb4b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 562096329375006297, guid: 01b6ef7574c768a49a9cf2eaa46ddb4b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 562096329375006297, guid: 01b6ef7574c768a49a9cf2eaa46ddb4b, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1262506446922015054, guid: 01b6ef7574c768a49a9cf2eaa46ddb4b, type: 3}
+      propertyPath: m_Name
+      value: SpatialAudioField
+      objectReference: {fileID: 0}
+    - target: {fileID: 1322822136027479981, guid: 01b6ef7574c768a49a9cf2eaa46ddb4b, type: 3}
+      propertyPath: stage
+      value:
+      objectReference: {fileID: 500615307}
+    - target: {fileID: 1322822136027479981, guid: 01b6ef7574c768a49a9cf2eaa46ddb4b, type: 3}
+      propertyPath: readingScreen
+      value:
+      objectReference: {fileID: 1310335638}
+    - target: {fileID: 1322822136027479981, guid: 01b6ef7574c768a49a9cf2eaa46ddb4b, type: 3}
+      propertyPath: audioVisualizer
+      value:
+      objectReference: {fileID: 1675917931}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 01b6ef7574c768a49a9cf2eaa46ddb4b, type: 3}
+--- !u!4 &1903618197 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 562096329375006297, guid: 01b6ef7574c768a49a9cf2eaa46ddb4b, type: 3}
+  m_PrefabInstance: {fileID: 1903618196}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &1903618198 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 1322822136027479981, guid: 01b6ef7574c768a49a9cf2eaa46ddb4b, type: 3}
+  m_PrefabInstance: {fileID: 1903618196}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e4124b3157326fc4eb0ca13068c8fd83, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::AudioVisualField
 --- !u!1 &1907433408
 GameObject:
   m_ObjectHideFlags: 0
@@ -48613,6 +48706,7 @@ Transform:
   - {fileID: 1157853603}
   - {fileID: 1163695020}
   - {fileID: 1425118811}
+  - {fileID: 1903618197}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &1972249494

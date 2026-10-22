@@ -4,10 +4,14 @@ using UnityEngine.Rendering;
 /// <summary>
 /// Runs an independent GPU star-dust volume around the active camera. Audio energy
 /// changes the drift and twinkle, while the Screen plane can occlude the particles.
+/// UpdateSimulation optionally attracts particles to Screen-local galaxy/torus targets;
+/// Stardust remains the serialized default. OnDisable/OnDestroy release all owned GPU resources.
 /// </summary>
 [DisallowMultipleComponent]
 public sealed class GpuAudioParticleVisualizer : MonoBehaviour
 {
+    public enum ParticleFormation { Stardust, SpiralGalaxy, Torus }
+
     private const int ThreadGroupSize = 64;
     private const int ParticleStride = 12 * sizeof(float);
 
@@ -38,6 +42,26 @@ public sealed class GpuAudioParticleVisualizer : MonoBehaviour
     [ColorUsage(true, true)] public Color accentColor = new Color(0.65f, 0.95f, 1f, 1f);
     [GradientUsage(true)] public Gradient particleGradient = new Gradient();
     [Range(0f, 0.2f)] public float gradientSpeed = 0.025f;
+
+    [Header("Optional Spatial Formation")]
+    [SerializeField] private ParticleFormation formation;
+    [Tooltip("World-space anchor; defaults to this object. Head motion never rotates the formation.")]
+    [SerializeField] private Transform formationAnchor;
+    [SerializeField, Min(0.5f)] private float formationRadius = 3.5f;
+    [SerializeField, Range(0.05f, 1f)] private float formationThickness = 0.22f;
+    [SerializeField, Range(0.1f, 5f)] private float formationAttraction = 1.2f;
+    [SerializeField, Range(0f, 0.5f)] private float formationRotationSpeed = 0.06f;
+    [SerializeField, Min(0.1f)] private float formationTransitionSeconds = 3f;
+    [SerializeField] private AudioVisualField spatialField;
+    private float formationBlend;
+    private float torusBlend;
+
+    public ParticleFormation Formation => formation;
+
+    public void SetFormation(ParticleFormation value)
+    {
+        formation = value;
+    }
 
     [Header("Rendering")]
     [Min(0.001f)] public float particleSize = 0.014f;
@@ -253,9 +277,14 @@ public sealed class GpuAudioParticleVisualizer : MonoBehaviour
             };
             gradientDirty = true;
         }
-        if (!gradientDirty) return;
+        if (!gradientDirty)
+        {
+            return;
+        }
         for (int i = 0; i < gradientPixels.Length; i++)
+        {
             gradientPixels[i] = particleGradient.Evaluate(i / (float)(gradientPixels.Length - 1)).linear;
+        }
         gradientTexture.SetPixels(gradientPixels);
         gradientTexture.Apply(false, false);
         gradientDirty = false;
@@ -272,6 +301,12 @@ public sealed class GpuAudioParticleVisualizer : MonoBehaviour
             synth = CompressEnergy(audioVisualizer.smoothedSynthEnergy, synthGain);
             silent = audioVisualizer.wasSilent;
         }
+        if (spatialField != null && spatialField.isActiveAndEnabled && spatialField.UsesDemonstration)
+        {
+            bass = spatialField.CurrentFrame.bass;
+            synth = spatialField.CurrentFrame.detail;
+            silent = false;
+        }
 
         synth = Mathf.Max(synth, silent ? silentBackgroundLevel : 0f);
         float energy = Mathf.Clamp01(bass * 0.55f + synth * 0.45f);
@@ -283,7 +318,33 @@ public sealed class GpuAudioParticleVisualizer : MonoBehaviour
         runtimeCompute.SetFloat(BassId, bass);
         runtimeCompute.SetFloat(SynthId, synth);
         runtimeCompute.SetFloat(EnergyId, energy);
+        UpdateFormation(deltaTime);
         runtimeCompute.Dispatch(updateKernel, GetThreadGroupCount(totalParticleCount), 1, 1);
+    }
+
+    private void UpdateFormation(float deltaTime)
+    {
+        float response = 1f - Mathf.Exp(-deltaTime * 3f / Mathf.Max(0.1f, formationTransitionSeconds));
+        formationBlend = Mathf.Lerp(formationBlend, formation == ParticleFormation.Stardust ? 0f : 1f, response);
+        torusBlend = Mathf.Lerp(torusBlend, formation == ParticleFormation.Torus ? 1f : 0f, response);
+        Transform anchor = formationAnchor != null ? formationAnchor : transform;
+        runtimeCompute.SetFloat("_FormationBlend", formationBlend);
+        runtimeCompute.SetFloat("_TorusBlend", torusBlend);
+        runtimeCompute.SetFloat("_FormationRadius", Mathf.Min(formationRadius, volumeRadius * 0.65f));
+        runtimeCompute.SetFloat("_FormationThickness", formationThickness);
+        runtimeCompute.SetFloat("_FormationAttraction", formationAttraction);
+        runtimeCompute.SetFloat("_FormationRotationSpeed", formationRotationSpeed);
+        runtimeCompute.SetVector("_FormationCenter", anchor.position - targetCamera.transform.position);
+        runtimeCompute.SetVector("_FormationRight", anchor.right);
+        runtimeCompute.SetVector("_FormationUp", anchor.up);
+        runtimeCompute.SetVector("_FormationForward", anchor.forward);
+        bool coordinated = spatialField != null && spatialField.isActiveAndEnabled && spatialField.Theme != null;
+        runtimeCompute.SetFloat("_UseSpatialPalette", coordinated ? 1f : 0f);
+        if (coordinated)
+        {
+            runtimeCompute.SetVector("_SpatialPrimary", spatialField.DisplayedTheme.primary.linear);
+            runtimeCompute.SetVector("_SpatialSecondary", spatialField.DisplayedTheme.secondary.linear);
+        }
     }
 
     private void RenderParticles(Vector3 cameraPosition)
