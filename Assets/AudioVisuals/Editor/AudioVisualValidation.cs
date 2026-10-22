@@ -229,6 +229,9 @@ public static class AudioVisualValidation
         {
             AudioVisualField field = root.GetComponent<AudioVisualField>();
             AudioVisualizer audio = sourceObject.AddComponent<AudioVisualizer>();
+            Require(root.GetComponentInChildren<AudioSpectralIris>().GetComponent<MeshFilter>().sharedMesh == null,
+                "Disabled optional iris allocated a mesh.");
+            theme.iris = 1f;
             audio.wasSilent = false;
             audio.smoothedBassEnergy = 0.1f;
             audio.smoothedSynthEnergy = 0.1f;
@@ -268,8 +271,8 @@ public static class AudioVisualValidation
             {
                 AudioVisualField.Frame frame = new AudioVisualField.Frame
                 {
-                    time = i / 60f, deltaTime = 1f / 60f, energy = 0.6f, bass = 0.5f, detail = 0.5f,
-                    ribbonWeight = 0.7f, ringWeight = 0.7f, terrainWeight = 0.7f,
+                    time = i / 60f, deltaTime = 1f / 60f, energy = 0.6f, bass = 0.5f, detail = 0.5f, visibility = 1f,
+                    ribbonWeight = 0.7f, ringWeight = 0.7f, terrainWeight = 0.7f, sculptureWeight = 0.7f,
                     onset = i < 360 && i % 30 == 0, onsetStrength = 1f
                 };
                 field.RenderFrame(frame);
@@ -283,9 +286,31 @@ public static class AudioVisualValidation
                 Require(filters[i].sharedMesh == meshes[i], "Mesh was rebuilt without configuration changes.");
                 foreach (Vector3 vertex in meshes[i].vertices)
                 {
-                    Require(Finite(vertex) && vertex.magnitude < 30f, "Non-finite or unbounded mesh.");
+                    Require(Finite(vertex) && vertex.magnitude < 30f,
+                        "Non-finite or unbounded mesh: " + filters[i].name + " vertex=" + vertex);
                 }
             }
+            AudioSpectralIris iris = root.GetComponentInChildren<AudioSpectralIris>();
+            Mesh irisMesh = iris.GetComponent<MeshFilter>().sharedMesh;
+            Vector3 beforeOnset = irisMesh.vertices[irisMesh.vertexCount / 4];
+            field.RenderFrame(new AudioVisualField.Frame
+            {
+                time = 10f,
+                deltaTime = 1f / 60f,
+                energy = 0.6f,
+                visibility = 1f,
+                sculptureWeight = 0.7f,
+                onset = true,
+                onsetStrength = 1f
+            });
+            Vector3 afterOnset = irisMesh.vertices[irisMesh.vertexCount / 4];
+            Require(Vector3.Distance(beforeOnset, afterOnset) > 0.005f, "Accepted transient did not expand the iris petals.");
+            field.SetIntensity(0f);
+            for (int i = 0; i < 300; i++)
+            {
+                field.RenderFrame((AudioVisualField.Frame)read.Invoke(field, new object[] { 1f / 60f }));
+            }
+            Require(irisMesh.colors.All(c => c.a < 0.001f), "Global zero intensity left the iris illuminated.");
             Color original = theme.primary;
             theme.primary = Color.red;
             field.RenderFrame(new AudioVisualField.Frame { deltaTime = 0.01f });

@@ -9,7 +9,7 @@ using UnityEngine;
 [DefaultExecutionOrder(120)]
 public sealed class AudioVisualField : MonoBehaviour
 {
-    public enum Composition { Balanced, Aurora, Spectrum, Pulse }
+    public enum Composition { Balanced, Aurora, Spectrum, Pulse, Sculpture }
 
     [Header("Sources and Theme")]
     [SerializeField] private AudioVisualizer audioVisualizer;
@@ -20,6 +20,7 @@ public sealed class AudioVisualField : MonoBehaviour
     [SerializeField] private AudioSpectrumTerrain terrain;
     [SerializeField] private AudioHarmonicCanopy canopy;
     [SerializeField] private AudioSpectralLattice lattice;
+    [SerializeField] private AudioSpectralIris iris;
     [SerializeField] private StageManager stage;
 
     [Tooltip("Follow stage blackout and beat phase without changing the stage or its palette.")]
@@ -61,7 +62,7 @@ public sealed class AudioVisualField : MonoBehaviour
     public struct Frame
     {
         public float time, deltaTime, bass, detail, energy, bpm, beatPhase, onsetStrength, visibility;
-        public float ribbonWeight, ringWeight, terrainWeight;
+        public float ribbonWeight, ringWeight, terrainWeight, sculptureWeight;
         public bool onset, hasScreen;
         public Matrix4x4 screenWorldToLocal;
         public Vector4 screenRect;
@@ -194,6 +195,7 @@ public sealed class AudioVisualField : MonoBehaviour
             energy = energy, bpm = bpm, beatPhase = Mathf.Repeat(phase, 1f), onset = onset,
             visibility = visibility,
             onsetStrength = Mathf.Clamp01(strength),
+            sculptureWeight = level,
             spectralShape = smoothedShape,
             spectralLayers = layers,
             ribbonWeight = theme.ribbons * level * evolution * (composition == Composition.Spectrum ? 0.2f : 1f),
@@ -204,6 +206,12 @@ public sealed class AudioVisualField : MonoBehaviour
         {
             frame.ribbonWeight *= 0.25f;
             frame.terrainWeight *= 0.25f;
+        }
+        if (composition == Composition.Sculpture)
+        {
+            frame.ribbonWeight *= 0.15f;
+            frame.terrainWeight *= 0.25f;
+            frame.ringWeight *= 0.25f;
         }
         return frame;
     }
@@ -219,6 +227,7 @@ public sealed class AudioVisualField : MonoBehaviour
         frame.ribbonWeight = Mathf.Lerp(CurrentFrame.ribbonWeight, frame.ribbonWeight, blend);
         frame.ringWeight = Mathf.Lerp(CurrentFrame.ringWeight, frame.ringWeight, blend);
         frame.terrainWeight = Mathf.Lerp(CurrentFrame.terrainWeight, frame.terrainWeight, blend);
+        frame.sculptureWeight = Mathf.Lerp(CurrentFrame.sculptureWeight, frame.sculptureWeight, blend);
         if (readingScreen != null)
         {
             Rect rect = readingScreen.rect;
@@ -247,6 +256,10 @@ public sealed class AudioVisualField : MonoBehaviour
         if (lattice != null && lattice.isActiveAndEnabled)
         {
             lattice.RenderFrame(frame, displayedTheme, this);
+        }
+        if (iris != null && iris.isActiveAndEnabled)
+        {
+            iris.RenderFrame(frame, displayedTheme, this);
         }
     }
 
@@ -278,6 +291,7 @@ public sealed class AudioVisualField : MonoBehaviour
         displayedTheme.gridStrength = Mathf.Lerp(displayedTheme.gridStrength, theme.gridStrength, blend);
         displayedTheme.canopy = Mathf.Lerp(displayedTheme.canopy, theme.canopy, blend);
         displayedTheme.lattice = Mathf.Lerp(displayedTheme.lattice, theme.lattice, blend);
+        displayedTheme.iris = Mathf.Lerp(displayedTheme.iris, theme.iris, blend);
         displayedTheme.fadeStartDistance = theme.fadeStartDistance;
         displayedTheme.fullVisibilityDistance = theme.fullVisibilityDistance;
     }
@@ -347,6 +361,10 @@ public sealed class AudioVisualField : MonoBehaviour
         {
             lattice.Clear();
         }
+        if (iris != null)
+        {
+            iris.Clear();
+        }
     }
 
     private void OnDestroy()
@@ -357,6 +375,10 @@ public sealed class AudioVisualField : MonoBehaviour
     // Editor preview objects may never receive OnDestroy; the preview owner calls this explicitly.
     public void ReleasePreviewResources()
     {
+        if (iris != null)
+        {
+            iris.ReleaseMesh();
+        }
         if (ribbons != null)
         {
             ribbons.ReleaseMesh();
@@ -394,7 +416,7 @@ public sealed class AudioVisualField : MonoBehaviour
 
     private void SetRenderersVisible(bool visible)
     {
-        AudioVisualMesh[] effects = { ribbons, rings, terrain, canopy, lattice };
+        AudioVisualMesh[] effects = { ribbons, rings, terrain, canopy, lattice, iris };
         foreach (AudioVisualMesh effect in effects)
         {
             if (effect != null && effect.TryGetComponent(out MeshRenderer renderer))

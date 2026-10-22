@@ -18,7 +18,7 @@ public static class AudioVisualShowcaseTools
     public const string LookRoot = AudioVisualFieldTools.Root + "/Looks";
     public const string ProfilePath = LookRoot + "/ShowcasePost.asset";
     public const string PipelinePath = LookRoot + "/ShowcaseHDRPipeline.asset";
-    private static readonly string[] Names = { "Aurora Cathedral", "Solar Percussion", "Jade Orbit", "Violet Knot" };
+    private static readonly string[] Names = { "Aurora Cathedral", "Solar Percussion", "Jade Orbit", "Violet Knot", "Opal Iris" };
 
     [MenuItem("Tools/MR-VD/Spatial Audio/Build Missing Cinematic Showcase")]
     public static void BuildMissing()
@@ -85,7 +85,7 @@ public static class AudioVisualShowcaseTools
         {
             theme = Object.Instantiate(AssetDatabase.LoadAssetAtPath<AudioVisualTheme>(AudioVisualFieldTools.ThemePath(index == 1 ? 2 : index == 2 ? 3 : index == 3 ? 1 : 0)));
             theme.name = Names[index] + " Theme";
-            theme.emission = index == 1 ? 2.5f : 2.2f;
+            theme.emission = index == 1 ? 2.5f : index == 4 ? 1.25f : 2.2f;
             theme.ribbons = index == 0 ? 0.85f : 0.45f;
             theme.canopy = index == 0 ? 0.85f : 0.55f;
             theme.lattice = index == 2 ? 0.85f : 0.6f;
@@ -93,6 +93,19 @@ public static class AudioVisualShowcaseTools
             theme.rings = index == 1 ? 0.95f : 0.35f;
             theme.motion = index == 0 ? 0.35f : 0.8f;
             theme.sparkle = index == 1 ? 0.7f : 0.45f;
+            if (index == 4)
+            {
+                theme.primary = new Color(0.12f, 0.65f, 0.72f);
+                theme.secondary = new Color(0.8f, 0.3f, 0.55f);
+                theme.accent = new Color(0.85f, 0.95f, 0.75f);
+                theme.iris = 1f;
+                theme.canopy = 0.15f;
+                theme.lattice = 0.25f;
+                theme.ribbons = 0.3f;
+                theme.terrain = 0.2f;
+                theme.rings = 0.15f;
+                theme.motion = 0.6f;
+            }
             AssetDatabase.CreateAsset(theme, themePath);
         }
         string path = LookRoot + "/" + Names[index] + ".asset";
@@ -103,7 +116,8 @@ public static class AudioVisualShowcaseTools
         AudioVisualLook look = ScriptableObject.CreateInstance<AudioVisualLook>();
         SerializedObject data = new SerializedObject(look);
         data.FindProperty("theme").objectReferenceValue = theme;
-        data.FindProperty("composition").enumValueIndex = index == 1 ? (int)AudioVisualField.Composition.Pulse : (int)AudioVisualField.Composition.Balanced;
+        data.FindProperty("composition").enumValueIndex = index == 4 ? (int)AudioVisualField.Composition.Sculpture
+            : index == 1 ? (int)AudioVisualField.Composition.Pulse : (int)AudioVisualField.Composition.Balanced;
         data.FindProperty("formation").enumValueIndex = index == 3 ? (int)GpuAudioParticleVisualizer.ParticleFormation.FlowKnot
             : index == 2 ? (int)GpuAudioParticleVisualizer.ParticleFormation.Torus : (int)GpuAudioParticleVisualizer.ParticleFormation.SpiralGalaxy;
         data.ApplyModifiedPropertiesWithoutUndo();
@@ -139,6 +153,11 @@ public static class AudioVisualShowcaseTools
                 {
                     throw new InvalidOperationException("Look wiring failed " + Names[i]);
                 }
+                if (i == 4 && (field.Theme.iris <= 0f
+                    || ReadComposition(field) != AudioVisualField.Composition.Sculpture))
+                {
+                    throw new InvalidOperationException("Opal Iris is missing its sculptural composition tuning.");
+                }
                 string before = JsonUtility.ToJson(field.Theme);
                 field.RenderFrame(new AudioVisualField.Frame { deltaTime = 0.05f });
                 if (JsonUtility.ToJson(field.Theme) != before)
@@ -155,7 +174,7 @@ public static class AudioVisualShowcaseTools
             {
                 throw new InvalidOperationException("Showcase HDR/post assets missing.");
             }
-            Debug.Log("[AudioShowcase] PASS: four independent look bindings, private theme rendering, HDR/post assets.");
+            Debug.Log("[AudioShowcase] PASS: five independent look bindings, private theme rendering, HDR/post assets.");
         }
         finally
         {
@@ -217,5 +236,11 @@ public static class AudioVisualShowcaseTools
             EditorSceneManager.CloseScene(scene, true);
             SceneManager.SetActiveScene(previous);
         }
+    }
+
+    private static AudioVisualField.Composition ReadComposition(AudioVisualField field)
+    {
+        SerializedObject data = new SerializedObject(field);
+        return (AudioVisualField.Composition)data.FindProperty("composition").enumValueIndex;
     }
 }

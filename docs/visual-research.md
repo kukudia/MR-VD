@@ -53,6 +53,7 @@ flowchart LR
     F --> H[AudioSpectrumTerrain.RenderFrame]
     F --> K[AudioHarmonicCanopy.RenderFrame]
     F --> L[AudioSpectralLattice.RenderFrame]
+    F --> I[AudioSpectralIris.RenderFrame]
     B --> R
     B --> P
     B --> H
@@ -67,6 +68,7 @@ flowchart LR
     H --> M
     K --> M
     L --> M
+    I --> M
 ```
 
 源码入口：[AudioVisualField](../Assets/AudioVisuals/Runtime/AudioVisualField.cs)、[主题](../Assets/AudioVisuals/Runtime/AudioVisualTheme.cs)、[编辑器工具](../Assets/AudioVisuals/Editor/AudioVisualFieldTools.cs)、[验证](../Assets/AudioVisuals/Editor/AudioVisualValidation.cs)、[GPU](../Assets/AudioReactiveParticles/Runtime/GpuAudioParticleVisualizer.cs)。后续研究在此基础上逐个完整单元推进，不把视觉短语调制称为自动歌曲段落识别，也不把 synth 能量称为人声或语义检测。
@@ -186,3 +188,13 @@ Unity 编译、受控 PCM 测试及原网格/GPU/频谱回归通过；diff 检�
 主题 Terrain Relief 暴露 contourDensity/contourStrength/ridgeGlow/gridStrength，私有主题平滑、MPB 和 Bake 材质同步传递。实际隔离渲染发现固定相位线宽在浅坡上形成大片三角形亮斑；改为按 fwidth 换算像素距离，并淡出平坦/未解析轮廓后，四主题联系图的亮斑消失。峰脊掠射光仅沿网格线，避免把线框地形变成整片发光面。
 
 Unity 网格/地形连续性/频谱/GPU 回归与五样式阅读遮罩像素检查通过；Shader 无编译错误。展示场合成 Play 42.53 秒、2104 帧，纯相机图 camera-20261022-191648-807.png 已查看；细节在 HDR 展示中保持可辨，尚未验证头显浅坡闪烁或真实音乐效果。原 dotnet 缺失依赖基线不因本轮视觉检查而视为通过。
+
+## 第十五轮：光谱虹膜与雕塑编排
+
+[AudioSpectralIris.RenderFrame](../Assets/AudioVisuals/Runtime/AudioSpectralIris.cs) 新增 32 片、72 段的螺旋折面花瓣，共 4672 顶点。稳定频带身份改变伸展，接受瞬态触发短时扩张和折面加深；旋转/折深/花瓣宽度/孔径/频谱位移/瞬态衰减/种子均由 Inspector 编辑。程序表面包含细肋、侧缘、弯曲叶脉和移动光包。它是解析视觉雕塑，不声称虹膜或花瓣代表实际音源结构。
+
+主题 iris 默认为 0，已有配置不增加该层网格生成成本；Sculpture 枚举追加到末尾，保留旧序列化值。第五套 Opal Iris Look 使用青紫色、较低发光和以雕塑为主的编排，旧四 Look 保留。菜单及工作台提供 Upgrade Spectral Iris in Prefab，重复调用不增加节点；原生 Prefab 与新增 Look/主题都已保存。中央空间继续使用实时阅读射线遮罩及近眼淡出，雕塑强度随全局 intensity 和舞台 visibility 平滑，禁用清空瞬态。
+
+实测修复 sin(pi) 端点微小负值进入分数幂造成的 NaN；网格有限值/复用、瞬态形变、零强度后透明度归零回归通过。六种生产表面阅读像素检查与五套 Look 绑定/主题隔离检查通过；六层 Bake 重载并确认虹膜 Style 5 通过，临时验证资产随后由 AssetDatabase 删除。最新完整检查 CLI 曾 5 秒超时，但 validation.txt 于 19:49:43 写入 PASS，未将超时当作测试通过证据。
+
+首版合成 Play 610.63 秒/30461 帧；细化版 318.21 秒/15852 帧；最终强度契约版 97.94 秒/4866 帧。最终图 camera-20261022-195111-229.png 已查看；运行中 intensity=0 后 sculptureWeight≈1.46e-13、虹膜最大 alpha≈1.07e-13。以上为桌面 Editor 合成输入，尚无头显/真实音乐/Player GPU 性能认证。所有旧用户未提交内容保留，只本地提交。

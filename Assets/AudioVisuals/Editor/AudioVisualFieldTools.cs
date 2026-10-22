@@ -69,6 +69,7 @@ public static class AudioVisualFieldTools
                 fieldData.FindProperty("canopy").objectReferenceValue = canopy;
                 fieldData.ApplyModifiedPropertiesWithoutUndo();
                 EnsureLattice(field);
+                EnsureIris(field);
                 PrefabUtility.SaveAsPrefabAsset(root, PrefabPath);
             }
             finally
@@ -387,6 +388,39 @@ public static class AudioVisualFieldTools
             PrefabUtility.UnloadPrefabContents(prefab);
         }
         AssetDatabase.SaveAssets();
+    }
+
+    [MenuItem("Tools/MR-VD/Spatial Audio/Upgrade Missing Spectral Iris in Prefab")]
+    public static void UpgradeIris()
+    {
+        if (EditorApplication.isPlaying)
+        {
+            throw new InvalidOperationException("Upgrade outside Play Mode.");
+        }
+        GameObject prefab = PrefabUtility.LoadPrefabContents(PrefabPath);
+        try
+        {
+            EnsureIris(prefab.GetComponent<AudioVisualField>());
+            PrefabUtility.SaveAsPrefabAsset(prefab, PrefabPath);
+        }
+        finally
+        {
+            PrefabUtility.UnloadPrefabContents(prefab);
+        }
+        AssetDatabase.SaveAssets();
+    }
+
+    private static void EnsureIris(AudioVisualField field)
+    {
+        AudioSpectralIris iris = field.GetComponentInChildren<AudioSpectralIris>(true);
+        if (iris == null)
+        {
+            Material material = AssetDatabase.LoadAssetAtPath<Material>(Root + "/Materials/SpatialAudio.mat");
+            iris = CreateEffect<AudioSpectralIris>("Spectral Iris Petals", field.transform, material);
+        }
+        SerializedObject data = new SerializedObject(field);
+        data.FindProperty("iris").objectReferenceValue = iris;
+        data.ApplyModifiedPropertiesWithoutUndo();
     }
 
     private static void EnsureLattice(AudioVisualField field)

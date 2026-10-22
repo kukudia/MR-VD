@@ -138,7 +138,7 @@ public static class AudioVisualPixelValidation
             material.SetFloat("_NearFadeStart", 0.8f);
             material.SetFloat("_NearFadeEnd", 1.4f);
             material.SetVector("_ScreenRect", new Vector4(-0.5f, -0.5f, 0.5f, 0.5f));
-            for (int style = 0; style < 5; style++)
+            for (int style = 0; style < 6; style++)
             {
                 material.SetFloat("_Style", style);
                 host.transform.position = Vector3.forward * 3f;
