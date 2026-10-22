@@ -202,10 +202,13 @@ MonoBehaviour:
   spatialField: {fileID: 2043564482}
   formationDetail: 0.75
   spectralResponse: 0.65
+  knotLobes: 3
+  knotDepth: 0.28
   particleSize: 0.012
   emission: 1.2
   opacity: 0.65
   saturation: 0.5
+  motionStretch: 1.2
   occlusionPadding: 0.02
   particleCompute: {fileID: 7200000, guid: 77fae7d4a87cf8c4f988c90e66f91b61, type: 3}
   particleShader: {fileID: 4800000, guid: 03257f2c7b9f62d42b2e902a789fe468, type: 3}

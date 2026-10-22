@@ -63,6 +63,17 @@ public static class AudioVisualPixelValidation
                 Graphics.RenderPrimitives(parameters, MeshTopology.Triangles, 6, 1);
             };
             Require(Read(preview, pixels, draw).x > 0.03f, "Missing GPU particle baseline pixels.");
+            particle[0].velocity = Vector3.right;
+            buffer.SetData(particle);
+            properties.SetFloat("_MotionStretch", 4f);
+            Read(preview, pixels, draw);
+            Require(pixels.GetPixel(Size * 3 / 4, Size / 2).maxColorComponent > 0.01f
+                && pixels.GetPixel(Size / 2, Size * 3 / 4).maxColorComponent < 0.01f,
+                "GPU velocity glint did not align with projected motion.");
+            properties.SetFloat("_MotionStretch", 0f);
+            Read(preview, pixels, draw);
+            Require(pixels.GetPixel(Size * 3 / 4, Size / 2).maxColorComponent < 0.01f,
+                "Zero motion stretch did not restore round dust.");
             properties.SetFloat("_OcclusionEnabled", 1f);
             Require(Read(preview, pixels, draw).x < 0.01f, "GPU particle behind screen was not masked.");
             particle[0].position = Vector3.forward * 1.6f;

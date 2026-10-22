@@ -47,6 +47,7 @@ Shader "MR-VD/Audio Reactive GPU Stardust"
             float _Emission;
             float _Opacity;
             float _Saturation;
+            float _MotionStretch;
 
             struct Attributes
             {
@@ -132,7 +133,12 @@ Shader "MR-VD/Audio Reactive GPU Stardust"
                     UNITY_MATRIX_I_V[0].y,
                     UNITY_MATRIX_I_V[1].y,
                     UNITY_MATRIX_I_V[2].y));
-                float3 positionWS = centerWS + (cameraRightWS * corner.x + cameraUpWS * corner.y) * size;
+                float2 projectedVelocity = float2(dot(particle.velocity, cameraRightWS), dot(particle.velocity, cameraUpWS));
+                float speed = length(projectedVelocity);
+                float2 direction = speed > 0.0001 ? projectedVelocity / speed : float2(1.0, 0.0);
+                float stretch = 1.0 + min(speed * _MotionStretch, 2.0);
+                float2 offset = direction * corner.x * stretch + float2(-direction.y, direction.x) * corner.y;
+                float3 positionWS = centerWS + (cameraRightWS * offset.x + cameraUpWS * offset.y) * size;
 
                 output.positionCS = TransformWorldToHClip(positionWS);
                 output.uv = corner * 0.5 + 0.5;

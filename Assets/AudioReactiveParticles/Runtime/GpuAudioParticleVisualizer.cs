@@ -78,6 +78,8 @@ public sealed class GpuAudioParticleVisualizer : MonoBehaviour
     [Min(0f)] public float emission = 1.2f;
     [Range(0f, 1f)] public float opacity = 0.55f;
     [Range(0f, 1f)] public float saturation = 0.5f;
+    [Tooltip("Velocity-aligned short glints, capped at three times the base radius. Zero keeps round dust.")]
+    [Range(0f, 4f)] public float motionStretch;
     [Min(0f)] public float occlusionPadding = 0.02f;
 
     [Header("GPU Assets")]
@@ -382,6 +384,7 @@ public sealed class GpuAudioParticleVisualizer : MonoBehaviour
         // Keep simulation alive during blackout for a continuous reveal, but submit zero light.
         materialProperties.SetFloat(OpacityId, opacity * visibility);
         materialProperties.SetFloat(SaturationId, saturation);
+        materialProperties.SetFloat("_MotionStretch", motionStretch);
 
         if (occlusionScreen != null)
         {
@@ -400,7 +403,7 @@ public sealed class GpuAudioParticleVisualizer : MonoBehaviour
 
         Bounds worldBounds = new Bounds(
             cameraPosition,
-            Vector3.one * (volumeRadius * 2f + particleSize * 2f));
+            Vector3.one * (volumeRadius * 2f + particleSize * 12f));
         RenderParams renderParams = new RenderParams(runtimeMaterial)
         {
             worldBounds = worldBounds,

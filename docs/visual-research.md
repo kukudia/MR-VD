@@ -160,3 +160,13 @@ AudioVisualField.Frame 增加显式 visibility，真实输入跟随 StageManager
 ParticleFormation 在旧值后追加 FlowKnot=3，保持 Stardust=0/SpiralGalaxy=1/Torus=2 的序列化兼容。闭合两圈轨迹与奇数瓣数形成空间流结，五条稳定细粒子泳道穿插，纵向高光包络沿粒子身份移动。Inspector knotLobes（有效奇数 3/5/7）、knotDepth、既有细节/厚度/半径/旋转/过渡参数均可编辑；轨迹为解析视觉造型，不是混沌吸引子、流体仿真或音乐拓扑分析。单独 knotBlend 平滑进入/离开，沿用受限吸引速度与近眼/体积约束。
 
 新增独立 Violet Knot Look/主题资产；原三个配置保持。四形态实际 Compute dispatch/readback、有限位置/速度及近眼/体积边界通过，Look 验证升级为四配置并通过。展示场实际 FlowKnot Play，纯相机截图 `camera-20261022-184525-441.png` 已查看，闭合粒子泳道在穹顶内部交错；这仍是合成视觉输入。Unity 编译与 diff 检查通过。GPU Player 性能、设备立体深度与真实音频表现未验证。
+## 第十二轮：轮换稳定性与方向性光痕
+
+`AudioVisualSoak` 是显式菜单启动的 8 分钟合成轮换采样器，按分钟切换四个 Look，每秒写 CSV，记录帧间隔、托管内存、Unity 已分配/保留内存和生成网格数；停止或脚本重载会恢复起始 Look/形态。它不会自动启动、写场景或声称 Player/GPU 计时。当前轮换已超过 229 秒，CSV 记录生成网格稳定为 13 个；托管内存随回收波动，未见由网格重复生成造成的单向增长，最终结果待采样完成或主动停止。
+
+GPU 粒子新增可编辑 `motionStretch`，按视点投影速度拉伸粒子四边形，默认 0，启用时上限为基础半径三倍，适合 FlowKnot 短光痕；不改变 Compute 粒子位置和缓冲契约。实际生产 Shader 像素测试验证速度向右时亮部只向右扩展，置零恢复圆形尘点；展示场使用 1.2。包围盒略按拉伸余量扩大，避免高速光痕被 RenderParams 过早裁掉。
+
+预研增加 `Tools/AudioVisualResearch/Generate-ReferenceAudio.ps1` 和 C# 源：生成 48kHz 单声道 16-bit、6 秒、seed 8457 的低音 110Hz、高音 3520Hz、110/220/440Hz 床、宽带脉冲、混合与静音 WAV；`sources.txt` 记录来源与限制。它们是可复现的受控 PCM 夹具，不自动播放或注入 Windows 捕获，也不代表真实歌曲听感；下一步可在 Unity/CSCore 设备链中手工选择文件或外部回放进行端到端验证。
+采样最终于 2026-10-22 18:59:21 完成 480.02 秒，预热后观测 22961 帧，Editor frame interval p95=20.939ms，生成网格 13→13。475 行一秒采样中 Unity allocated 为约 1307.17～1377.84MiB，结束 1308.60MiB；托管内存约 1259.73～1434.03MiB，呈回收波动。日志 `soak-20261022-185121.csv/.txt` 保存于 Temp；这是含原全局组件、Editor 与采样器开销的观察值，不是单个视觉系统净内存或无泄漏证明。观察完成后 IsRunning=false，原 Look 已恢复，Play 正常退出。PCM 夹具重复生成 SHA-256 一致。
+
+现代模型研究与许可证/时延边界另见 [audio-visual-frontier.md](audio-visual-frontier.md)。当前没有引入神经运行依赖。
