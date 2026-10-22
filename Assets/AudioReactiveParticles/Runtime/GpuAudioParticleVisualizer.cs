@@ -59,6 +59,8 @@ public sealed class GpuAudioParticleVisualizer : MonoBehaviour
     [Tooltip("Filament separation, halo particles and braided orbit lanes. Zero restores simple targets.")]
     [SerializeField, Range(0f, 1f)] private float formationDetail = 0.75f;
     [SerializeField, Range(0f, 1f)] private float spectralResponse = 0.65f;
+    [Tooltip("Stable per-particle display band drives local light and size. Zero keeps the existing response; needs an active bound field.")]
+    [SerializeField, Range(0f, 1f)] private float spectralBandResponse;
     [Tooltip("Odd lobe counts keep the two-turn flow knot as one closed path.")]
     [SerializeField, Range(3, 7)] private int knotLobes = 3;
     [SerializeField, Range(0.1f, 0.4f)] private float knotDepth = 0.28f;
@@ -105,6 +107,7 @@ public sealed class GpuAudioParticleVisualizer : MonoBehaviour
     private Texture2D gradientTexture;
     private bool gradientDirty = true;
     private readonly Color[] gradientPixels = new Color[128];
+    private readonly Vector4[] spectrumVectors = new Vector4[12];
 
     private static readonly int ParticlesId = Shader.PropertyToID("_Particles");
     private static readonly int ParticleCountId = Shader.PropertyToID("_ParticleCount");
@@ -368,6 +371,15 @@ public sealed class GpuAudioParticleVisualizer : MonoBehaviour
         runtimeCompute.SetVector("_FormationUp", anchor.up);
         runtimeCompute.SetVector("_FormationForward", anchor.forward);
         bool coordinated = spatialField != null && spatialField.isActiveAndEnabled && spatialField.Theme != null;
+        runtimeCompute.SetFloat("_SpectralBandResponse", coordinated ? spectralBandResponse : 0f);
+        for (int group = 0; group < spectrumVectors.Length; group++)
+        {
+            int band = group * 4;
+            spectrumVectors[group] = coordinated ? new Vector4(spatialField.GetSpectrumBand(band),
+                spatialField.GetSpectrumBand(band + 1), spatialField.GetSpectrumBand(band + 2),
+                spatialField.GetSpectrumBand(band + 3)) : Vector4.zero;
+        }
+        runtimeCompute.SetVectorArray("_SpectrumBands", spectrumVectors);
         runtimeCompute.SetFloat("_UseSpatialPalette", coordinated ? 1f : 0f);
         if (coordinated)
         {

@@ -48,7 +48,7 @@ public static class AudioVisualValidation
             + "PASS: surface shader; finite bounded geometry; mesh reuse; ring expiration; history; "
             + "fresh transient once; stale transient ignored on enable; silence; private theme blending; spectral shape; aggregate energy bounds/fallback/zero allocation; "
             + "lattice propagation/clear; terrain scroll continuity; ring spectral snapshot/closed seam; iris onset response/global zero intensity.\n"
-            + "PASS: GPU Stardust, SpiralGalaxy, Torus, FlowKnot, CurlNebula dispatch/readback; finite values, speed and volume/near-eye bounds.\n"
+            + "PASS: GPU Stardust, SpiralGalaxy, Torus, FlowKnot, CurlNebula dispatch/readback; finite values, speed and volume/near-eye bounds; stable band identity and zero-response compatibility.\n"
             + "Edit Mode and GPU checks only; not real audio listening, XR, Player performance or Play Mode.\n";
         File.WriteAllText(AudioVisualFieldTools.PreviewDirectory + "/validation.txt", report);
         Debug.Log("[SpatialAudioValidation] " + report);
@@ -458,6 +458,9 @@ public static class AudioVisualValidation
             compute.SetVector("_CameraDelta", Vector3.zero);
             compute.SetTexture(update, "_Gradient", Texture2D.whiteTexture);
             Particle[] particles = new Particle[count];
+            Vector4[] bandVectors = new Vector4[12];
+            compute.SetVectorArray("_SpectrumBands", bandVectors);
+            compute.SetFloat("_SpectralBandResponse", 0f);
             for (int formation = 0; formation < 5; formation++)
             {
                 compute.SetFloat("_FormationBlend", formation == 0 ? 0f : 1f);
@@ -500,6 +503,45 @@ public static class AudioVisualValidation
                         + ", mean speed=" + particles.Average(p => p.velocity.magnitude).ToString("F3"));
                 }
             }
+            compute.SetFloat("_DeltaTime", 0f);
+            compute.SetFloat("_SpectralBandResponse", 1f);
+            compute.Dispatch(update, 2, 1, 1);
+            Particle[] darkBands = new Particle[count];
+            buffer.GetData(darkBands);
+            bandVectors[0].w = 1f; // Only display band 3 changes.
+            compute.SetVectorArray("_SpectrumBands", bandVectors);
+            compute.Dispatch(update, 2, 1, 1);
+            buffer.GetData(particles);
+            int changed = 0;
+            for (int i = 0; i < count; i++)
+            {
+                bool matchesBand = (i * 17 + 11) % 48 == 3;
+                if (matchesBand)
+                {
+                    changed++;
+                    Require(particles[i].color.w > darkBands[i].color.w * 2f
+                        && particles[i].size > darkBands[i].size * 1.2f, "Particle ignored its stable frequency identity.");
+                }
+                else
+                {
+                    Require(Mathf.Abs(particles[i].color.w - darkBands[i].color.w) < 0.00001f
+                        && Mathf.Abs(particles[i].size - darkBands[i].size) < 0.00001f,
+                        "Single display band changed unrelated particle identities.");
+                }
+            }
+            Require(changed == 3, "Stable display-band coverage changed.");
+            compute.SetFloat("_SpectralBandResponse", 0f);
+            compute.Dispatch(update, 2, 1, 1);
+            buffer.GetData(darkBands);
+            for (int i = 0; i < bandVectors.Length; i++)
+            {
+                bandVectors[i] = Vector4.one;
+            }
+            compute.SetVectorArray("_SpectrumBands", bandVectors);
+            compute.Dispatch(update, 2, 1, 1);
+            buffer.GetData(particles);
+            Require(particles.Select((p, i) => p.size == darkBands[i].size && p.color == darkBands[i].color).All(x => x),
+                "Zero spectral-band response changed legacy GPU appearance.");
         }
         finally
         {

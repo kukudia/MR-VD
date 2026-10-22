@@ -54,6 +54,8 @@ float4 _SpatialPrimary;
 float4 _SpatialSecondary;
 float _FormationDetail;
 float4 _SpectralShape;
+float4 _SpectrumBands[12];
+float _SpectralBandResponse;
 
 uint Hash(uint value)
 {
@@ -235,6 +237,10 @@ void UpdateParticle(uint index, inout Particle particle)
     float twinkle = sin(_SimulationTime * lerp(1.2, 4.2, particle.seed)
         + particle.seed * 31.0) * 0.5 + 0.5;
     float responseLevel = 0.42 + twinkle * 0.30 + _Energy * 0.28;
+    // A stable strided identity covers all 48 bands in each population, independent of seed/time.
+    uint bandIndex = (index * 17u + 11u) % 48u;
+    float localBand = saturate(_SpectrumBands[bandIndex / 4u][bandIndex % 4u]);
+    responseLevel *= lerp(1.0, 0.7 + localBand * 0.9, _SpectralBandResponse);
     float flowPacket = pow(saturate(sin(particle.seed * TWO_PI * 7.0 - _SimulationTime * 0.9)
         * 0.5 + 0.5), 10.0);
     responseLevel *= 1.0 + flowPacket * max(_KnotBlend, _CurlBlend) * (0.3 + _Synth * 0.4);
@@ -244,6 +250,7 @@ void UpdateParticle(uint index, inout Particle particle)
     // Mostly fine dust with a few larger luminous nodes, not uniformly sized dots.
     float microSize = lerp(0.38, 0.95, Random01(index * 101u + 37u)) + hot * 0.85;
     particle.size = lerp(lerp(0.55, 1.35, Random01(index * 59u + 29u)), microSize, detailBlend);
+    particle.size *= lerp(1.0, 0.9 + localBand * 0.25, _SpectralBandResponse);
     responseLevel *= lerp(1.0, 0.65 + hot * 1.2 + _SpectralShape.w * twinkle * 0.5, detailBlend);
     // Ping-pong avoids a visible jump between the ends of an authored gradient.
     float phase = particle.seed + _SimulationTime * _GradientSpeed + _Synth * 0.08;

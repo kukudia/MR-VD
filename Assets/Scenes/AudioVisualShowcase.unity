@@ -202,8 +202,12 @@ MonoBehaviour:
   spatialField: {fileID: 2043564482}
   formationDetail: 0.75
   spectralResponse: 0.65
+  spectralBandResponse: 0.6
   knotLobes: 3
   knotDepth: 0.28
+  curlScale: 3.2
+  curlSpeed: 0.5
+  curlConfinement: 0.8
   particleSize: 0.012
   emission: 1.2
   opacity: 0.65

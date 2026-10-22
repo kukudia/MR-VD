@@ -126,6 +126,9 @@ public sealed class AudioVisualWorkshop : EditorWindow
         }
         if (particles != null)
         {
+            SerializedObject particleData = new SerializedObject(particles);
+            EditorGUILayout.PropertyField(particleData.FindProperty("spectralBandResponse"));
+            particleData.ApplyModifiedProperties();
             GpuAudioParticleVisualizer.ParticleFormation next = (GpuAudioParticleVisualizer.ParticleFormation)
                 EditorGUILayout.EnumPopup("GPU formation", particles.Formation);
             if (next != particles.Formation)

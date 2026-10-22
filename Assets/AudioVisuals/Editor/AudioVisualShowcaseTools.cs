@@ -240,6 +240,9 @@ public static class AudioVisualShowcaseTools
             GpuAudioParticleVisualizer particles = scene.GetRootGameObjects()
                 .SelectMany(x => x.GetComponentsInChildren<GpuAudioParticleVisualizer>()).First();
             particles.motionStretch = 1.2f;
+            SerializedObject particleData = new SerializedObject(particles);
+            particleData.FindProperty("spectralBandResponse").floatValue = 0.6f;
+            particleData.ApplyModifiedPropertiesWithoutUndo();
             GameObject playerHost = new GameObject("SYNTHETIC SHOWCASE - Authored Look", typeof(AudioVisualLookPlayer));
             SceneManager.MoveGameObjectToScene(playerHost, scene);
             SerializedObject player = new SerializedObject(playerHost.GetComponent<AudioVisualLookPlayer>());
