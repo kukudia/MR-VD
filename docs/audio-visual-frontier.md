@@ -18,6 +18,8 @@
 | --- | --- | --- |
 | [LAION CLAP](https://github.com/LAION-AI/CLAP) | README 有文件/波形音频嵌入、文本嵌入 API；波形示例要求 48kHz，load_ckpt 会下载权重；仓库 LICENSE 为 CC0 | 可离线比较音频与视觉短语文本的相似度。代码仓库许可不自动等同每个 checkpoint/训练数据许可；选定权重后单独核验。没有实时延迟证据，不进入逐拍控制 |
 | [Music2Latent](https://github.com/SonyCSLParis/music2latent) | 默认分支 master，README 说明 44.1kHz 输入、约 10Hz/64 通道潜变量、consistency autoencoder，首次执行会下载权重；README 明示 CC BY-NC 4.0 | 可在非商业研究中比较连续低维表示是否适合视觉轨迹；10Hz 表示率不等于 100ms 端到端延迟，也不证明因果流式推理。当前不引入产品依赖 |
+| [MERT-v1-95M](https://huggingface.co/m-a-p/MERT-v1-95M) | 2026-10-22 读取原模型卡：24kHz、75Hz 特征、95M 参数、12 层/768 维，预训练上下文 5 秒；卡头 license 为 CC BY-NC 4.0，示例加载使用 trust_remote_code=True | 可离线研究音色/结构随时间变化的连续轨迹。模型卡明确不同层有不同下游表现，不能把固定一层或余弦相似度直接解释为音乐真值；75Hz 输出不等于 13.3ms 延迟，完整上下文可能有前视 |
+| [Unity Sentis 2.4.1 ONNX 算子表](https://docs.unity3d.com/Packages/com.unity.ai.inference@2.4/manual/supported-operators.html) | 官方表按 CPU/GPUCompute/GPUPixel 列支持类型。当前 manifest 未安装 com.unity.ai.inference | 未来若部署模型，需要先验证实际导出的 ONNX 图、动态轴、后端支持和数值误差；查到算子表不等于 MERT/CLAP 已能导入，也不说明移动 XR 推理成本可接受 |
 | [librosa HPSS](https://github.com/librosa/librosa/blob/main/librosa/decompose.py) | 时间/频率中值与软遮罩；说明引用 Fitzgerald 2010 | 作为可解释轻量基线。当前因果展示频带版本已落地，但它不是前沿神经模型或完整源分离 |
 | [VFX Graph 17.3 Custom HLSL](https://docs.unity3d.com/Packages/com.unity.visualeffectgraph@17.3/manual/CustomHLSL-Common.html) | 项目包版本可用，纹理/缓冲输入及自定义场函数有官方路径 | 后续可让多个图采样同一频谱场；需实测版本契约、渲染负载及头显效果，不为“高级”而复制多套音频分析 |
 
@@ -37,4 +39,14 @@
 
 ## 现阶段优先级
 
-先完成 CSCore FFT 受控 PCM 回归、真实音频试听与四 Look 稳定性，再做慢语义离线原型。视觉上优先空间深度、局部响应、亮暗节制和可读性；持续增加图层并不能代替构图与设备性能验证。
+CSCore FFT 受控 PCM 回归、等幅能量实验已完成，六 Look 的原生资产已保存；真实音频试听、六 Look 完整持续运行及设备验证各自记录，不能互相替代。下一步慢语义实验应先用有权使用的曲库离线评估 MERT/CLAP，并比较层、窗口和映射稳定性。视觉上优先空间深度、局部响应、亮暗节制和可读性；持续增加图层并不能代替构图与设备性能验证。
+
+当前没有执行模型卡中的远端代码、安装推理包或下载 checkpoint。原始模型卡/算子页读取记录保存于 Temp。MERT 权重许可来自具体模型卡，不能用其 GitHub 代码许可覆盖；研究候选也不代表本项目已有部署许可或推理基准。
+
+## VFX 阅读遮罩的下一步原型
+
+已检查当前安装包 VFX 17.3 的 CustomHLSL 节点源码：Block 支持 Init/Update/Output 粒子上下文，使用 void 函数及 inout VFXAttributes；输入属性由解析器生成，外部 HLSL 源可绑定为 ShaderInclude。官方类型表包含 Matrix4x4、VFXSampler2D 和缓冲。包 API 属 Editor 内部实现，修改图仍须经原生模型/资源写入并验证该版本。
+
+建议从独立 ShowcaseMist 复制研究图，在 Output 上使用自定义 HLSL，根据粒子位置/当前相机射线与阅读矩形相交来控制 alpha，并保留近眼淡出。这与逐像素裁剪并不等价：大精灵中心判定会弹出，双眼单独射线也不能仅用一次 CPU 主相机参数证明；要先隔离渲染前后平面和非居中/旋转屏幕，再到设备检查。验证前不将桌面雾加入正式 XR 阅读场。
+
+该路径目前只是已核实 API 支持范围与实验计划，尚未创建遮罩图或宣称视觉通过。源图、粒子寿命/容量与用户图编辑应保持独立，生成器只创建缺少的研究资产。

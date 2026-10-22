@@ -8,14 +8,17 @@ using UnityEngine;
 using UnityEngine.Profiling;
 
 /// <summary>
-/// Opt-in eight-minute synthetic look rotation. Editor update observes actual Play frames,
+/// Opt-in eight-minute legacy or twelve-minute full synthetic rotation. Editor update observes actual Play frames,
 /// checkpoints one CSV row per second, and restores the initial look/formation on stop.
 /// Script reload or Play exit ends the run; never starts itself or saves scene modifications.
 /// </summary>
 public static class AudioVisualSoak
 {
     private static readonly string[] Names = { "Aurora Cathedral", "Solar Percussion", "Jade Orbit", "Violet Knot" };
-    private static readonly List<float> frameTimes = new List<float>(18000);
+    private static readonly string[] FullNames = { "Aurora Cathedral", "Solar Percussion", "Jade Orbit", "Violet Knot", "Opal Iris", "Amber Flow" };
+    private static readonly List<float> frameTimes = new List<float>(65536);
+    private static string[] runNames;
+    private static double durationSeconds, meshWarmupSeconds;
     private static AudioVisualField field;
     private static GpuAudioParticleVisualizer particles;
     private static AudioVisualLook[] looks;
@@ -31,6 +34,19 @@ public static class AudioVisualSoak
     [MenuItem("Tools/MR-VD/Spatial Audio/Start Eight Minute Look Soak")]
     public static void Start()
     {
+        StartRun(Names, 480d, 20d);
+    }
+
+    [MenuItem("Tools/MR-VD/Spatial Audio/Start Twelve Minute Six Look Soak")]
+    public static void StartFullRotation()
+    {
+        // First pass warms every optional mesh. Compare the second pass to that baseline,
+        // rather than misclassifying first-time iris allocation as a resource leak.
+        StartRun(FullNames, 720d, 360d);
+    }
+
+    private static void StartRun(string[] names, double duration, double meshWarmup)
+    {
         if (IsRunning)
         {
             throw new InvalidOperationException("Soak is already running.");
@@ -41,7 +57,14 @@ public static class AudioVisualSoak
         {
             throw new InvalidOperationException("Start only in a running explicit synthetic showcase.");
         }
-        looks = Names.Select(n => AssetDatabase.LoadAssetAtPath<AudioVisualLook>(AudioVisualShowcaseTools.LookRoot + "/" + n + ".asset")).ToArray();
+        if (UnityEngine.Object.FindObjectsByType<AudioVisualSequencePlayer>(FindObjectsSortMode.None).Any(x => x.IsRunning))
+        {
+            throw new InvalidOperationException("Stop the authored sequence before starting an isolated look soak.");
+        }
+        runNames = names;
+        durationSeconds = duration;
+        meshWarmupSeconds = meshWarmup;
+        looks = runNames.Select(n => AssetDatabase.LoadAssetAtPath<AudioVisualLook>(AudioVisualShowcaseTools.LookRoot + "/" + n + ".asset")).ToArray();
         if (looks.Any(x => x == null))
         {
             throw new InvalidOperationException("Build missing showcase looks before soak.");
@@ -75,9 +98,9 @@ public static class AudioVisualSoak
         }
         double now = EditorApplication.timeSinceStartup;
         double elapsed = now - started;
-        if (elapsed >= 480d)
+        if (elapsed >= durationSeconds)
         {
-            Stop("completed eight minutes");
+            Stop("completed " + durationSeconds.ToString("F0", CultureInfo.InvariantCulture) + " second rotation");
             return;
         }
         int look = (int)(elapsed / 60d) % looks.Length;
@@ -100,12 +123,12 @@ public static class AudioVisualSoak
         }
         nextSample = now + 1d;
         lastMeshes = Resources.FindObjectsOfTypeAll<Mesh>().Count(m => m.name.EndsWith(" (Generated)"));
-        if (elapsed >= 20d && firstMeshes < 0)
+        if (elapsed >= meshWarmupSeconds && firstMeshes < 0)
         {
             firstMeshes = lastMeshes;
         }
         File.AppendAllText(csvPath, string.Format(CultureInfo.InvariantCulture,
-            "{0:F2},{1},{2},{3:F3},{4:F2},{5:F2},{6:F2},{7}\n", elapsed, Names[look], Time.frameCount,
+            "{0:F2},{1},{2},{3:F3},{4:F2},{5:F2},{6:F2},{7}\n", elapsed, runNames[look], Time.frameCount,
             Time.unscaledDeltaTime * 1000f, GC.GetTotalMemory(false) / 1048576d,
             Profiler.GetTotalAllocatedMemoryLong() / 1048576d, Profiler.GetTotalReservedMemoryLong() / 1048576d, lastMeshes));
     }
@@ -147,6 +170,8 @@ public static class AudioVisualSoak
             + "\nObserved frames after warmup: " + frameTimes.Count
             + "\nEditor frame interval p95 ms: " + p95.ToString("F3", CultureInfo.InvariantCulture)
             + "\nGenerated mesh count warmup/end: " + firstMeshes + "/" + lastMeshes
+            + "\nMesh baseline begins at seconds: " + meshWarmupSeconds.ToString("F0", CultureInfo.InvariantCulture)
+            + "\nLook count: " + runNames.Length
             + "\nCSV: " + csvPath + "\nNot a Player GPU timing, real audio or XR performance result.\n";
         File.WriteAllText(Path.ChangeExtension(csvPath, ".txt"), report);
         Debug.Log("[AudioSoak] " + report);
