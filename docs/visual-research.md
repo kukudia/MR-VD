@@ -140,3 +140,13 @@ Frame 的 spectralLayers 为持续比例、宽带比例、对比分离权重、�
 
 本轮出现 Bee 构建后端访问冲突及进程创建失败（系统提交余量约 0.3 GB，物理空闲约 6 GB）。保存 DAG 哈希/副本至 Temp 后请求 CleanBuildCache，清理重建仍受资源限制；最终通过官方 AssetDatabase API 将本项目 DesiredWorkerCount 从 3 临时收缩为 1，提交余量恢复约 3 GB，正常编译成功。未结束用户其他程序，未更改分页或全局系统设置。早期旧程序集测试不作为新增回归证据，恢复后已明确验证方法存在并重新运行。
 恢复后实际合成 Play 至少 47.55 秒、2348 帧，分层向量持续更新，截图 Temp/AudioVisualResearch/play-20261022-182252-742.png 已检查。五层 Bake 重载验证 Style 4 与全部材质的 _SpectralLayers 覆盖值持久化通过；临时验证快照已由 AssetDatabase 删除，原示例快照保留。运行窗口仅记录已知无头显 MetaXR 启动错误。
+
+## 第九轮：独立 HDR 展示场与可编辑 Look
+
+`Build Missing Cinematic Showcase` 保存 `Assets/Scenes/AudioVisualShowcase.unity`、三个 Look/独立主题与原生 VolumeProfile。Aurora Cathedral 强调持续光流与穹顶，Solar Percussion 降低上层持续亮度、强调地环，Jade Orbit 强调环面与星座。Look 仅组合主题、强度、构图和 GPU 形态；在工作台选择并 Apply，或修改场景 `AudioVisualLookPlayer` 的显式引用，通过 Inspector 菜单应用。生成工具只补缺失资产，保留手工编辑。
+
+检查发现正式 URP 管线 supportsHDR=false，相机 allowHDR 本身不足以启用 HDR。展示专用管线复制原 URP 资源并启用 HDR，不改原资源；场景 `AudioShowcasePipelineScope.OnEnable` 临时切换质量管线，OnDisable 在仍为自己所设管线时恢复之前值。实测 Play 中 HDR=true、退出后 HDR=false 且原 Quality override 为空。VolumeProfile 使用 Bloom（阈值 .25、强度 .65、散射 .6）、ACES 和曝光 +1.1；后期与原渲染器共享资源的设备性能尚未验证，不自动迁入正式场景。
+
+`Capture Desktop Camera without Debug Overlay` 用 URP SingleCameraRequest 导出 1600×1000 PNG 到 Temp，包含相机后期与当前 GPU 粒子提交，不包含既有 AndroidBluetooth OnGUI。仅支持正在运行的单目桌面主相机；头显捕获独立。已实际查看 `camera-20261022-183228-651.png`、`camera-20261022-183305-002.png`、`camera-20261022-183350-895.png`。第一次启动即时请求有一次 CLI 5 秒超时，稍后正常完成，不能当成首个请求已生成图片。
+
+实际合成 Play 至少 78.4 秒、3890 帧，三配置运行切换与明暗细节已查看。`Validate Authored Showcase Looks` 确认三独立主题/形态、渲染不改变主题 JSON、HDR/后期资产完整。编辑器编译通过。展示场为显式合成输入，画面不是实际歌曲或头显设备效果证明。

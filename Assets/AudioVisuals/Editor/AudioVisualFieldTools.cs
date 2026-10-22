@@ -221,7 +221,7 @@ public static class AudioVisualFieldTools
         }
     }
 
-    private static void AddLaboratoryParticles(Scene scene, AudioVisualField field, Camera camera)
+    internal static void AddLaboratoryParticles(Scene scene, AudioVisualField field, Camera camera)
     {
         GameObject host = new GameObject("Spatial Formation - synthetic input");
         SceneManager.MoveGameObjectToScene(host, scene);

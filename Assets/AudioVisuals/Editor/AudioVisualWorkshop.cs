@@ -12,6 +12,7 @@ public sealed class AudioVisualWorkshop : EditorWindow
 {
     private AudioVisualField field;
     private GpuAudioParticleVisualizer particles;
+    private AudioVisualLook look;
     private Vector2 scroll;
     private float previewTime = 5f;
     private string notice;
@@ -44,6 +45,23 @@ public sealed class AudioVisualWorkshop : EditorWindow
         field = (AudioVisualField)EditorGUILayout.ObjectField("Visual field", field, typeof(AudioVisualField), true);
         particles = (GpuAudioParticleVisualizer)EditorGUILayout.ObjectField("GPU particles", particles,
             typeof(GpuAudioParticleVisualizer), true);
+        look = (AudioVisualLook)EditorGUILayout.ObjectField("Authored look", look, typeof(AudioVisualLook), false);
+        if (look != null && field != null && GUILayout.Button("Apply Authored Look"))
+        {
+            Undo.RecordObject(field, "Apply Audio Visual Look");
+            if (particles != null)
+            {
+                Undo.RecordObject(particles, "Apply Audio Particle Look");
+            }
+            look.Apply(field, particles);
+            EditorUtility.SetDirty(field);
+            PrefabUtility.RecordPrefabInstancePropertyModifications(field);
+            if (particles != null)
+            {
+                EditorUtility.SetDirty(particles);
+                PrefabUtility.RecordPrefabInstancePropertyModifications(particles);
+            }
+        }
         if (GUILayout.Button("Find in Active Scene"))
         {
             field = Object.FindFirstObjectByType<AudioVisualField>();
@@ -70,6 +88,10 @@ public sealed class AudioVisualWorkshop : EditorWindow
             if (GUILayout.Button("Build Missing Assets"))
             {
                 AudioVisualFieldTools.BuildAssets();
+            }
+            if (GUILayout.Button("Build Missing Cinematic Showcase"))
+            {
+                AudioVisualShowcaseTools.BuildMissing();
             }
             if (GUILayout.Button("Upgrade Spectral Lattice in Prefab"))
             {
@@ -152,6 +174,45 @@ public sealed class AudioVisualWorkshop : EditorWindow
         // The project also defines a ScreenCapture component; qualify the engine capture API.
         UnityEngine.ScreenCapture.CaptureScreenshot(path);
         return path;
+    }
+
+    [MenuItem("Tools/MR-VD/Spatial Audio/Capture Desktop Camera without Debug Overlay")]
+    public static string CaptureDesktopCamera()
+    {
+        Camera camera = Camera.main;
+        if (!EditorApplication.isPlaying || camera == null || camera.stereoEnabled)
+        {
+            throw new InvalidOperationException("Requires a running desktop main camera; headset capture is separate.");
+        }
+        RenderTexture output = RenderTexture.GetTemporary(1600, 1000, 24, RenderTextureFormat.ARGB32);
+        Texture2D pixels = new Texture2D(1600, 1000, TextureFormat.RGB24, false);
+        RenderTexture previous = RenderTexture.active;
+        try
+        {
+            var request = new UnityEngine.Rendering.Universal.UniversalRenderPipeline.SingleCameraRequest
+            {
+                destination = output
+            };
+            if (!UnityEngine.Rendering.RenderPipeline.SupportsRenderRequest(camera, request))
+            {
+                throw new InvalidOperationException("Current pipeline does not support single camera requests.");
+            }
+            UnityEngine.Rendering.RenderPipeline.SubmitRenderRequest(camera, request);
+            RenderTexture.active = output;
+            pixels.ReadPixels(new Rect(0, 0, 1600, 1000), 0, 0);
+            pixels.Apply();
+            System.IO.Directory.CreateDirectory(AudioVisualFieldTools.PreviewDirectory);
+            string path = System.IO.Path.GetFullPath(AudioVisualFieldTools.PreviewDirectory + "/camera-"
+                + DateTime.Now.ToString("yyyyMMdd-HHmmss-fff") + ".png");
+            System.IO.File.WriteAllBytes(path, pixels.EncodeToPNG());
+            return path;
+        }
+        finally
+        {
+            RenderTexture.active = previous;
+            RenderTexture.ReleaseTemporary(output);
+            Object.DestroyImmediate(pixels);
+        }
     }
 
     public static string BakeSnapshot(AudioVisualField source)
