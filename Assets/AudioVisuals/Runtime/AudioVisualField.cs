@@ -272,6 +272,10 @@ public sealed class AudioVisualField : MonoBehaviour
         displayedTheme.sparkle = Mathf.Lerp(displayedTheme.sparkle, theme.sparkle, blend);
         displayedTheme.spectralInfluence = Mathf.Lerp(displayedTheme.spectralInfluence, theme.spectralInfluence, blend);
         displayedTheme.layerResponse = Mathf.Lerp(displayedTheme.layerResponse, theme.layerResponse, blend);
+        displayedTheme.contourDensity = Mathf.Lerp(displayedTheme.contourDensity, theme.contourDensity, blend);
+        displayedTheme.contourStrength = Mathf.Lerp(displayedTheme.contourStrength, theme.contourStrength, blend);
+        displayedTheme.ridgeGlow = Mathf.Lerp(displayedTheme.ridgeGlow, theme.ridgeGlow, blend);
+        displayedTheme.gridStrength = Mathf.Lerp(displayedTheme.gridStrength, theme.gridStrength, blend);
         displayedTheme.canopy = Mathf.Lerp(displayedTheme.canopy, theme.canopy, blend);
         displayedTheme.lattice = Mathf.Lerp(displayedTheme.lattice, theme.lattice, blend);
         displayedTheme.fadeStartDistance = theme.fadeStartDistance;

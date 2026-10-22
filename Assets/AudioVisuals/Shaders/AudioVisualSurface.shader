@@ -18,6 +18,7 @@ Shader "MR-VD/Spatial Audio Surface"
         [HideInInspector] _ScreenEnabled ("Reading screen enabled", Float) = 0
         [HideInInspector] _SpectralShape ("Spectral shape", Vector) = (0,0,0,0)
         [HideInInspector] _SpectralLayers ("Causal median layers", Vector) = (0,0,0,0)
+        [HideInInspector] _TerrainDetail ("Contours and ridge detail", Vector) = (9,0.4,0.45,0.7)
     }
     SubShader
     {
@@ -56,6 +57,7 @@ Shader "MR-VD/Spatial Audio Surface"
                 float4 _ScreenRect;
                 float4 _SpectralShape;
                 float4 _SpectralLayers;
+                float4 _TerrainDetail;
             CBUFFER_END
 
             struct Attributes
@@ -176,12 +178,23 @@ Shader "MR-VD/Spatial Audio Surface"
                     float2 cellDistance = abs(frac(input.uv + 0.5) - 0.5);
                     float2 pixelWidth = max(fwidth(input.uv), 0.0001);
                     float2 lines = 1.0 - smoothstep(pixelWidth * 0.5, pixelWidth * 1.5, cellDistance);
-                    shape = 0.025 + max(lines.x, lines.y) * 0.7;
-                    float contours = Filament(input.positionWS.y * 9.0 - flow * 0.12, 0.035);
+                    shape = 0.015 + max(lines.x, lines.y) * _TerrainDetail.w;
+                    float contourPhase = input.positionWS.y * _TerrainDetail.x - flow * 0.12;
+                    float contourPixel = max(fwidth(contourPhase), 0.00001);
+                    float contourDistance = abs(frac(contourPhase) - 0.5) / contourPixel;
+                    float contours = 1.0 - smoothstep(0.55, 1.25, contourDistance);
                     float nodes = lines.x * lines.y;
                     float scanner = pow(saturate(sin(input.uv.y * 0.45 - flow) * 0.5 + 0.5), 24.0);
-                    shape += contours * 0.12;
-                    highlight = nodes * (0.1 + scanner * _Sparkle);
+                    float3 faceNormal = normalize(cross(ddx(input.positionWS), ddy(input.positionWS)) + 0.00001);
+                    float slope = saturate(1.0 - abs(faceNormal.y));
+                    // Flat faces coinciding with a contour and unresolved distant contours must
+                    // not turn into filled triangles. Keep relief lines only where resolved.
+                    contours *= smoothstep(0.001, 0.008, contourPixel)
+                        * saturate(1.0 - contourPixel * 2.0);
+                    float grazing = pow(saturate(1.0 - abs(dot(faceNormal, normalize(eye - input.positionWS)))), 3.0);
+                    shape += contours * _TerrainDetail.y
+                        + slope * grazing * max(lines.x, lines.y) * _TerrainDetail.z * 0.35;
+                    highlight = nodes * (0.1 + scanner * _Sparkle) + contours * scanner * _TerrainDetail.z;
                 }
                 else if (_Style < 3.5)
                 {

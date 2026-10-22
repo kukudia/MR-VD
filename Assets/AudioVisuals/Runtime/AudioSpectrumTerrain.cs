@@ -56,24 +56,49 @@ public sealed class AudioSpectrumTerrain : AudioVisualMesh
             SampleCount++;
         }
 
+        float scroll = Mathf.Clamp01(sampleAccumulator / interval);
         for (int row = 0; row < rows; row++)
         {
-            int historyIndex = (newestRow - row + rows) % rows;
             float age = row / (float)(rows - 1);
             for (int x = 0; x < columns; x++)
             {
                 float across = x / (float)(columns - 1);
-                float value = history[historyIndex * columns + x];
+                float value = InterpolatedValue(row, x, columns, rows, scroll, spectrum);
                 int index = row * columns + x;
                 vertices[index] = origin + new Vector3((across - 0.5f) * width, value * height, age * depth);
                 coordinates[index] = new Vector2(x, row);
                 float sideFade = Mathf.Sin(across * Mathf.PI);
                 float alpha = Mathf.Pow(1f - age, 1.3f) * sideFade * frame.terrainWeight
                     * (0.08f + value * 0.8f);
-                colors[index] = Palette(theme, across * 0.6f + age * 0.4f, alpha);
+                Color color = Palette(theme, across * 0.6f + age * 0.4f, alpha);
+                float left = InterpolatedValue(row, Mathf.Max(0, x - 1), columns, rows, scroll, spectrum);
+                float right = InterpolatedValue(row, Mathf.Min(columns - 1, x + 1), columns, rows, scroll, spectrum);
+                float ridge = Mathf.Clamp01((value - (left + right) * 0.5f) * 5f);
+                Color crest = Color.Lerp(color, theme.accent, ridge * theme.ridgeGlow);
+                crest.a = alpha;
+                colors[index] = crest;
             }
         }
         Upload(frame, theme, 2);
+    }
+
+    private float InterpolatedValue(int row, int column, int columns, int rows, float scroll, float[] spectrum)
+    {
+        int historyIndex = (newestRow - row + rows) % rows;
+        float value = history[historyIndex * columns + column];
+        // Advect between sample ticks. Buffer shifts preserve the previous tick's end state.
+        float newer;
+        if (row == 0)
+        {
+            float sourcePosition = column / (float)(columns - 1) * (spectrum.Length - 1);
+            int lower = Mathf.FloorToInt(sourcePosition);
+            newer = Mathf.Lerp(spectrum[lower], spectrum[Mathf.Min(lower + 1, spectrum.Length - 1)], sourcePosition - lower);
+        }
+        else
+        {
+            newer = history[((historyIndex + 1) % rows) * columns + column];
+        }
+        return Mathf.Lerp(value, newer, scroll);
     }
 
     private void BuildGrid(int columns, int rows)

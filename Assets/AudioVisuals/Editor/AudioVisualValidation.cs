@@ -37,6 +37,7 @@ public static class AudioVisualValidation
         int meshesBefore = Resources.FindObjectsOfTypeAll<Mesh>().Length;
         CheckMeshesAndOnsets();
         CheckLatticePropagation();
+        CheckTerrainScroll();
         Require(Resources.FindObjectsOfTypeAll<Mesh>().Length == meshesBefore,
             "Isolated preview objects leaked meshes after teardown.");
         CheckGpuFormations();
@@ -56,6 +57,43 @@ public static class AudioVisualValidation
         Require(shader != null && shader.isSupported, "Surface shader unavailable.");
         Require(!ShaderUtil.GetShaderMessages(shader).Any(m => m.severity.ToString() == "Error"),
             "Surface shader compilation failed.");
+    }
+
+    private static void CheckTerrainScroll()
+    {
+        GameObject host = new GameObject("Isolated terrain sample continuity");
+        AudioSpectrumTerrain terrain = host.AddComponent<AudioSpectrumTerrain>();
+        AudioVisualTheme theme = ScriptableObject.CreateInstance<AudioVisualTheme>();
+        try
+        {
+            float[] bands = Enumerable.Repeat(0.2f, 48).ToArray();
+            AudioVisualField.Frame frame = new AudioVisualField.Frame { deltaTime = 0.05f, terrainWeight = 1f };
+            terrain.RenderFrame(frame, theme, bands);
+            for (int i = 0; i < bands.Length; i++)
+            {
+                bands[i] = 0.8f;
+            }
+            frame.deltaTime = 0.0499f;
+            terrain.RenderFrame(frame, theme, bands);
+            Mesh mesh = host.GetComponent<MeshFilter>().sharedMesh;
+            Vector3[] before = mesh.vertices;
+            Color[] colors = mesh.colors;
+            frame.deltaTime = 0.0002f;
+            terrain.RenderFrame(frame, theme, bands);
+            Vector3[] after = mesh.vertices;
+            Color[] afterColors = mesh.colors;
+            for (int i = 0; i < before.Length; i++)
+            {
+                Require(Vector3.Distance(before[i], after[i]) < 0.003f, "Terrain jumped across sample boundary.");
+                Require(Mathf.Abs(colors[i].a - afterColors[i].a) < 0.003f, "Terrain alpha jumped across sample boundary.");
+            }
+        }
+        finally
+        {
+            terrain.ReleaseMesh();
+            Object.DestroyImmediate(host);
+            Object.DestroyImmediate(theme);
+        }
     }
 
     private static void CheckLatticePropagation()

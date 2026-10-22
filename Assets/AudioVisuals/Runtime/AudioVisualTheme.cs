@@ -25,6 +25,12 @@ public sealed class AudioVisualTheme : ScriptableObject
     [Tooltip("Experimental causal median masks; 0 disables their surface modulation. Not source separation.")]
     [Range(0f, 1f)] public float layerResponse = 0.5f;
 
+    [Header("Terrain Relief")]
+    [Range(2f, 24f)] public float contourDensity = 9f;
+    [Range(0f, 1f)] public float contourStrength = 0.4f;
+    [Range(0f, 1f)] public float ridgeGlow = 0.45f;
+    [Range(0f, 1f)] public float gridStrength = 0.7f;
+
     [Header("Audio Response")]
     [Min(0f)] public float bassGain = 10f;
     [Min(0f)] public float detailGain = 9f;
