@@ -155,3 +155,8 @@ Frame 的 spectralLayers 为持续比例、宽带比例、对比分离权重、�
 AudioVisualField.Frame 增加显式 visibility，真实输入跟随 StageManager 的黑场值，合成实验场为 1。GPU 在执行顺序 130（空间场 120 之后）更新提交，绑定场的 opacity 乘可见度；绑定场禁用或缺少主题时为 0，未绑定场保持独立使用。黑场继续模拟，不销毁/重建缓冲，使恢复显现延续运动；不修改用户既有 opacity/渐变。
 
 `Validate Running GPU Visibility` 在显式合成 Play 中检查真实运行组件的渲染提交 PropertyBlock：全黑、0.5 渐隐、恢复、场禁用/重启与无绑定状态，结束恢复引用与帧。检查通过。禁用后实际纯相机图 `camera-20261022-184030-295.png` 只剩背景，恢复后 `camera-20261022-184051-467.png` 重新显现，均已查看。启动即时 CLI 检查有一次 5 秒超时，之后正常执行；不把超时计为通过。Unity 编译与 diff 检查通过；没有真实 Stage/头显设备黑场体验认证。
+## 第十一轮：GPU 编织流结
+
+ParticleFormation 在旧值后追加 FlowKnot=3，保持 Stardust=0/SpiralGalaxy=1/Torus=2 的序列化兼容。闭合两圈轨迹与奇数瓣数形成空间流结，五条稳定细粒子泳道穿插，纵向高光包络沿粒子身份移动。Inspector knotLobes（有效奇数 3/5/7）、knotDepth、既有细节/厚度/半径/旋转/过渡参数均可编辑；轨迹为解析视觉造型，不是混沌吸引子、流体仿真或音乐拓扑分析。单独 knotBlend 平滑进入/离开，沿用受限吸引速度与近眼/体积约束。
+
+新增独立 Violet Knot Look/主题资产；原三个配置保持。四形态实际 Compute dispatch/readback、有限位置/速度及近眼/体积边界通过，Look 验证升级为四配置并通过。展示场实际 FlowKnot Play，纯相机截图 `camera-20261022-184525-441.png` 已查看，闭合粒子泳道在穹顶内部交错；这仍是合成视觉输入。Unity 编译与 diff 检查通过。GPU Player 性能、设备立体深度与真实音频表现未验证。

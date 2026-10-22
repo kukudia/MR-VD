@@ -12,7 +12,7 @@ using UnityEngine.Rendering;
 [DefaultExecutionOrder(130)]
 public sealed class GpuAudioParticleVisualizer : MonoBehaviour
 {
-    public enum ParticleFormation { Stardust, SpiralGalaxy, Torus }
+    public enum ParticleFormation { Stardust, SpiralGalaxy, Torus, FlowKnot }
 
     private const int ThreadGroupSize = 64;
     private const int ParticleStride = 12 * sizeof(float);
@@ -59,8 +59,12 @@ public sealed class GpuAudioParticleVisualizer : MonoBehaviour
     [Tooltip("Filament separation, halo particles and braided orbit lanes. Zero restores simple targets.")]
     [SerializeField, Range(0f, 1f)] private float formationDetail = 0.75f;
     [SerializeField, Range(0f, 1f)] private float spectralResponse = 0.65f;
+    [Tooltip("Odd lobe counts keep the two-turn flow knot as one closed path.")]
+    [SerializeField, Range(3, 7)] private int knotLobes = 3;
+    [SerializeField, Range(0.1f, 0.4f)] private float knotDepth = 0.28f;
     private float formationBlend;
     private float torusBlend;
+    private float knotBlend;
 
     public ParticleFormation Formation => formation;
 
@@ -332,9 +336,13 @@ public sealed class GpuAudioParticleVisualizer : MonoBehaviour
         float response = 1f - Mathf.Exp(-deltaTime * 3f / Mathf.Max(0.1f, formationTransitionSeconds));
         formationBlend = Mathf.Lerp(formationBlend, formation == ParticleFormation.Stardust ? 0f : 1f, response);
         torusBlend = Mathf.Lerp(torusBlend, formation == ParticleFormation.Torus ? 1f : 0f, response);
+        knotBlend = Mathf.Lerp(knotBlend, formation == ParticleFormation.FlowKnot ? 1f : 0f, response);
         Transform anchor = formationAnchor != null ? formationAnchor : transform;
         runtimeCompute.SetFloat("_FormationBlend", formationBlend);
         runtimeCompute.SetFloat("_TorusBlend", torusBlend);
+        runtimeCompute.SetFloat("_KnotBlend", knotBlend);
+        runtimeCompute.SetFloat("_KnotLobes", Mathf.Clamp(knotLobes | 1, 3, 7));
+        runtimeCompute.SetFloat("_KnotDepth", knotDepth);
         runtimeCompute.SetFloat("_FormationRadius", Mathf.Min(formationRadius, volumeRadius * 0.65f));
         runtimeCompute.SetFloat("_FormationThickness", formationThickness);
         runtimeCompute.SetFloat("_FormationAttraction", formationAttraction);

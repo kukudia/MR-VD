@@ -34,6 +34,9 @@ SamplerState sampler_Gradient;
 float _GradientSpeed;
 float _FormationBlend;
 float _TorusBlend;
+float _KnotBlend;
+float _KnotLobes;
+float _KnotDepth;
 float _FormationRadius;
 float _FormationThickness;
 float _FormationAttraction;
@@ -141,6 +144,19 @@ float3 FormationTarget(uint index, float seed)
     galaxy = lerp(galaxy, detailedGalaxy, _FormationDetail);
     torus = lerp(torus, detailedTorus, _FormationDetail);
     float3 local = lerp(galaxy, torus, _TorusBlend);
+    // Closed two-turn torus knot, with stable fine lanes and longitudinal packets. This is an
+    // analytic flow sculpture, not a chaotic attractor or an inferred topology of the music.
+    float knotPhase = seed * TWO_PI + orbit * 0.65;
+    float lobes = max(3.0, _KnotLobes);
+    float knotRadius = 0.65 + cos(knotPhase * lobes) * _KnotDepth;
+    float3 knot = float3(cos(knotPhase * 2.0) * knotRadius,
+        sin(knotPhase * lobes) * _KnotDepth,
+        sin(knotPhase * 2.0) * knotRadius);
+    float lanePhase = lane * 1.2566 + knotPhase * (lobes + 2.0) - orbit;
+    float laneWidth = _FormationThickness * (0.12 + _FormationDetail * 0.18);
+    knot += float3(cos(knotPhase * 2.0) * cos(lanePhase), sin(lanePhase),
+        sin(knotPhase * 2.0) * cos(lanePhase)) * laneWidth;
+    local = lerp(local, knot * radius, _KnotBlend);
     return _FormationCenter + _FormationRight * local.x + _FormationUp * local.y + _FormationForward * local.z;
 }
 
@@ -181,6 +197,9 @@ void UpdateParticle(uint index, inout Particle particle)
     float twinkle = sin(_SimulationTime * lerp(1.2, 4.2, particle.seed)
         + particle.seed * 31.0) * 0.5 + 0.5;
     float responseLevel = 0.42 + twinkle * 0.30 + _Energy * 0.28;
+    float flowPacket = pow(saturate(sin(particle.seed * TWO_PI * 7.0 - _SimulationTime * 0.9)
+        * 0.5 + 0.5), 10.0);
+    responseLevel *= 1.0 + flowPacket * _KnotBlend * (0.3 + _Synth * 0.4);
     float population = Random01(index * 83u + 19u);
     float hot = step(0.965, population);
     float detailBlend = _FormationBlend * _FormationDetail;
