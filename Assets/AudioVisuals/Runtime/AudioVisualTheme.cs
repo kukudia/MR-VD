@@ -31,6 +31,12 @@ public sealed class AudioVisualTheme : ScriptableObject
     [Range(0f, 1f)] public float ridgeGlow = 0.45f;
     [Range(0f, 1f)] public float gridStrength = 0.7f;
 
+    [Header("Iris Optical Style")]
+    [Tooltip("Artistic view-dependent color, not a physical thin-film simulation. Zero preserves palette-only rendering.")]
+    [Range(0f, 1f)] public float irisIridescence = 0f;
+    [Range(0.5f, 6f)] public float irisFilmCycles = 2.4f;
+    [Range(0f, 1f)] public float irisEdgeLight = 0f;
+
     [Header("Audio Response")]
     [Min(0f)] public float bassGain = 10f;
     [Min(0f)] public float detailGain = 9f;

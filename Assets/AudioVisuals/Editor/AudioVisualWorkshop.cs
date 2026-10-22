@@ -347,6 +347,7 @@ public sealed class AudioVisualWorkshop : EditorWindow
                 material.SetVector("_SpectralShape", block.GetVector("_SpectralShape"));
                 material.SetVector("_SpectralLayers", block.GetVector("_SpectralLayers"));
                 material.SetVector("_TerrainDetail", block.GetVector("_TerrainDetail"));
+                material.SetVector("_IrisOptics", block.GetVector("_IrisOptics"));
                 // A saved world-to-screen matrix would become incorrect when the snapshot moves.
                 // Keep the mask on the live field; static decorative snapshots have no screen binding.
                 material.SetFloat("_ScreenEnabled", 0f);

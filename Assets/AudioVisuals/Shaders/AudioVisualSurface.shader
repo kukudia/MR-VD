@@ -19,6 +19,7 @@ Shader "MR-VD/Spatial Audio Surface"
         [HideInInspector] _SpectralShape ("Spectral shape", Vector) = (0,0,0,0)
         [HideInInspector] _SpectralLayers ("Causal median layers", Vector) = (0,0,0,0)
         [HideInInspector] _TerrainDetail ("Contours and ridge detail", Vector) = (9,0.4,0.45,0.7)
+        [HideInInspector] _IrisOptics ("Iris artistic optical style", Vector) = (0,2.4,0,0)
     }
     SubShader
     {
@@ -58,6 +59,7 @@ Shader "MR-VD/Spatial Audio Surface"
                 float4 _SpectralShape;
                 float4 _SpectralLayers;
                 float4 _TerrainDetail;
+                float4 _IrisOptics;
             CBUFFER_END
 
             struct Attributes
@@ -224,6 +226,21 @@ Shader "MR-VD/Spatial Audio Surface"
                 }
                 float alpha = input.color.a * _Opacity * shape * nearFade * ReadingMask(input.positionWS, eye);
                 float3 color = lerp(input.color.rgb, max(input.color.rgb, 0.65), saturate(highlight));
+                if (_Style > 4.5)
+                {
+                    // Derivative normals follow the actual folded surface in both views; abs keeps
+                    // the two-sided film continuous. This is a bounded art direction, not spectral optics.
+                    float3 normalWS = normalize(cross(ddx(input.positionWS), ddy(input.positionWS)) + 0.00001);
+                    float incidence = saturate(abs(dot(normalWS, normalize(eye - input.positionWS))));
+                    float grazing = pow(1.0 - incidence, 2.0);
+                    float phase = (1.0 - incidence) * _IrisOptics.y + input.uv.x * 0.55
+                        + sin(input.uv.x * 8.0 - flow * 0.2) * 0.08;
+                    float3 film = 0.5 + 0.5 * cos(6.2831853 * (phase + float3(0.0, 0.33, 0.67)));
+                    // Preserve brightness so enabling color does not flood the whole sculpture.
+                    film *= max(max(color.r, color.g), color.b) / max(max(max(film.r, film.g), film.b), 0.01);
+                    color = lerp(color, film, saturate(_IrisOptics.x) * (0.25 + grazing * 0.75));
+                    color += saturate(_IrisOptics.z) * grazing * float3(0.25, 0.38, 0.45);
+                }
                 return half4(color * _Emission, saturate(alpha));
             }
             ENDHLSL

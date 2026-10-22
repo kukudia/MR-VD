@@ -141,6 +141,7 @@ public static class AudioVisualPixelValidation
             for (int style = 0; style < 6; style++)
             {
                 material.SetFloat("_Style", style);
+                material.SetVector("_IrisOptics", new Vector4(1f, 2.4f, 0.4f, 0f));
                 host.transform.position = Vector3.forward * 3f;
                 material.SetFloat("_ScreenEnabled", 0f);
                 Vector2 baseline = Read(preview, pixels);
@@ -171,10 +172,33 @@ public static class AudioVisualPixelValidation
                 }
                 preview.camera.transform.position = Vector3.zero;
             }
+            material.SetFloat("_ScreenEnabled", 0f);
+            material.SetFloat("_Style", 5f);
+            material.SetVector("_IrisOptics", new Vector4(0f, 2.4f, 0f, 0f));
+            host.transform.SetPositionAndRotation(Vector3.forward * 3f, Quaternion.identity);
+            Read(preview, pixels);
+            Color plainFront = pixels.GetPixel(Size / 2, Size / 2);
+            host.transform.rotation = Quaternion.Euler(0f, 65f, 0f);
+            Read(preview, pixels);
+            Color plainSide = pixels.GetPixel(Size / 2, Size / 2);
+            Require(Vector3.Distance(new Vector3(plainFront.r, plainFront.g, plainFront.b),
+                new Vector3(plainSide.r, plainSide.g, plainSide.b)) < 0.025f,
+                "Zero iris optics altered palette with view angle.");
+            material.SetVector("_IrisOptics", new Vector4(1f, 2.4f, 0f, 0f));
+            host.transform.rotation = Quaternion.identity;
+            Read(preview, pixels);
+            Color filmFront = pixels.GetPixel(Size / 2, Size / 2);
+            host.transform.rotation = Quaternion.Euler(0f, 65f, 0f);
+            Read(preview, pixels);
+            Color filmSide = pixels.GetPixel(Size / 2, Size / 2);
+            Require(Vector3.Distance(new Vector3(filmFront.r, filmFront.g, filmFront.b),
+                new Vector3(filmSide.r, filmSide.g, filmSide.b)) > 0.05f,
+                "Enabled iris optics did not respond to actual surface view angle.");
             Directory.CreateDirectory(AudioVisualFieldTools.PreviewDirectory);
             File.WriteAllText(AudioVisualFieldTools.PreviewDirectory + "/reading-pixels.txt",
                 DateTimeOffset.Now.ToString("o") + "\nPASS: six production surface styles; background/foreground; "
                 + "rotated screen; behind-camera screen; near fade; two mono view offsets.\n"
+                + "Iris optics: zero preserves palette and enabled film changes color with surface angle.\n"
                 + "Actual GPU pixel readback, isolated camera; not headset stereo or Player performance.\n");
             Debug.Log("[AudioVisualPixels] PASS: six surface styles preserve reading clearance and near fade.");
         }

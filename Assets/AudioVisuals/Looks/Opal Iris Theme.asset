@@ -27,6 +27,9 @@ MonoBehaviour:
   contourStrength: 0.4
   ridgeGlow: 0.45
   gridStrength: 0.7
+  irisIridescence: 0.65
+  irisFilmCycles: 2.4
+  irisEdgeLight: 0.3
   bassGain: 10
   detailGain: 9
   attack: 12

@@ -99,6 +99,9 @@ public static class AudioVisualShowcaseTools
                 theme.secondary = new Color(0.8f, 0.3f, 0.55f);
                 theme.accent = new Color(0.85f, 0.95f, 0.75f);
                 theme.iris = 1f;
+                theme.irisIridescence = 0.65f;
+                theme.irisFilmCycles = 2.4f;
+                theme.irisEdgeLight = 0.3f;
                 theme.canopy = 0.15f;
                 theme.lattice = 0.25f;
                 theme.ribbons = 0.3f;

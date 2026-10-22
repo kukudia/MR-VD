@@ -289,6 +289,9 @@ public sealed class AudioVisualField : MonoBehaviour
         displayedTheme.contourStrength = Mathf.Lerp(displayedTheme.contourStrength, theme.contourStrength, blend);
         displayedTheme.ridgeGlow = Mathf.Lerp(displayedTheme.ridgeGlow, theme.ridgeGlow, blend);
         displayedTheme.gridStrength = Mathf.Lerp(displayedTheme.gridStrength, theme.gridStrength, blend);
+        displayedTheme.irisIridescence = Mathf.Lerp(displayedTheme.irisIridescence, theme.irisIridescence, blend);
+        displayedTheme.irisFilmCycles = Mathf.Lerp(displayedTheme.irisFilmCycles, theme.irisFilmCycles, blend);
+        displayedTheme.irisEdgeLight = Mathf.Lerp(displayedTheme.irisEdgeLight, theme.irisEdgeLight, blend);
         displayedTheme.canopy = Mathf.Lerp(displayedTheme.canopy, theme.canopy, blend);
         displayedTheme.lattice = Mathf.Lerp(displayedTheme.lattice, theme.lattice, blend);
         displayedTheme.iris = Mathf.Lerp(displayedTheme.iris, theme.iris, blend);
