@@ -243,7 +243,7 @@ public sealed class AudioVisualField : MonoBehaviour
         }
         if (rings != null && rings.isActiveAndEnabled)
         {
-            rings.RenderFrame(frame, displayedTheme);
+            rings.RenderFrame(frame, displayedTheme, this);
         }
         if (terrain != null && terrain.isActiveAndEnabled)
         {
@@ -292,6 +292,7 @@ public sealed class AudioVisualField : MonoBehaviour
         displayedTheme.irisIridescence = Mathf.Lerp(displayedTheme.irisIridescence, theme.irisIridescence, blend);
         displayedTheme.irisFilmCycles = Mathf.Lerp(displayedTheme.irisFilmCycles, theme.irisFilmCycles, blend);
         displayedTheme.irisEdgeLight = Mathf.Lerp(displayedTheme.irisEdgeLight, theme.irisEdgeLight, blend);
+        displayedTheme.ringSpectralRelief = Mathf.Lerp(displayedTheme.ringSpectralRelief, theme.ringSpectralRelief, blend);
         displayedTheme.canopy = Mathf.Lerp(displayedTheme.canopy, theme.canopy, blend);
         displayedTheme.lattice = Mathf.Lerp(displayedTheme.lattice, theme.lattice, blend);
         displayedTheme.iris = Mathf.Lerp(displayedTheme.iris, theme.iris, blend);

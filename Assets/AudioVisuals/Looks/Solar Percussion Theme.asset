@@ -23,16 +23,25 @@ MonoBehaviour:
   sparkle: 0.7
   spectralInfluence: 0.7
   layerResponse: 0.5
+  contourDensity: 9
+  contourStrength: 0.4
+  ridgeGlow: 0.45
+  gridStrength: 0.7
+  irisIridescence: 0
+  irisFilmCycles: 2.4
+  irisEdgeLight: 0
   bassGain: 10
   detailGain: 9
   attack: 12
   release: 3
   idleLevel: 0.06
+  ringSpectralRelief: 0.35
   ribbons: 0.45
   rings: 0.95
   terrain: 0.65
   canopy: 0.55
   lattice: 0.6
+  iris: 0
   motion: 0.8
   phraseBeats: 16
   screenPadding: 0.12

@@ -91,6 +91,7 @@ public static class AudioVisualShowcaseTools
             theme.lattice = index == 2 ? 0.85f : 0.6f;
             theme.terrain = index == 1 ? 0.65f : 0.25f;
             theme.rings = index == 1 ? 0.95f : 0.35f;
+            theme.ringSpectralRelief = index == 1 ? 0.35f : 0f;
             theme.motion = index == 0 ? 0.35f : 0.8f;
             theme.sparkle = index == 1 ? 0.7f : 0.45f;
             if (index == 4)

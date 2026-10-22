@@ -38,6 +38,7 @@ public static class AudioVisualValidation
         CheckMeshesAndOnsets();
         CheckLatticePropagation();
         CheckTerrainScroll();
+        CheckRingSpectrumSnapshot();
         Require(Resources.FindObjectsOfTypeAll<Mesh>().Length == meshesBefore,
             "Isolated preview objects leaked meshes after teardown.");
         CheckGpuFormations();
@@ -45,7 +46,7 @@ public static class AudioVisualValidation
         string report = DateTimeOffset.Now.ToString("o") + "\n"
             + "PASS: surface shader; finite bounded geometry; mesh reuse; ring expiration; history; "
             + "fresh transient once; stale transient ignored on enable; silence; private theme blending; spectral shape; "
-            + "lattice propagation/clear; terrain scroll continuity; iris onset response/global zero intensity.\n"
+            + "lattice propagation/clear; terrain scroll continuity; ring spectral snapshot/closed seam; iris onset response/global zero intensity.\n"
             + "PASS: GPU Stardust, SpiralGalaxy, Torus, FlowKnot, CurlNebula dispatch/readback; finite values, speed and volume/near-eye bounds.\n"
             + "Edit Mode and GPU checks only; not real audio listening, XR, Player performance or Play Mode.\n";
         File.WriteAllText(AudioVisualFieldTools.PreviewDirectory + "/validation.txt", report);
@@ -58,6 +59,63 @@ public static class AudioVisualValidation
         Require(shader != null && shader.isSupported, "Surface shader unavailable.");
         Require(!ShaderUtil.GetShaderMessages(shader).Any(m => m.severity.ToString() == "Error"),
             "Surface shader compilation failed.");
+    }
+
+    private static void CheckRingSpectrumSnapshot()
+    {
+        GameObject host = new GameObject("Isolated ring spectral snapshot");
+        AudioBeatRings rings = host.AddComponent<AudioBeatRings>();
+        AudioVisualField source = host.AddComponent<AudioVisualField>();
+        AudioVisualTheme theme = ScriptableObject.CreateInstance<AudioVisualTheme>();
+        try
+        {
+            float[] bands = (float[])typeof(AudioVisualField).GetField("spectrum",
+                BindingFlags.Instance | BindingFlags.NonPublic).GetValue(source);
+            for (int i = 0; i < bands.Length; i++)
+            {
+                bands[i] = i < 24 ? 1f : 0f;
+            }
+            theme.ringSpectralRelief = 0.4f;
+            AudioVisualField.Frame frame = new AudioVisualField.Frame
+            {
+                time = 10f, deltaTime = 0.02f, onset = true, onsetStrength = 1f, ringWeight = 1f
+            };
+            rings.RenderFrame(frame, theme, source);
+            frame.onset = false;
+            frame.time = 10.6f;
+            rings.RenderFrame(frame, theme, source);
+            Mesh mesh = host.GetComponent<MeshFilter>().sharedMesh;
+            Vector3[] captured = mesh.vertices;
+            Array.Clear(bands, 0, bands.Length);
+            rings.RenderFrame(frame, theme, source);
+            Vector3[] afterSourceChange = mesh.vertices;
+            Require(captured.SequenceEqual(afterSourceChange), "Old ring followed later source spectrum.");
+            Require(Vector3.Distance(captured[0], captured[192]) < 0.00001f
+                && Vector3.Distance(captured[1], captured[193]) < 0.00001f, "Spectral ring seam is open.");
+            theme.ringSpectralRelief = 0f;
+            rings.RenderFrame(frame, theme, source);
+            Vector3[] circular = mesh.vertices;
+            Require(captured.Zip(circular, Vector3.Distance).Max() > 0.05f,
+                "Accepted onset spectrum did not create local ring relief.");
+            Require(rings.EmittedCount == 1 && rings.LiveCount == 1
+                && host.GetComponent<MeshFilter>().sharedMesh == mesh, "Relief recreated mesh or emitted extra rings.");
+            rings.Clear();
+            frame.onset = true;
+            rings.RenderFrame(frame, theme, source);
+            theme.ringSpectralRelief = 0.4f;
+            frame.onset = false;
+            rings.RenderFrame(frame, theme, source);
+            Vector3[] silentCapture = mesh.vertices;
+            theme.ringSpectralRelief = 0f;
+            rings.RenderFrame(frame, theme, source);
+            Require(silentCapture.SequenceEqual(mesh.vertices), "Cleared ring retained stale spectral relief.");
+        }
+        finally
+        {
+            rings.ReleaseMesh();
+            Object.DestroyImmediate(host);
+            Object.DestroyImmediate(theme);
+        }
     }
 
     private static void CheckTerrainScroll()

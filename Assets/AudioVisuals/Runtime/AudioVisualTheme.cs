@@ -45,6 +45,8 @@ public sealed class AudioVisualTheme : ScriptableObject
     [Range(0f, 0.3f)] public float idleLevel = 0.06f;
 
     [Header("Composition")]
+    [Tooltip("Meters of local ring relief from the spectrum captured at an accepted onset. Zero preserves circular rings.")]
+    [Range(0f, 0.5f)] public float ringSpectralRelief = 0f;
     [Range(0f, 1f)] public float ribbons = 0.75f;
     [Range(0f, 1f)] public float rings = 0.5f;
     [Range(0f, 1f)] public float terrain = 0.45f;
