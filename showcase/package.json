@@ -1,0 +1,30 @@
+{
+  "name": "mr-vd-showcase-v1",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "studio": "remotion studio --no-open",
+    "preview": "remotion still MRVDShowcaseV5 --frame=2470 --scale=0.5 --output=../.showcase-work/preview-v5.png",
+    "render": "remotion render MRVDShowcaseV5 ../.showcase-work/MR-VD-Showcase-v5.mp4",
+    "prepare:v3": "python scripts/prepare-v3-audio.py",
+    "prepare:v4": "python scripts/prepare-v4-audio.py",
+    "demo:still": "remotion still MRVDDemoTitleCard ../.showcase-work/MR-VD-DEMO-Title-v5.png --frame=30",
+    "demo:render": "remotion render MRVDDemoTitleCard ../.showcase-work/MR-VD-DEMO-Title-v5.mp4"
+  },
+  "dependencies": {
+    "@remotion/media": "4.0.506",
+    "@remotion/three": "4.0.506",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "remotion": "4.0.506",
+    "three": "0.178.0",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@remotion/cli": "^4.0.506",
+    "@types/react": "19.1.10",
+    "@types/react-dom": "19.1.7",
+    "@types/three": "0.178.1",
+    "typescript": "5.9.2"
+  }
+}
